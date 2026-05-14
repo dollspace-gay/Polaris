@@ -31,6 +31,8 @@
 //! row exists to drive a snapshot. The transaction makes both
 //! statements visible together or neither.
 
+use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
 use polaris_types::{
     Action, ActionId, ActionKind, IncidentId, LabelValue, ModeratorId, PolicyId, SubjectId,
@@ -40,6 +42,7 @@ use sqlx::PgPool;
 
 use super::RepoError;
 use crate::audit::{AuditEvent, AuditLog};
+use crate::reputation::PgReputationProvider;
 
 /// Caller-supplied fields for inserting a new [`Action`].
 ///
@@ -125,20 +128,47 @@ pub trait ActionRepo: Send + Sync {
 }
 
 /// Postgres-backed [`ActionRepo`] implementation.
+///
+/// Optionally carries a [`PgReputationProvider`] (issue #37) — when
+/// present, a successful `insert` looks up every report attached to the
+/// incident the action covers and bumps each reporter's `reporter_stats`
+/// (actioned for `Label`/`Takedown`, dismissed for `NoAction`) within
+/// the same transaction.
 #[derive(Debug, Clone)]
 pub struct PgActionRepo {
     pool: PgPool,
+    reputation: Option<Arc<PgReputationProvider>>,
 }
 
 impl PgActionRepo {
-    /// Build a [`PgActionRepo`] over the given pool.
+    /// Build a [`PgActionRepo`] over the given pool. No reputation hook.
     #[must_use]
     pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+        Self {
+            pool,
+            reputation: None,
+        }
+    }
+
+    /// Attach a reputation provider so successful `insert`s update
+    /// per-reporter `reporter_stats` in the same transaction
+    /// (issue #37, T3 mitigation).
+    #[must_use]
+    pub fn with_reputation(mut self, reputation: Arc<PgReputationProvider>) -> Self {
+        self.reputation = Some(reputation);
+        self
     }
 }
 
 impl ActionRepo for PgActionRepo {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "single-tx orchestration of the action insert + \
+                  evidence-job enqueue + reputation update + audit-log \
+                  append. Splitting into sub-helpers would force passing \
+                  `&mut PgConnection`-backed tx state through several \
+                  hops and obscure the single-transaction story."
+    )]
     async fn insert(&self, new: NewAction) -> Result<Action, RepoError> {
         let kind_str = new.kind.as_str();
         let label_str = new.label.as_ref().map(LabelValue::as_str);
@@ -210,6 +240,41 @@ impl ActionRepo for PgActionRepo {
             )
             .execute(&mut *tx)
             .await?;
+        }
+
+        // Issue #37: reporter-reputation update. When a reputation
+        // provider is attached, walk the reports attached to this
+        // action's incident and bump each reporter's stats. The
+        // walk happens inside the same tx so reporter_stats commits
+        // atomically with the action row. `record_action_with` is a
+        // no-op for kinds that don't credit / demerit a reporter
+        // (Mute/Warn/Escalate/Reverse), so the call is safe to make
+        // for every action kind.
+        if let Some(reputation) = self.reputation.as_ref() {
+            // One query for the distinct reporter DIDs on the incident.
+            // The `reports` table has `incident_id IS NULL` rows (an
+            // unaggregated report); those don't belong to this action,
+            // so the WHERE clause filters them out.
+            let reporter_rows = sqlx::query!(
+                r#"
+                SELECT DISTINCT reporter_did
+                FROM reports
+                WHERE incident_id = $1
+                "#,
+                row.incident_id,
+            )
+            .fetch_all(&mut *tx)
+            .await?;
+            let action_kind =
+                ActionKind::from_wire(&row.kind).ok_or_else(|| RepoError::Decode {
+                    message: format!("actions.kind={:?} not in polaris-types contract", row.kind),
+                })?;
+            for reporter in reporter_rows {
+                reputation
+                    .record_action_with(&mut tx, &reporter.reporter_did, action_kind)
+                    .await
+                    .map_err(map_reputation_error)?;
+            }
         }
 
         // Audit-log append in the same transaction (issue #35;
@@ -414,4 +479,19 @@ fn decode_kind(value: &str) -> Result<ActionKind, RepoError> {
     ActionKind::from_wire(value).ok_or_else(|| RepoError::Decode {
         message: format!("actions.kind={value:?} not in polaris-types contract"),
     })
+}
+
+/// Route a [`crate::reputation::ReputationError`] into a [`RepoError`].
+///
+/// See the matching helper in [`crate::repo::report`] for the rationale.
+fn map_reputation_error(err: crate::reputation::ReputationError) -> RepoError {
+    match err {
+        crate::reputation::ReputationError::Db(e) => RepoError::from(e),
+        crate::reputation::ReputationError::OutOfRange { value } => RepoError::Decode {
+            message: format!("reputation score out of range: {value}"),
+        },
+        crate::reputation::ReputationError::UnknownReporter { did } => RepoError::Decode {
+            message: format!("reputation: unknown reporter {did}"),
+        },
+    }
 }

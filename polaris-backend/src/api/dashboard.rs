@@ -84,18 +84,33 @@ async fn build_snapshot(state: &ApiState) -> Result<DashboardSnapshot, ApiError>
 /// hour-aligned buckets. `expected_mean` / `expected_stddev` are `0.0` —
 /// the live anomaly detector (#19) populates them once the integration
 /// lands; the DTO shape is stable.
+///
+/// Issue #37 wires the `weighted_count` column: each report contributes
+/// its reporter's cached reputation score (falling back to the neutral
+/// `0.5` when the reporter has no `reporter_stats` row yet). The
+/// detector-side wiring that consumes this weighted count lives in the
+/// frontend / future anomaly-band integration; persisting the column
+/// here keeps the contract stable.
 async fn build_report_volume(
     state: &ApiState,
     now: DateTime<Utc>,
 ) -> Result<Vec<ReportVolumeBucket>, ApiError> {
     let since = now - Duration::hours(24);
+    // The COALESCE pulls the cached score from `reporter_stats` when
+    // present, defaulting to 0.5 (the neutral prior — matches
+    // `ReputationScore::neutral`) for reporters with no stats row yet.
+    // Cast to DOUBLE PRECISION so SUM accumulates in f64; the cached
+    // score is REAL on disk.
     let rows = sqlx::query!(
         r#"
         SELECT
-            date_trunc('hour', created_at) AS "bucket!: DateTime<Utc>",
-            COUNT(*)                       AS "count!: i64"
-        FROM reports
-        WHERE created_at >= $1
+            date_trunc('hour', r.created_at)                    AS "bucket!: DateTime<Utc>",
+            COUNT(*)                                            AS "count!: i64",
+            SUM(COALESCE(rs.cached_score, 0.5)::double precision)
+                                                                AS "weighted!: f64"
+        FROM reports r
+        LEFT JOIN reporter_stats rs ON rs.did = r.reporter_did
+        WHERE r.created_at >= $1
         GROUP BY 1
         ORDER BY 1
         "#,
@@ -110,6 +125,7 @@ async fn build_report_volume(
         .map(|row| ReportVolumeBucket {
             bucket_start: row.bucket,
             count: row.count,
+            weighted_count: row.weighted,
             expected_mean: 0.0,
             expected_stddev: 0.0,
         })
@@ -355,6 +371,7 @@ mod tests {
         let bucket = ReportVolumeBucket {
             bucket_start: Utc.with_ymd_and_hms(2026, 5, 14, 12, 0, 0).unwrap(),
             count: 7,
+            weighted_count: 3.5,
             expected_mean: 4.2,
             expected_stddev: 1.1,
         };

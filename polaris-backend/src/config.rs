@@ -51,6 +51,9 @@ pub struct AppConfig {
     /// Evidence-preservation worker settings (#33 / REQ-10 / AC-11).
     #[serde(default)]
     pub evidence: EvidenceConfig,
+    /// Reporter-reputation tunables (#37, design.md §9.3).
+    #[serde(default)]
+    pub reputation: ReputationConfig,
 }
 
 /// Postgres connection and pool configuration.
@@ -155,6 +158,7 @@ impl AppConfig {
         let labeler = LabelerConfig::from_env()?;
         let profile = Profile::from_env()?;
         let evidence = EvidenceConfig::from_env()?;
+        let reputation = ReputationConfig::from_env()?;
 
         Ok(Self {
             db,
@@ -165,6 +169,7 @@ impl AppConfig {
             labeler,
             profile,
             evidence,
+            reputation,
         })
     }
 }
@@ -1042,6 +1047,118 @@ pub enum BlobStoreKind {
         /// Region (e.g. `us-east-2`).
         region: String,
     },
+}
+
+/// Reporter-reputation tunables (issue #37, design.md §9.3).
+///
+/// Operators tune the Bayesian prior and the time-decay half-life to
+/// match the volume and noisiness of their deployment. The defaults
+/// (1.0, 1.0, 90 days) are the "no strong prior, three-month memory"
+/// posture — appropriate for both the labeler and Bluesky profiles
+/// out of the box.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct ReputationConfig {
+    /// Beta-prior pseudo-count for "actioned" outcomes. Default 1.0.
+    ///
+    /// Higher values pull a brand-new reporter's score toward 1.0;
+    /// lower values (e.g. 0.5) pull toward 0.5. Must be > 0.
+    #[serde(default = "default_reputation_prior_actioned")]
+    pub prior_actioned: f32,
+    /// Beta-prior pseudo-count for "dismissed" outcomes. Default 1.0.
+    /// Must be > 0.
+    #[serde(default = "default_reputation_prior_dismissed")]
+    pub prior_dismissed: f32,
+    /// Days after which the decay factor is `e^-1` ≈ 0.368. Default 90.0.
+    /// Higher values keep older history more influential; lower values
+    /// age it out faster. Must be > 0.
+    #[serde(default = "default_reputation_half_life_days")]
+    pub half_life_days: f32,
+}
+
+const fn default_reputation_prior_actioned() -> f32 {
+    1.0
+}
+
+const fn default_reputation_prior_dismissed() -> f32 {
+    1.0
+}
+
+const fn default_reputation_half_life_days() -> f32 {
+    90.0
+}
+
+impl Default for ReputationConfig {
+    fn default() -> Self {
+        Self {
+            prior_actioned: default_reputation_prior_actioned(),
+            prior_dismissed: default_reputation_prior_dismissed(),
+            half_life_days: default_reputation_half_life_days(),
+        }
+    }
+}
+
+impl ReputationConfig {
+    /// Build from environment variables.
+    ///
+    /// Recognises:
+    ///
+    /// | Variable                                  | Field             |
+    /// |-------------------------------------------|-------------------|
+    /// | `POLARIS_REPUTATION_PRIOR_ACTIONED`       | `prior_actioned`  |
+    /// | `POLARIS_REPUTATION_PRIOR_DISMISSED`      | `prior_dismissed` |
+    /// | `POLARIS_REPUTATION_HALF_LIFE_DAYS`       | `half_life_days`  |
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidFloat`] when an override cannot be
+    /// parsed as an `f32`, or [`ConfigError::InvalidEnumValue`] when the
+    /// parsed value is non-positive (the reputation function rejects
+    /// non-positive priors and half-lives — see
+    /// [`crate::reputation::PgReputationProvider::new`]).
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let prior_actioned = parse_positive_f32_env(
+            "POLARIS_REPUTATION_PRIOR_ACTIONED",
+            default_reputation_prior_actioned(),
+        )?;
+        let prior_dismissed = parse_positive_f32_env(
+            "POLARIS_REPUTATION_PRIOR_DISMISSED",
+            default_reputation_prior_dismissed(),
+        )?;
+        let half_life_days = parse_positive_f32_env(
+            "POLARIS_REPUTATION_HALF_LIFE_DAYS",
+            default_reputation_half_life_days(),
+        )?;
+        Ok(Self {
+            prior_actioned,
+            prior_dismissed,
+            half_life_days,
+        })
+    }
+}
+
+/// Parse a positive-`f32` env override, falling back to `default` when unset.
+///
+/// Rejects non-finite (NaN / inf) and non-positive values via
+/// [`ConfigError::InvalidEnumValue`]. The "enum" framing is intentional:
+/// the accepted set is "any finite positive number", which is what the
+/// operator-facing diagnostic should say.
+fn parse_positive_f32_env(var: &'static str, default: f32) -> Result<f32, ConfigError> {
+    let Some(raw) = env::var(var).ok() else {
+        return Ok(default);
+    };
+    let parsed: f32 = raw.parse().map_err(|_| ConfigError::InvalidEnumValue {
+        field: var,
+        value: raw.clone(),
+        accepted: &["a positive finite f32 (e.g. 1.0, 90.0)"],
+    })?;
+    if !parsed.is_finite() || parsed <= 0.0 {
+        return Err(ConfigError::InvalidEnumValue {
+            field: var,
+            value: raw,
+            accepted: &["a positive finite f32 (e.g. 1.0, 90.0)"],
+        });
+    }
+    Ok(parsed)
 }
 
 #[cfg(test)]

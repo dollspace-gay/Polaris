@@ -41,7 +41,8 @@ use polaris_types::{
 };
 
 use crate::api::dto::{
-    CaseView, Escalate, IncidentList, IncidentListQuery, IncidentSummary, SubmitAction,
+    CaseView, Escalate, IncidentList, IncidentListQuery, IncidentSummary, ReporterContext,
+    SubmitAction,
 };
 use crate::api::error::ApiError;
 use crate::api::policy;
@@ -84,13 +85,81 @@ async fn build_case_view(state: &ApiState, subject_id: SubjectId) -> Result<Case
         .list_by_subject(subject_id, MAX_ROWS_PER_LIST)
         .await?;
     let observations = state.observations.list_by_subject(subject_id).await?;
+    let reporter_contexts = build_reporter_contexts(state, &reports).await?;
     Ok(CaseView {
         subject,
         history,
         reports,
+        reporter_contexts,
         observations,
         network_context: serde_json::Value::Null,
     })
+}
+
+/// Build the [`ReporterContext`] list for every distinct reporter that
+/// appears in `reports` (design.md §5.2; issue #37).
+///
+/// One SELECT against `reporter_stats` for the distinct DID set. Reporters
+/// without a stats row (never seen before; the case-view is the first time
+/// they show up) are emitted with `reports_filed = 0`, the neutral score,
+/// and `account_age_days = 0` — the moderator's "new account" signal.
+async fn build_reporter_contexts(
+    state: &ApiState,
+    reports: &[polaris_types::Report],
+) -> Result<Vec<ReporterContext>, ApiError> {
+    use std::collections::BTreeSet;
+
+    let dids: BTreeSet<&str> = reports.iter().map(|r| r.reporter_did.as_str()).collect();
+    if dids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let did_vec: Vec<String> = dids.iter().map(|d| (*d).to_owned()).collect();
+    let rows = sqlx::query!(
+        r#"
+        SELECT did, reports_filed, reports_actioned, cached_score, first_seen
+        FROM reporter_stats
+        WHERE did = ANY($1)
+        "#,
+        &did_vec,
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::repo::RepoError::from)?;
+
+    let now = chrono::Utc::now();
+    let mut contexts: std::collections::HashMap<String, ReporterContext> =
+        std::collections::HashMap::with_capacity(rows.len());
+    for row in rows {
+        let age_days = (now - row.first_seen).num_days();
+        contexts.insert(
+            row.did.clone(),
+            ReporterContext {
+                did: row.did,
+                reports_filed: row.reports_filed,
+                reports_actioned: row.reports_actioned,
+                reputation_score: row.cached_score,
+                account_age_days: age_days,
+            },
+        );
+    }
+    // Emit a row for every distinct DID — fall back to "no history yet"
+    // for DIDs not in `reporter_stats`. The case-view DTO is stable: one
+    // entry per reporter who filed any of the displayed reports.
+    let mut out: Vec<ReporterContext> = did_vec
+        .into_iter()
+        .map(|did| {
+            contexts.remove(&did).unwrap_or_else(|| ReporterContext {
+                did,
+                reports_filed: 0,
+                reports_actioned: 0,
+                reputation_score: crate::reputation::ReputationScore::neutral().into_inner(),
+                account_age_days: 0,
+            })
+        })
+        .collect();
+    // Stable order (alphabetical DID) for deterministic snapshots.
+    out.sort_by(|a, b| a.did.cmp(&b.did));
+    Ok(out)
 }
 
 /// Helper: gather every [`Action`] across every incident attached to the

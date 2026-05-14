@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                    INSERT INTO reporter_stats (did, reports_dismissed, first_seen, last_active)\n                    VALUES ($1, 1, $2, $2)\n                    ON CONFLICT (did) DO UPDATE\n                        SET reports_dismissed = reporter_stats.reports_dismissed + 1,\n                            last_active       = EXCLUDED.last_active\n                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "86b4355a25c6e47b5222a96f4055bd5591b119b8d29ac36e08174b3e364d300f"
+}

@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "design_doc": ".design/m5/48-tpm-signing.md",
+  "doc_hash": "sha256:a8632e7fcbdb2c44de482a7a6537f2ef021acbe1441cfc33b921e0b7f1d3af9e",
+  "stage": "designed",
+  "plans": [],
+  "runs": []
+}

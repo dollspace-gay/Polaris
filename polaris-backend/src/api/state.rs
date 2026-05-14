@@ -27,7 +27,7 @@ use std::sync::Arc;
 use crate::api::appeals::AppealsRateLimiter;
 use crate::auth::session::SessionStore;
 use crate::auth::webauthn::WebauthnVerifier;
-use crate::config::PatternActionsConfig;
+use crate::config::{PatternActionsConfig, ReputationConfig};
 use crate::labeler::emitter::LabelEmitter;
 use crate::labeler::server::{LabelBroadcaster, PgLabelRepo};
 use crate::labeler::signer::ActiveSignerReceiver;
@@ -35,6 +35,7 @@ use crate::repo::{
     PgActionRepo, PgAppealRepo, PgCalibrationEventRepo, PgIncidentRepo, PgObservationRepo,
     PgPatternActionRepo, PgReportRepo, PgSecondOpinionRepo, PgSubjectRepo,
 };
+use crate::reputation::{PgReputationProvider, ReputationParams};
 
 /// Application state shared with every API handler under `/api/`.
 ///
@@ -116,12 +117,30 @@ pub struct ApiState {
     /// did not opt into the gate). When `None`, the four
     /// `/api/auth/webauthn/*` endpoints are not mounted.
     pub webauthn: Option<WebauthnVerifier>,
+    /// Reporter-reputation provider (issue #37, design.md §9.3).
+    /// Threaded onto the state so handlers (the case-view DTO build path
+    /// and the pattern-engine integration in `dashboard::build_report_volume`)
+    /// can fetch scores without re-deriving the pool wiring. Always
+    /// present — the constructor builds it from the configured params
+    /// at startup; tests that don't exercise reputation simply ignore
+    /// the field. Cloning is cheap (`Arc::clone`).
+    pub reputation: Arc<PgReputationProvider>,
 }
 
 impl ApiState {
     /// Build an [`ApiState`] from a `sqlx::PgPool` and a [`SessionStore`].
     /// Each `Pg*Repo` is constructed against the same pool (the pool is
     /// already `Arc`-shared internally).
+    ///
+    /// Reputation defaults to [`ReputationConfig::default`] — see
+    /// [`Self::with_full_config`] for the test entry-point that
+    /// overrides both.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the default reputation params fail validation; the
+    /// validation rejects non-positive priors / half-lives, which the
+    /// default `1.0 / 1.0 / 90.0` satisfies.
     #[must_use]
     pub fn new(pool: sqlx::PgPool, sessions: SessionStore) -> Self {
         Self::with_config(pool, sessions, PatternActionsConfig::default())
@@ -133,18 +152,76 @@ impl ApiState {
     /// threshold below the production default of 100 so the
     /// requires-cosign branch is reachable without seeding hundreds of
     /// subjects.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the default reputation params fail validation; see
+    /// [`Self::new`] for the rationale.
     #[must_use]
     pub fn with_config(
         pool: sqlx::PgPool,
         sessions: SessionStore,
         pattern_actions_cfg: PatternActionsConfig,
     ) -> Self {
+        Self::with_full_config(
+            pool,
+            sessions,
+            pattern_actions_cfg,
+            ReputationConfig::default(),
+        )
+    }
+
+    /// Build an [`ApiState`] with an explicit [`PatternActionsConfig`]
+    /// and [`ReputationConfig`] (issue #37 entry point).
+    ///
+    /// # Panics
+    ///
+    /// Panics if `reputation_cfg`'s params (priors, half-life) are
+    /// non-positive — the constructor on [`PgReputationProvider`]
+    /// validates them and this is the binary-startup configuration
+    /// path. Tests that pass invalid params expect the panic; the
+    /// production path reads from validated env so the validation
+    /// already passed at `AppConfig::from_env`.
+    #[must_use]
+    pub fn with_full_config(
+        pool: sqlx::PgPool,
+        sessions: SessionStore,
+        pattern_actions_cfg: PatternActionsConfig,
+        reputation_cfg: ReputationConfig,
+    ) -> Self {
+        let reputation_params = ReputationParams {
+            prior_actioned: reputation_cfg.prior_actioned,
+            prior_dismissed: reputation_cfg.prior_dismissed,
+            half_life_days: reputation_cfg.half_life_days,
+        };
+        #[allow(
+            clippy::expect_used,
+            reason = "Constructor-time validation of operator-supplied \
+                      params. Defaults always pass; env-derived params \
+                      are already validated upstream in \
+                      ReputationConfig::from_env, so this expect is a \
+                      defence-in-depth for a degenerate caller."
+        )]
+        let reputation = Arc::new(
+            PgReputationProvider::new(pool.clone(), reputation_params)
+                .expect("ReputationConfig::default / env-validated params are positive"),
+        );
         Self {
             subjects: Arc::new(PgSubjectRepo::new(pool.clone())),
             incidents: Arc::new(PgIncidentRepo::new(pool.clone())),
-            actions: Arc::new(PgActionRepo::new(pool.clone())),
+            // Issue #37: the action insert path needs to bump
+            // reporter_stats per-reporter on Label/Takedown/NoAction.
+            // Inject the provider so the same tx commits the action
+            // and the stats update atomically.
+            actions: Arc::new(
+                PgActionRepo::new(pool.clone()).with_reputation(Arc::clone(&reputation)),
+            ),
             observations: Arc::new(PgObservationRepo::new(pool.clone())),
-            reports: Arc::new(PgReportRepo::new(pool.clone())),
+            // Issue #37: same wiring for the report-insert path
+            // (bumps reports_filed + last_active).
+            reports: Arc::new(
+                PgReportRepo::new(pool.clone()).with_reputation(Arc::clone(&reputation)),
+            ),
             pattern_actions: Arc::new(PgPatternActionRepo::new(pool.clone())),
             appeals: Arc::new(PgAppealRepo::new(pool.clone())),
             calibration_events: Arc::new(PgCalibrationEventRepo::new(pool.clone())),
@@ -164,6 +241,7 @@ impl ApiState {
             sessions,
             pattern_actions_cfg,
             webauthn: None,
+            reputation,
         }
     }
 

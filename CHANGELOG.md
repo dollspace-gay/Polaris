@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- Add labeler service hosting and v1 hardening (M4) (#6)
+- Expand Polaris beyond v1 (M5+) (#41)
 - Add wellness instrumentation, specialty routing, and appeals (M3) (#5)
 - Add pattern engine and pattern dashboard (M2) (#4)
 - Add ATProto firehose ingest and incident aggregation (M1) (#3)
@@ -19,6 +21,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Resolve proto-blue 0.3.1 MSRV blocker (1.88 features under declared 1.85) (#50)
 
 ### Changed
+- Add reporter reputation scoring and false-report weighting in pattern engine (#37)
+- Iterate Polaris tech architecture around proto-blue SDK (#1)
+- Add hardware-token (PKCS#11 / FIDO2 HSM) SigningKey impl with attended-signing UX (#49)
+- Add TPM-sealed signing key SigningKey impl (#48)
+- Add richer cross-labeler trust model with per-source per-category time-decay weights (#47)
+- Add Ozone-to-Polaris migration tooling (#46)
+- Add ML classifier integration via gRPC as a pattern-engine signal source (#45)
+- Add mobile / on-call surface for escalation response (#44)
+- Add live federation of mod conversations across labeler instances (#43)
+- Define Polaris-owned NSIDs for cross-instance federation (#42)
 - Add hardware-key (WebAuthn) requirement config flag with per-profile enforcement (#40)
 - Add threat-model coverage test suite (T1-T6) (#39)
 - Add docker-compose and Helm deployment artifacts plus backup runbook (#38)

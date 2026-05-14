@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT reports_actioned, reports_dismissed\n         FROM reporter_stats\n         WHERE did = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "reports_actioned",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "reports_dismissed",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "e232350f63c0c50df122cf9ec507e58a1adb7288474683ee26318ddcc677ff03"
+}

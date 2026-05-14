@@ -45,5 +45,6 @@ pub mod labeler;
 pub mod middleware;
 pub mod pattern;
 pub mod repo;
+pub mod reputation;
 pub mod routing;
 pub mod wellness;

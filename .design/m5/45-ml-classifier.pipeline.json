@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "design_doc": ".design/m5/45-ml-classifier.md",
+  "doc_hash": "sha256:23d27d2a76cba989a0ea1414a150650c37aec35d99a6f925e319d3f5756ad113",
+  "stage": "designed",
+  "plans": [],
+  "runs": []
+}

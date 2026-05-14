@@ -33,6 +33,10 @@ use serde::{Deserialize, Serialize};
 /// - `history` — every [`Action`] taken against the subject's incidents,
 ///   chronologically ordered (the audit timeline).
 /// - `reports` — user reports filed against the subject.
+/// - `reporter_contexts` — per-reporter reputation context for the reports
+///   above. Design.md §5.2 calls for "reporter context: new account vs.
+///   established, prior false-report rate"; this is that data, joined
+///   from the `reporter_stats` table (issue #37).
 /// - `observations` — pattern-engine signals attached to the subject.
 /// - `network_context` — placeholder for the follow / reply / cohort graph
 ///   panel (design.md §5.2 "Network context panel"). M2 populates this from
@@ -46,10 +50,48 @@ pub struct CaseView {
     pub history: Vec<Action>,
     /// User reports filed against the subject.
     pub reports: Vec<Report>,
+    /// Per-reporter reputation context for the reports above (issue #37,
+    /// design.md §5.2 + §9.3). One entry per distinct `reporter_did` seen
+    /// in `reports`. Reporters with no `reporter_stats` row (never-before-
+    /// seen) are present with `reports_filed = 0` and the neutral score.
+    pub reporter_contexts: Vec<ReporterContext>,
     /// Pattern-engine observations attached to the subject.
     pub observations: Vec<Observation>,
     /// Network-context panel placeholder. `Value::Null` until M2 populates.
     pub network_context: serde_json::Value,
+}
+
+/// Reporter-context row attached to [`CaseView::reporter_contexts`].
+///
+/// Issue #37 / design.md §5.2 — "reporter context: new account vs.
+/// established, prior false-report rate." The moderator should see, on
+/// every reported subject, who the reporters are and how credible their
+/// past reports have been.
+///
+/// Wire fields:
+///
+/// - `did` — the reporter's DID.
+/// - `reports_filed` — total reports ever filed by this DID.
+/// - `reports_actioned` — subset that produced a Label/Takedown.
+/// - `reputation_score` — the cached score from `reporter_stats` (range
+///   `[0.0, 1.0]`). A score around 0.5 is "no strong signal" (either
+///   no history or a balanced track record); above 0.95 is "highly
+///   credible"; below 0.05 is "serial false-reporter".
+/// - `account_age_days` — days between `first_seen` (the reporter's
+///   first report Polaris saw) and `Utc::now()` at case-view assembly.
+///   Surfaces the "new account vs. established" signal directly.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReporterContext {
+    /// The reporter's DID.
+    pub did: String,
+    /// Lifetime reports filed by this reporter.
+    pub reports_filed: i64,
+    /// Lifetime reports that produced a Label / Takedown action.
+    pub reports_actioned: i64,
+    /// Cached reputation score in `[0.0, 1.0]`.
+    pub reputation_score: f32,
+    /// Days since the reporter was first seen by Polaris.
+    pub account_age_days: i64,
 }
 
 /// Slim summary projection of a [`polaris_types::Incident`] for queue
@@ -178,12 +220,23 @@ pub struct DashboardSnapshot {
 /// the handler emits `0.0` for both fields today. The frontend's sparkline
 /// renders the anomaly band when stddev is non-zero, so once the detector
 /// is wired in no client change is required.
+///
+/// `weighted_count` (issue #37) is the sum of per-report
+/// reputation scores. With the default `(1.0, 1.0)` prior an all-new-
+/// reporter bucket gives `weighted_count ≈ 0.5 * count`; an all-
+/// established-good bucket gives `weighted_count ≈ count`. The frontend
+/// renders both: `count` is the raw activity volume; `weighted_count` is
+/// the credibility-adjusted signal the anomaly detector should track.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportVolumeBucket {
     /// Lower bound of the hourly window (UTC, hour-aligned).
     pub bucket_start: DateTime<Utc>,
     /// Number of reports filed inside the window.
     pub count: i64,
+    /// Reputation-weighted sum of reports filed inside the window
+    /// (issue #37). Each report contributes its reporter's cached
+    /// reputation score; the result is bounded by `[0.0, count as f64]`.
+    pub weighted_count: f64,
     /// Trailing-baseline mean for the bucket (0.0 until #19 is wired in).
     pub expected_mean: f64,
     /// Trailing-baseline standard deviation (0.0 until #19 is wired in).

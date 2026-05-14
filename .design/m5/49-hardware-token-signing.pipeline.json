@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "design_doc": ".design/m5/49-hardware-token-signing.md",
+  "doc_hash": "sha256:ecc41a012fd491fbe8c37c0d49b264225d986908a697446e0ab2f33a327e44ab",
+  "stage": "designed",
+  "plans": [],
+  "runs": []
+}
