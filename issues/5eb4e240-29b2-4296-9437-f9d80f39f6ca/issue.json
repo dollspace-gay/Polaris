@@ -1,0 +1,10 @@
+{
+  "uuid": "5eb4e240-29b2-4296-9437-f9d80f39f6ca",
+  "display_id": 66,
+  "title": "DPoP-nonce-rotation refresh flow for atproto sessions",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T19:51:12.018865156Z",
+  "updated_at": "2026-05-14T19:51:12.018865156Z"
+}
