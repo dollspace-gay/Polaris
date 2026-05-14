@@ -2,10 +2,11 @@
   "uuid": "d80ad40f-e088-4f6b-9b4a-20bddefb5589",
   "display_id": 33,
   "title": "Implement evidence-preservation CAR snapshotter on action commit",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "a8e9b027-6310-40f8-bfce-5a92fca5e06f",
   "created_by": "TeIq",
   "created_at": "2026-05-14T06:32:41.106583594Z",
-  "updated_at": "2026-05-14T06:32:41.106583594Z"
+  "updated_at": "2026-05-14T20:42:25.080101902Z",
+  "closed_at": "2026-05-14T20:42:25.080101902Z"
 }
