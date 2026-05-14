@@ -1,0 +1,856 @@
+//! Typed configuration for the Polaris backend.
+//!
+//! All configuration access in the binary and library MUST go through
+//! [`AppConfig`]. Calling `std::env::var` directly elsewhere is a process
+//! discipline violation — scattered env reads make the surface impossible to
+//! audit, and the architect's pre-flight for #8 calls this out explicitly.
+//!
+//! # Sources, in precedence order
+//!
+//! 1. Environment variables (`DATABASE_URL`, `POLARIS_HTTP_BIND`).
+//! 2. Hard-coded defaults documented on each field.
+//!
+//! A future issue will layer a TOML file under `polaris.toml` between these
+//! two layers; the shape of [`AppConfig`] is designed so `serde` can drive
+//! that without an API break.
+
+use std::env;
+use std::num::ParseIntError;
+use std::path::PathBuf;
+
+use secrecy::SecretString;
+use serde::{Deserialize, Serialize};
+
+/// Top-level application configuration.
+///
+/// Constructed via [`AppConfig::from_env`] at process start and threaded
+/// through the binary; never mutated after startup.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AppConfig {
+    /// Database connection + pool settings.
+    pub db: DbConfig,
+    /// HTTP listener settings.
+    pub http: HttpConfig,
+    /// Moderator-authentication settings (#9).
+    #[serde(default)]
+    pub auth: AuthConfig,
+    /// Security settings (cookie key, etc.) (#9).
+    #[serde(default)]
+    pub security: SecurityConfig,
+    /// Pattern-action settings (#21).
+    #[serde(default)]
+    pub pattern_actions: PatternActionsConfig,
+    /// Labeler subsystem settings (#29: signing-key custody).
+    #[serde(default)]
+    pub labeler: LabelerConfig,
+    /// Deployment profile (#29 / AC-14). Drives the binding profile-
+    /// vs-mode safety check on the labeler signing-key custody
+    /// selection.
+    #[serde(default)]
+    pub profile: Profile,
+}
+
+/// Postgres connection and pool configuration.
+///
+/// All fields are `serde(default)`-able with the documented fallbacks so
+/// operators can override individual values via TOML in the future without
+/// being forced to specify every field.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DbConfig {
+    /// Postgres connection URL. From `DATABASE_URL` env or the
+    /// dev-friendly default `postgres://polaris:polaris@localhost:5432/polaris`.
+    #[serde(default = "default_database_url")]
+    pub url: String,
+    /// Hard cap on connections in the pool. Default 16.
+    #[serde(default = "default_max_connections")]
+    pub max_connections: u32,
+    /// Number of connections to keep warm. Default 1.
+    #[serde(default = "default_min_connections")]
+    pub min_connections: u32,
+    /// Timeout (seconds) for `pool.acquire()`. Default 5.
+    #[serde(default = "default_acquire_timeout_secs")]
+    pub acquire_timeout_secs: u64,
+}
+
+/// HTTP listener configuration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HttpConfig {
+    /// Bind address. From `POLARIS_HTTP_BIND` env or default `127.0.0.1:8080`.
+    #[serde(default = "default_http_bind")]
+    pub bind: String,
+}
+
+fn default_database_url() -> String {
+    "postgres://polaris:polaris@localhost:5432/polaris".to_owned()
+}
+
+fn default_max_connections() -> u32 {
+    16
+}
+
+fn default_min_connections() -> u32 {
+    1
+}
+
+fn default_acquire_timeout_secs() -> u64 {
+    5
+}
+
+fn default_http_bind() -> String {
+    "127.0.0.1:8080".to_owned()
+}
+
+impl Default for DbConfig {
+    fn default() -> Self {
+        Self {
+            url: default_database_url(),
+            max_connections: default_max_connections(),
+            min_connections: default_min_connections(),
+            acquire_timeout_secs: default_acquire_timeout_secs(),
+        }
+    }
+}
+
+impl Default for HttpConfig {
+    fn default() -> Self {
+        Self {
+            bind: default_http_bind(),
+        }
+    }
+}
+
+impl AppConfig {
+    /// Build an [`AppConfig`] from environment variables, falling back to
+    /// documented defaults for any unset variable.
+    ///
+    /// Recognised variables:
+    ///
+    /// | Variable             | Field             | Default                                                    |
+    /// |----------------------|-------------------|------------------------------------------------------------|
+    /// | `DATABASE_URL`       | `db.url`          | `postgres://polaris:polaris@localhost:5432/polaris`        |
+    /// | `POLARIS_HTTP_BIND`  | `http.bind`       | `127.0.0.1:8080`                                           |
+    ///
+    /// Numeric pool parameters are not (yet) overridable via env because they
+    /// rarely vary across deployments — operators who need to tune them
+    /// should wait for the TOML config layer (#TBD) or override the
+    /// [`DbConfig`] struct in code.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let db = DbConfig {
+            url: env::var("DATABASE_URL").unwrap_or_else(|_| default_database_url()),
+            max_connections: default_max_connections(),
+            min_connections: default_min_connections(),
+            acquire_timeout_secs: default_acquire_timeout_secs(),
+        };
+
+        let http = HttpConfig {
+            bind: env::var("POLARIS_HTTP_BIND").unwrap_or_else(|_| default_http_bind()),
+        };
+
+        let auth = AuthConfig::from_env()?;
+        let security = SecurityConfig::from_env()?;
+        let pattern_actions = PatternActionsConfig::from_env()?;
+        let labeler = LabelerConfig::from_env()?;
+        let profile = Profile::from_env()?;
+
+        Ok(Self {
+            db,
+            http,
+            auth,
+            security,
+            pattern_actions,
+            labeler,
+            profile,
+        })
+    }
+}
+
+/// Pattern-action settings (issue #21).
+///
+/// Drives the senior-co-sign gating on bulk-on-pattern actions per
+/// `design.md` §5.3. The threshold is the maximum *auto-approved* affected-
+/// subject count: a proposal that affects `> cosign_threshold` subjects
+/// requires a senior signature before its per-subject [`crate::repo::action::NewAction`]
+/// rows are inserted. The proposer's own signature is implicit in
+/// `pattern_actions.requested_by`; the cosign row is a second moderator.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PatternActionsConfig {
+    /// Auto-approve pattern actions affecting at most this many subjects.
+    /// Anything above this requires senior co-sign. Default 100; aligns
+    /// with the `[pattern.cosign] required_above_n` example in the #21
+    /// design comment.
+    #[serde(default = "default_cosign_threshold")]
+    pub cosign_threshold: usize,
+}
+
+const fn default_cosign_threshold() -> usize {
+    100
+}
+
+impl Default for PatternActionsConfig {
+    fn default() -> Self {
+        Self {
+            cosign_threshold: default_cosign_threshold(),
+        }
+    }
+}
+
+impl PatternActionsConfig {
+    /// Build from environment variables.
+    ///
+    /// Recognises `POLARIS_PATTERN_ACTIONS_COSIGN_THRESHOLD`. Falls back
+    /// to [`default_cosign_threshold`] when unset.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidInt`] when the env value cannot be
+    /// parsed as a `usize`.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let cosign_threshold = match env::var("POLARIS_PATTERN_ACTIONS_COSIGN_THRESHOLD").ok() {
+            Some(raw) => raw
+                .parse::<usize>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_PATTERN_ACTIONS_COSIGN_THRESHOLD",
+                    source,
+                })?,
+            None => default_cosign_threshold(),
+        };
+        Ok(Self { cosign_threshold })
+    }
+}
+
+/// Moderator-authentication configuration.
+///
+/// The selected `backend` drives which [`crate::auth::ModeratorAuth`]
+/// implementation is constructed at startup. The trait is the same shape; M4
+/// will add an `atproto` arm to [`AuthBackend`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AuthConfig {
+    /// Which authentication backend to use.
+    #[serde(default)]
+    pub backend: AuthBackend,
+    /// OIDC backend settings — populated even when `backend = Atproto` so a
+    /// future operator can swap by config without restart-time validation
+    /// surprises.
+    #[serde(default)]
+    pub oidc: OidcConfig,
+}
+
+impl AuthConfig {
+    /// Build from environment.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidEnumValue`] if `POLARIS_AUTH_BACKEND` is
+    /// not one of `oidc` / `atproto`.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let backend = match env::var("POLARIS_AUTH_BACKEND").ok().as_deref() {
+            None | Some("oidc") => AuthBackend::Oidc,
+            Some("atproto") => AuthBackend::Atproto,
+            Some(other) => {
+                return Err(ConfigError::InvalidEnumValue {
+                    field: "POLARIS_AUTH_BACKEND",
+                    value: other.to_owned(),
+                    accepted: &["oidc", "atproto"],
+                });
+            }
+        };
+        let oidc = OidcConfig::from_env();
+        Ok(Self { backend, oidc })
+    }
+}
+
+/// Which authentication backend is active.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthBackend {
+    /// `OpenID` Connect against the operator's `IdP` (issue #9, default).
+    #[default]
+    Oidc,
+    /// ATProto OAuth (issue #31; backend not yet implemented).
+    Atproto,
+}
+
+/// OIDC backend configuration.
+///
+/// `client_secret` is wrapped in [`SecretString`] so it never lands in a log
+/// line via the default `Debug` derive — the `Debug` impl prints
+/// `Secret(REDACTED)` and the secret bytes are zeroised on drop by the
+/// `secrecy` crate. `Serialize` is implemented by hand below so a future
+/// `polaris.toml` export can never round-trip a real secret to disk; we emit
+/// `"[REDACTED]"` instead.
+#[derive(Clone, Deserialize)]
+pub struct OidcConfig {
+    /// Issuer URL (e.g. `https://accounts.example.com`). Discovery hits
+    /// `{issuer_url}/.well-known/openid-configuration`.
+    pub issuer_url: String,
+    /// Client ID registered with the `IdP`.
+    pub client_id: String,
+    /// Client secret. Wrapped to redact in `Debug` and zeroise on drop.
+    #[serde(default = "default_client_secret")]
+    pub client_secret: SecretString,
+    /// Polaris-side OAuth redirect URL.
+    pub redirect_url: String,
+}
+
+impl Serialize for OidcConfig {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        // The client_secret field is deliberately serialised as the
+        // sentinel string "[REDACTED]" rather than the actual value. This
+        // protects against a developer accidentally `serde_json::to_string`-ing
+        // an `OidcConfig` into a log line.
+        let mut s = serializer.serialize_struct("OidcConfig", 4)?;
+        s.serialize_field("issuer_url", &self.issuer_url)?;
+        s.serialize_field("client_id", &self.client_id)?;
+        s.serialize_field("client_secret", "[REDACTED]")?;
+        s.serialize_field("redirect_url", &self.redirect_url)?;
+        s.end()
+    }
+}
+
+fn default_client_secret() -> SecretString {
+    SecretString::from(String::new())
+}
+
+impl std::fmt::Debug for OidcConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OidcConfig")
+            .field("issuer_url", &self.issuer_url)
+            .field("client_id", &self.client_id)
+            .field("client_secret", &"[REDACTED]")
+            .field("redirect_url", &self.redirect_url)
+            .finish()
+    }
+}
+
+impl Default for OidcConfig {
+    fn default() -> Self {
+        Self {
+            issuer_url: String::new(),
+            client_id: String::new(),
+            client_secret: SecretString::from(String::new()),
+            redirect_url: String::new(),
+        }
+    }
+}
+
+impl OidcConfig {
+    /// Build from environment variables. All four fields fall back to the
+    /// empty string if unset; the auth subsystem will refuse to boot a real
+    /// `OidcAuthVerifier` against empty values, so configuration mistakes
+    /// surface at process start (not at the first login attempt).
+    #[must_use]
+    pub fn from_env() -> Self {
+        Self {
+            issuer_url: env::var("POLARIS_OIDC_ISSUER_URL").unwrap_or_default(),
+            client_id: env::var("POLARIS_OIDC_CLIENT_ID").unwrap_or_default(),
+            client_secret: SecretString::from(
+                env::var("POLARIS_OIDC_CLIENT_SECRET").unwrap_or_default(),
+            ),
+            redirect_url: env::var("POLARIS_OIDC_REDIRECT_URL").unwrap_or_default(),
+        }
+    }
+}
+
+/// Security-sensitive configuration.
+///
+/// Currently houses the AES-256-GCM wrapping key used to encrypt refresh
+/// tokens at rest. Parsed from `POLARIS_COOKIE_KEY`, a 64-character hex
+/// string. The struct cannot be `Default`-constructed with a real key —
+/// callers MUST supply 32 bytes of randomness via the env. The `Default`
+/// impl returns a zero-key placeholder so [`AppConfig::default`] can compose;
+/// downstream code that mints a [`crate::auth::crypto::Crypto`] from
+/// [`SecurityConfig::cookie_key`] should validate non-zeroness in production
+/// startup.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct SecurityConfig {
+    /// 32-byte AES-256 key. Operators must supply this; defaulting to a
+    /// zero array is a startup-only convenience that the binary refuses to
+    /// run against in non-test builds.
+    #[serde(with = "cookie_key_serde")]
+    pub cookie_key: [u8; 32],
+}
+
+mod cookie_key_serde {
+    //! Serialise / deserialise the 32-byte cookie key as a lowercase hex
+    //! string so `polaris.toml` (when introduced) can stringly-type the
+    //! field without inventing a base64 nesting.
+
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(bytes: &[u8; 32], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&hex::encode(bytes))
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let bytes = hex::decode(&s).map_err(serde::de::Error::custom)?;
+        let arr: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| serde::de::Error::custom("cookie_key must be 32 bytes (64 hex chars)"))?;
+        Ok(arr)
+    }
+}
+
+impl std::fmt::Debug for SecurityConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SecurityConfig")
+            .field("cookie_key", &"[REDACTED 32 bytes]")
+            .finish()
+    }
+}
+
+// Allow: the manual `Default` impl exists to host the "zero-key is a
+// startup placeholder" comment that `SecurityConfig::ensure_non_zero`
+// enforces against. The derived form would compile but the reader would
+// lose the safety note at exactly the place they need it. The deliberate
+// override is the documentation, not the body.
+#[allow(clippy::derivable_impls)]
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        // Zero key is a placeholder for `Default`-constructed `AppConfig`s in
+        // unit tests. `SecurityConfig::from_env` rejects a zero key.
+        Self {
+            cookie_key: [0_u8; 32],
+        }
+    }
+}
+
+impl SecurityConfig {
+    /// Read `POLARIS_COOKIE_KEY` (64 hex chars → 32 bytes).
+    ///
+    /// # Errors
+    ///
+    /// - [`ConfigError::MissingRequired`] if the variable is unset and the
+    ///   process is running in non-test mode (we treat an unset key as a
+    ///   default-zero-key here; the binary's startup path validates
+    ///   non-zeroness — see [`Self::ensure_non_zero`]).
+    /// - [`ConfigError::InvalidHex`] if the value is not 64 hex chars.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let Some(value) = env::var("POLARIS_COOKIE_KEY").ok() else {
+            // Allow unset in dev / tests so `AppConfig::default()` keeps
+            // working. The binary's startup checks `ensure_non_zero`.
+            return Ok(Self::default());
+        };
+        if value.len() != 64 {
+            return Err(ConfigError::InvalidHex {
+                field: "POLARIS_COOKIE_KEY",
+                reason: format!("expected 64 hex chars, got {}", value.len()),
+            });
+        }
+        let bytes = hex::decode(&value).map_err(|e| ConfigError::InvalidHex {
+            field: "POLARIS_COOKIE_KEY",
+            reason: e.to_string(),
+        })?;
+        let cookie_key: [u8; 32] = bytes.try_into().map_err(|_| ConfigError::InvalidHex {
+            field: "POLARIS_COOKIE_KEY",
+            reason: "expected 32 bytes after hex decode".to_owned(),
+        })?;
+        Ok(Self { cookie_key })
+    }
+
+    /// Verify the key is not the all-zero placeholder. Called from the
+    /// binary entrypoint immediately before constructing
+    /// [`crate::auth::crypto::Crypto`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::MissingRequired`] if every byte is zero.
+    pub fn ensure_non_zero(&self) -> Result<(), ConfigError> {
+        if self.cookie_key.iter().all(|b| *b == 0) {
+            return Err(ConfigError::MissingRequired {
+                field: "POLARIS_COOKIE_KEY",
+            });
+        }
+        Ok(())
+    }
+}
+
+/// Configuration errors.
+///
+/// Reserved for future fallible parsing — currently every supported override
+/// is a free-form string, so `from_env` is infallible. The variant is here so
+/// callers do not need to break their `Result` ergonomics when (e.g.) a
+/// `POLARIS_DB_MAX_CONNECTIONS` env override lands later.
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    /// Failed to parse an integer-valued setting.
+    #[error("invalid integer for {field}: {source}")]
+    InvalidInt {
+        /// Configuration field that failed to parse.
+        field: &'static str,
+        /// Underlying parse error.
+        #[source]
+        source: ParseIntError,
+    },
+
+    /// An enum-typed env variable was set to a value outside the accepted
+    /// set.
+    #[error("invalid value {value:?} for {field}: must be one of {accepted:?}")]
+    InvalidEnumValue {
+        /// Offending env-variable name.
+        field: &'static str,
+        /// Value the operator supplied.
+        value: String,
+        /// Permitted values.
+        accepted: &'static [&'static str],
+    },
+
+    /// A hex-encoded env variable failed to parse.
+    #[error("invalid hex value for {field}: {reason}")]
+    InvalidHex {
+        /// Offending env-variable name.
+        field: &'static str,
+        /// Human-readable reason for the rejection.
+        reason: String,
+    },
+
+    /// A required env variable was unset (or set to the unsafe default).
+    #[error("required configuration {field} is unset")]
+    MissingRequired {
+        /// Offending env-variable name.
+        field: &'static str,
+    },
+}
+
+/// Deployment profile (issue #29 / AC-14).
+///
+/// Polaris ships two deployment topologies that share the same binary
+/// but differ on which defaults and which safety rails apply:
+///
+/// - [`Profile::Labeler`] — self-hosted operator running their own
+///   labeler (the de-facto Ozone-replacement use case). The labeler
+///   profile *permits* `file-plain` custody for the signing key
+///   (matching Ozone's `OZONE_SIGNING_KEY_HEX` posture); the startup
+///   WARN is the only feedback.
+/// - [`Profile::Bluesky`] — first-party Bluesky deployment. The
+///   profile *refuses* to start with `file-plain` because a first-party
+///   deployment running KMS infrastructure should never regress to a
+///   plaintext on-disk key.
+///
+/// The selection is read from `POLARIS_PROFILE` (env) or `[profile]
+/// mode` (TOML, future). The TOML-friendly serde rename matches the
+/// design-document spelling — `[profile] mode = "labeler"`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Profile {
+    /// Self-hosted operator running their own labeler. Default.
+    #[default]
+    Labeler,
+    /// First-party Bluesky deployment.
+    Bluesky,
+}
+
+impl Profile {
+    /// Build from environment.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidEnumValue`] when `POLARIS_PROFILE`
+    /// is set to anything other than `labeler` / `bluesky`.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        match env::var("POLARIS_PROFILE").ok().as_deref() {
+            None | Some("labeler") => Ok(Self::Labeler),
+            Some("bluesky") => Ok(Self::Bluesky),
+            Some(other) => Err(ConfigError::InvalidEnumValue {
+                field: "POLARIS_PROFILE",
+                value: other.to_owned(),
+                accepted: &["labeler", "bluesky"],
+            }),
+        }
+    }
+}
+
+/// Labeler subsystem settings (issue #29).
+///
+/// Currently houses the signing-key custody selection. Future fields
+/// (publish-record schedule, upstream-labeler trust weights, …)
+/// extend this struct without an `AppConfig` shape change.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LabelerConfig {
+    /// Selected signing-key custody mode and its per-mode parameters.
+    #[serde(default)]
+    pub signing_key: LabelerSigningKeyConfig,
+}
+
+impl LabelerConfig {
+    /// Build from environment.
+    ///
+    /// Recognises:
+    ///
+    /// | Variable                                | Field                                    |
+    /// |-----------------------------------------|------------------------------------------|
+    /// | `POLARIS_LABELER_SIGNING_KEY_MODE`      | `signing_key` enum discriminant          |
+    /// | `POLARIS_LABELER_SIGNING_KEY_PATH`      | `FilePlain.path` / `PassphraseSealed.path` |
+    /// | `POLARIS_LABELER_SIGNING_KEY_ACCOUNT`   | `OsKeychain.account`                     |
+    /// | `POLARIS_LABELER_SIGNING_KEY_KMS_PROVIDER` | `CloudKms.provider`                  |
+    /// | `POLARIS_LABELER_SIGNING_KEY_KMS_KEY_ID`  | `CloudKms.key_id`                    |
+    /// | `POLARIS_LABELER_SIGNING_KEY_KMS_REGION`  | `CloudKms.region`                    |
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidEnumValue`] for an unrecognised
+    /// `mode` or `kms_provider`, and [`ConfigError::MissingRequired`]
+    /// for a mode whose required fields are absent (e.g. file-plain
+    /// without a path).
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let mode = env::var("POLARIS_LABELER_SIGNING_KEY_MODE").ok();
+        let signing_key = match mode.as_deref() {
+            // Unset == labeler-profile default == file-plain with a
+            // path the labeler-profile binary's startup check would
+            // resolve. The struct-level default *is* file-plain at a
+            // sentinel path; `build_signing_key` will fail at key
+            // load if the path is bogus, surfacing a clear "you need
+            // to configure POLARIS_LABELER_SIGNING_KEY_PATH" message.
+            None => LabelerSigningKeyConfig::default(),
+            Some("file-plain") => {
+                let path = env::var("POLARIS_LABELER_SIGNING_KEY_PATH")
+                    .map(PathBuf::from)
+                    .map_err(|_| ConfigError::MissingRequired {
+                        field: "POLARIS_LABELER_SIGNING_KEY_PATH",
+                    })?;
+                LabelerSigningKeyConfig::FilePlain { path }
+            }
+            Some("passphrase-sealed") => {
+                let path = env::var("POLARIS_LABELER_SIGNING_KEY_PATH")
+                    .map(PathBuf::from)
+                    .map_err(|_| ConfigError::MissingRequired {
+                        field: "POLARIS_LABELER_SIGNING_KEY_PATH",
+                    })?;
+                LabelerSigningKeyConfig::PassphraseSealed { path }
+            }
+            Some("os-keychain") => {
+                let account = env::var("POLARIS_LABELER_SIGNING_KEY_ACCOUNT").map_err(|_| {
+                    ConfigError::MissingRequired {
+                        field: "POLARIS_LABELER_SIGNING_KEY_ACCOUNT",
+                    }
+                })?;
+                LabelerSigningKeyConfig::OsKeychain { account }
+            }
+            Some("cloud-kms-oracle") => {
+                let provider_str =
+                    env::var("POLARIS_LABELER_SIGNING_KEY_KMS_PROVIDER").map_err(|_| {
+                        ConfigError::MissingRequired {
+                            field: "POLARIS_LABELER_SIGNING_KEY_KMS_PROVIDER",
+                        }
+                    })?;
+                let provider = match provider_str.as_str() {
+                    "aws" => KmsProvider::Aws,
+                    "gcp" => KmsProvider::Gcp,
+                    "azure" => KmsProvider::Azure,
+                    other => {
+                        return Err(ConfigError::InvalidEnumValue {
+                            field: "POLARIS_LABELER_SIGNING_KEY_KMS_PROVIDER",
+                            value: other.to_owned(),
+                            accepted: &["aws", "gcp", "azure"],
+                        });
+                    }
+                };
+                let key_id = env::var("POLARIS_LABELER_SIGNING_KEY_KMS_KEY_ID").map_err(|_| {
+                    ConfigError::MissingRequired {
+                        field: "POLARIS_LABELER_SIGNING_KEY_KMS_KEY_ID",
+                    }
+                })?;
+                let region = env::var("POLARIS_LABELER_SIGNING_KEY_KMS_REGION").map_err(|_| {
+                    ConfigError::MissingRequired {
+                        field: "POLARIS_LABELER_SIGNING_KEY_KMS_REGION",
+                    }
+                })?;
+                LabelerSigningKeyConfig::CloudKms {
+                    provider,
+                    key_id,
+                    region,
+                }
+            }
+            Some(other) => {
+                return Err(ConfigError::InvalidEnumValue {
+                    field: "POLARIS_LABELER_SIGNING_KEY_MODE",
+                    value: other.to_owned(),
+                    accepted: &[
+                        "file-plain",
+                        "passphrase-sealed",
+                        "os-keychain",
+                        "cloud-kms-oracle",
+                    ],
+                });
+            }
+        };
+        Ok(Self { signing_key })
+    }
+}
+
+/// Signing-key custody selection (issue #29 / REQ-11).
+///
+/// One enum variant per mode in the AC-13 matrix. The serde
+/// representation tags on `mode` with kebab-case names so a future
+/// `polaris.toml` block reads:
+///
+/// ```toml
+/// [labeler.signing_key]
+/// mode = "file-plain"
+/// path = "/etc/polaris/labeler.key"
+/// ```
+///
+/// The struct shape is deliberately flat per variant so each mode's
+/// required fields live next to its name; the alternative
+/// (`mode = "file-plain"` + a nested `[labeler.signing_key.file_plain]`
+/// table) nests one extra layer for no benefit.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "kebab-case")]
+pub enum LabelerSigningKeyConfig {
+    /// `file-plain` — hex-encoded K-256 secret in a 0o600 file on
+    /// disk. Default for the labeler profile (Ozone-equivalent
+    /// posture). Logs a startup WARN.
+    FilePlain {
+        /// Filesystem path to the hex-encoded secret.
+        path: PathBuf,
+    },
+    /// `passphrase-sealed` — AES-256-GCM at rest, scrypt-derived KEK.
+    /// Passphrase from `POLARIS_SIGNING_PASSPHRASE` or stdin.
+    PassphraseSealed {
+        /// Filesystem path to the sealed key blob.
+        path: PathBuf,
+    },
+    /// `os-keychain` — wrapped by macOS Keychain / freedesktop Secret
+    /// Service / Windows DPAPI under the `polaris.labeler` service.
+    OsKeychain {
+        /// Operator-configured account name (e.g. their domain).
+        account: String,
+    },
+    /// `cloud-kms-oracle` — KMS RPC per signature. Default for the
+    /// Bluesky profile. The private key never enters the process.
+    ///
+    /// The serde tag is the design-doc-canonical
+    /// `"cloud-kms-oracle"` (not the kebab-derived `"cloud-kms"`).
+    /// The variant name elides the `Oracle` suffix because the type
+    /// is the oracle — there is no non-oracle KMS variant — but the
+    /// on-the-wire mode name keeps the explicit qualifier so it
+    /// stays self-describing in `polaris.toml`.
+    #[serde(rename = "cloud-kms-oracle")]
+    CloudKms {
+        /// Which cloud KMS provider. Only `Aws` is wired today.
+        provider: KmsProvider,
+        /// Provider-specific key identifier (e.g. AWS KMS key ARN).
+        key_id: String,
+        /// Provider-specific region identifier.
+        region: String,
+    },
+}
+
+impl Default for LabelerSigningKeyConfig {
+    /// Default: `file-plain` at a placeholder path. The path must be
+    /// overridden via env (or the future TOML layer) before
+    /// [`crate::labeler::signer::build_signing_key`] can succeed.
+    fn default() -> Self {
+        Self::FilePlain {
+            path: PathBuf::from("/etc/polaris/labeler.key"),
+        }
+    }
+}
+
+/// Cloud KMS provider selector.
+///
+/// Today only [`KmsProvider::Aws`] is wired. The `Gcp` / `Azure`
+/// variants exist on the config so an operator's TOML / env can name
+/// them; constructing a signer for an unwired variant returns
+/// `SigningError::Sign { reason: "... not yet implemented" }`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum KmsProvider {
+    /// AWS KMS via `aws-sdk-kms` (feature-gated).
+    Aws,
+    /// GCP Cloud KMS — config-only stub, not yet implemented.
+    Gcp,
+    /// Azure Key Vault — config-only stub, not yet implemented.
+    Azure,
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code is allowed to panic — rust-quality §7 convention"
+)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_are_stable() {
+        let cfg = AppConfig::default();
+        assert_eq!(
+            cfg.db.url,
+            "postgres://polaris:polaris@localhost:5432/polaris"
+        );
+        assert_eq!(cfg.db.max_connections, 16);
+        assert_eq!(cfg.db.min_connections, 1);
+        assert_eq!(cfg.db.acquire_timeout_secs, 5);
+        assert_eq!(cfg.http.bind, "127.0.0.1:8080");
+        // Issue #29: the default profile is `labeler` and the default
+        // signing-key mode is `file-plain` — matching Ozone's
+        // posture, which the design document explicitly chose to
+        // preserve onboarding velocity.
+        assert_eq!(cfg.profile, Profile::Labeler);
+        assert!(matches!(
+            cfg.labeler.signing_key,
+            LabelerSigningKeyConfig::FilePlain { .. }
+        ));
+    }
+
+    #[test]
+    fn labeler_signing_key_config_serde_tags_on_mode() {
+        // The TOML/JSON contract is `mode = "file-plain"` etc.; assert
+        // that the kebab-case + tag-on-`mode` derivation matches.
+        let v = LabelerSigningKeyConfig::OsKeychain {
+            account: "ops@example.com".to_owned(),
+        };
+        let json = serde_json::to_value(&v).unwrap_or_else(|e| panic!("serialise: {e}"));
+        assert_eq!(json["mode"], "os-keychain");
+        assert_eq!(json["account"], "ops@example.com");
+    }
+
+    #[test]
+    fn labeler_signing_key_config_deserialises_each_mode() {
+        let cases = [
+            (r#"{"mode":"file-plain","path":"/tmp/x"}"#, "FilePlain"),
+            (
+                r#"{"mode":"passphrase-sealed","path":"/tmp/x"}"#,
+                "PassphraseSealed",
+            ),
+            (r#"{"mode":"os-keychain","account":"acct"}"#, "OsKeychain"),
+            (
+                r#"{"mode":"cloud-kms-oracle","provider":"aws","key_id":"k","region":"r"}"#,
+                "CloudKms",
+            ),
+        ];
+        for (json, label) in cases {
+            let v: LabelerSigningKeyConfig =
+                serde_json::from_str(json).unwrap_or_else(|e| panic!("{label}: {e}"));
+            let dbg = format!("{v:?}");
+            assert!(dbg.contains(label), "{label} did not round-trip: {dbg}");
+        }
+    }
+
+    #[test]
+    fn defaults_helpers_are_plain_values() {
+        // `from_env` interaction is exercised in the integration tests under
+        // `tests/`. Unit-testing it here would require mutating process-wide
+        // env, which (a) became `unsafe fn` in Rust 1.84+ and is denied by
+        // the workspace lint, and (b) races other tests in parallel runs.
+        // Instead we lock down the helper functions so an accidental default
+        // change shows up as a deliberate edit to this test.
+        assert_eq!(default_max_connections(), 16);
+        assert_eq!(default_min_connections(), 1);
+        assert_eq!(default_acquire_timeout_secs(), 5);
+        assert_eq!(default_http_bind(), "127.0.0.1:8080");
+    }
+}

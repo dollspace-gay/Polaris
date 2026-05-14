@@ -1,0 +1,68 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, appealed_action_id, appellant_statement, appellant_ip_hash,\n                   status, assigned_to, decided_at, decision_reasoning, opened_at\n            FROM appeals\n            WHERE status = 'open'\n            ORDER BY opened_at ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "appealed_action_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "appellant_statement",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "appellant_ip_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "assigned_to",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "decided_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "decision_reasoning",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "opened_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "a9701c6dcf1c2022e2f7547e4aa9add757607c8242ff382ca17390c7d5ff0d1e"
+}

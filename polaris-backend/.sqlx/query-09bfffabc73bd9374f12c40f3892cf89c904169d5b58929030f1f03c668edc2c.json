@@ -1,0 +1,67 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO incidents (primary_subject, severity, status, assigned_to)\n            VALUES ($1, $2, $3, $4)\n            RETURNING id, primary_subject, severity, status, assigned_to, locked_by,\n                      opened_at, closed_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "primary_subject",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "severity",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "assigned_to",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "locked_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "opened_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "closed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "09bfffabc73bd9374f12c40f3892cf89c904169d5b58929030f1f03c668edc2c"
+}

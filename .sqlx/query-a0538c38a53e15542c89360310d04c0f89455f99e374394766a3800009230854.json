@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                current_date                                AS \"day!: chrono::NaiveDate\",\n                COALESCE((\n                    SELECT SUM(count)::bigint\n                    FROM moderator_exposure\n                    WHERE moderator_id = $1 AND day = current_date\n                ), 0)                                       AS \"total!: i64\",\n                COALESCE(s.daily_cap, $2)                   AS \"daily_cap!: i32\",\n                COALESCE(s.force_break_at_pct, $3)          AS \"force_break_at_pct!: i16\"\n            FROM (SELECT 1) AS dummy\n            LEFT JOIN moderator_exposure_settings s\n                ON s.moderator_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "day!: chrono::NaiveDate",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "total!: i64",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "daily_cap!: i32",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "force_break_at_pct!: i16",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int2"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "a0538c38a53e15542c89360310d04c0f89455f99e374394766a3800009230854"
+}

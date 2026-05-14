@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            i.id                AS \"id!: uuid::Uuid\",\n            i.primary_subject   AS \"primary_subject!: uuid::Uuid\",\n            i.severity          AS \"severity!: String\",\n            i.status            AS \"status!: String\",\n            i.opened_at         AS \"opened_at!: DateTime<Utc>\",\n            COALESCE(\n                (SELECT COUNT(*)::bigint\n                 FROM incident_related_subjects irs\n                 WHERE irs.incident_id = i.id),\n                0\n            )                   AS \"related_subject_count!: i64\"\n        FROM incidents i\n        WHERE i.status IN ('open', 'in_review', 'escalated')\n        ORDER BY i.opened_at DESC\n        LIMIT $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: uuid::Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "primary_subject!: uuid::Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "severity!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "status!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "opened_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "related_subject_count!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "2e19042a0f9ea5fe1b84286fc7fe1ef9d894d73f425f877cdb8ed213644009fa"
+}

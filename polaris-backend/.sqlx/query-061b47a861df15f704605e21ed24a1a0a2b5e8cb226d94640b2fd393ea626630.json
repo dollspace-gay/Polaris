@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO pattern_actions (\n                selector_kind, selector_data, action_kind, label_value,\n                reasoning, policy_refs, affected_subject_count, requires_cosign,\n                requested_by\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n            RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Jsonb",
+        "Text",
+        "Text",
+        "Text",
+        "TextArray",
+        "Int4",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "061b47a861df15f704605e21ed24a1a0a2b5e8cb226d94640b2fd393ea626630"
+}

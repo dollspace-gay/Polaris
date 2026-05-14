@@ -1,0 +1,104 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  # Forces clippy to fail on any warning. Combined with the workspace lints
+  # baseline (`[workspace.lints]` in Cargo.toml), this is the green-build
+  # contract for the whole tree.
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  fmt:
+    name: cargo fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88
+        with:
+          components: rustfmt
+      - run: cargo fmt --check
+
+  clippy:
+    name: cargo clippy --workspace --all-targets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: clippy (native)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+        env:
+          SQLX_OFFLINE: "true"
+
+  test:
+    name: cargo test --workspace
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88
+      - uses: Swatinem/rust-cache@v2
+      - name: test (native, postgres service)
+        run: cargo test --workspace
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          SQLX_OFFLINE: "true"
+
+  wasm-build:
+    # AC-12: this is the first wasm-build verifier on the proto-blue dep
+    # chain. Failures that root-cause to proto-blue are surfaced upstream
+    # by filing an issue against dollspace-gay/proto-blue with a
+    # reproduction; failures local to polaris-frontend are fixed here.
+    name: cargo build --target wasm32-unknown-unknown -p polaris-frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: build (wasm32-unknown-unknown)
+        run: cargo build --target wasm32-unknown-unknown -p polaris-frontend
+        env:
+          SQLX_OFFLINE: "true"
+      - name: clippy (wasm32-unknown-unknown)
+        run: cargo clippy --target wasm32-unknown-unknown -p polaris-frontend --lib -- -D warnings
+        env:
+          SQLX_OFFLINE: "true"
+
+  boundary:
+    # AC-7: polaris-frontend must not import polaris_backend internals or
+    # call mutating /api/* routes via raw string literals; every non-public
+    # read and every mutation flows through PolarisApiClient. The xtask
+    # scanner enforces the rule mechanically — see
+    # `xtask/src/check_frontend_boundary.rs` for the pattern list and
+    # `.design/polaris-proto-blue-integration.md` §D for the contract.
+    name: cargo xtask check-frontend-boundary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo xtask check-frontend-boundary
+        env:
+          SQLX_OFFLINE: "true"

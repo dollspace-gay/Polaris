@@ -1,0 +1,376 @@
+[workspace]
+members = [
+    "polaris-types",
+    "polaris-backend",
+    "polaris-frontend",
+    "polaris-publish-labeler-record",
+    "xtask",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/dollspace-gay/polaris"
+
+[workspace.dependencies]
+# ATProto SDK
+proto-blue = "0.3"
+
+# Web framework
+axum = "0.8"
+
+# Database
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-rustls",
+    "postgres",
+    "macros",
+    "migrate",
+    # Issue #9 stores moderator UUIDs and TIMESTAMPTZ values via the
+    # `sqlx::query!` macros; without these features sqlx would refuse to
+    # encode/decode `uuid::Uuid` and `chrono::DateTime<Utc>`.
+    "uuid",
+    "chrono",
+] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Async runtime utilities. Used for `CancellationToken`, the cooperative
+# shutdown primitive in the firehose ingest worker (#12) — it lets the
+# `tokio::select!` shutdown branch race the worker's main loop and flushes the
+# cursor before exit. tokio-util 0.7.18 (crates.io 2026-05-14, already in the
+# lockfile transitively via axum / hyper / proto-blue): MIT. The 0.7 line
+# exposes `tokio_util::sync::CancellationToken` unconditionally (no opt-in
+# feature), so no `features = [...]` clause is needed; adding one trips
+# Cargo's resolver because the `sync` token never existed as a feature name.
+tokio-util = "0.7"
+
+# Frontend
+leptos = "0.8"
+
+# Frontend: client-side routing (matches leptos major).
+# leptos_router 0.8.13 (crates.io 2026-05-14): MIT, depends on leptos 0.8.
+leptos_router = "0.8"
+
+# Frontend: HTML `<head>` metadata (Title, Meta, Link, …).
+# leptos_meta 0.8.6 (crates.io 2026-05-14): MIT.
+leptos_meta = "0.8"
+
+# Frontend: wasm32 panic hook that forwards panics to console.error so the
+# browser devtools surface useful stack traces instead of a single
+# "unreachable executed" line.
+# console_error_panic_hook 0.1.7 (crates.io 2026-05-14): MIT/Apache-2.0.
+console_error_panic_hook = "0.1"
+
+# Frontend: wasm ↔ JS bindings.
+# wasm-bindgen 0.2.121 (crates.io 2026-05-14, already in the lockfile via
+# leptos / proto-blue transitive deps): MIT/Apache-2.0.
+wasm-bindgen = "0.2"
+
+# Frontend: JS-global type bindings (Promise, Function, etc.).
+# js-sys 0.3.98 (crates.io 2026-05-14, already in the lockfile): MIT/Apache-2.0.
+js-sys = "0.3"
+
+# Frontend: Web API type bindings. Features curated to exactly what
+# `PolarisApiClient`'s wasm impl exercises (window/location lookup plus the
+# fetch + Response types `gloo-net` already enables transitively, declared
+# here so the dependency is explicit at the consumer site).
+# web-sys 0.3.98 (crates.io 2026-05-14, already in the lockfile): MIT/Apache-2.0.
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Location",
+    "Headers",
+    "RequestInit",
+    "RequestCredentials",
+    "Response",
+] }
+
+# Frontend: browser `fetch()` wrapper used by `PolarisApiClient` on wasm.
+# gloo-net 0.6.0 (crates.io 2026-05-14, already in the lockfile via proto-blue):
+# MIT/Apache-2.0. Note: 0.7.0 is the latest published line; we pin 0.6 because
+# it is the version proto-blue's wasm backend already drags in and bumping to
+# 0.7 would force a multi-version tree without an offsetting benefit.
+gloo-net = "0.6"
+
+# Frontend: Rust-Future ↔ JS-Promise bridge — leptos uses this as its wasm
+# async executor. Polaris does not call it directly; declaring it at the
+# workspace level keeps the version pinned alongside the other wasm-bindgen
+# family crates so they bump together.
+# wasm-bindgen-futures 0.4.71 (crates.io 2026-05-14, already in the lockfile):
+# MIT/Apache-2.0.
+wasm-bindgen-futures = "0.4"
+
+# Frontend: native HTTP client. Lifted from the per-crate `polaris-backend`
+# dev-dep so `polaris-frontend`'s native build target (tests + tooling) can
+# share the same pin without each crate re-asserting features. The 0.12 line
+# is forced by openidconnect 4.0.1's transitive `^0.12` requirement
+# (verified crates.io 2026-05-14). Features curated to the minimum we need.
+reqwest = { version = "0.12", default-features = false, features = [
+    "json",
+    "rustls-tls",
+    # `cookies` enables `ClientBuilder::cookie_store(true)` — the in-memory
+    # cookie jar `polaris-frontend`'s native API client uses so workspace
+    # tests can drive session-cookie flows the same way the browser bundle
+    # does. The polaris-backend dev-dep reuses this pin, so the feature is
+    # additive workspace-wide rather than per-crate.
+    "cookies",
+] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# `async-trait` 0.1.89 (crates.io 2026-05-14): MIT/Apache-2.0. The repo
+# traits introduced in #13 (`SubjectRepo`, `IncidentRepo`, `ActionRepo`,
+# `ReportRepo`, `ObservationRepo`) need to be dyn-compatible so M2+ tests
+# can swap a `Box<dyn SubjectRepo>` for the live `PgSubjectRepo`. Stable
+# Rust 1.88 has AFIT, but the dyn-compatible form ("return-position `impl
+# Trait` in trait" not allowed) requires either `#[trait_variant]` or the
+# old `#[async_trait]` macro. We pick `async-trait` because (a) it adds
+# zero new transitive deps to the lockfile and (b) the per-call Box<Future>
+# allocation is negligible at repo-call latency. Re-evaluate when
+# `#[trait_variant]` ships as part of the standard library.
+async-trait = "0.1"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Identifiers
+# `rng-getrandom`: uuid 1.23+ split its v4 RNG impl into per-source features;
+# without it the wasm32 build fails with `cannot find RngImp in imp` because
+# no concrete RNG backend is configured. `getrandom` (transitive) defaults to
+# the browser-side `crypto.getRandomValues` on wasm32-unknown-unknown via the
+# `wasm_js` cfg in getrandom 0.3.
+uuid = { version = "1", features = ["v4", "serde", "rng-getrandom", "js"] }
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# CLI (xtask)
+clap = { version = "4", features = ["derive"] }
+
+# xtask: recursive directory walker for the frontend-boundary scanner.
+# walkdir 2.5.0 (crates.io 2026-05-14): Unlicense/MIT. The de-facto Rust
+# crate for "walk a tree and yield each entry"; depended on by the toolchain
+# itself transitively (`cargo`, `rustc-ap-*`). 2.x has been API-stable since
+# 2018 and there is no 3.x line in flight.
+walkdir = "2"
+
+# xtask: regex matching for the frontend-boundary scanner's pattern list.
+# regex 1.12.3 (crates.io 2026-05-14): MIT/Apache-2.0. The patterns we
+# compile are static `&'static str`s so the runtime cost is one compile per
+# pattern at process startup; the boundary check exits within milliseconds
+# on the current tree. No need for `regex-lite` — `regex` is already in the
+# lockfile via proto-blue, so we add zero net deps.
+regex = "1"
+
+# Auth: OIDC client.
+# openidconnect 4.0.1 (crates.io 2026-05-14): MIT, rust-version 1.65,
+# `reqwest` feature pulls in the reqwest-driven HTTP transport that proto-blue
+# already drags in (reqwest 0.12.28 is in the lockfile). Default features
+# would additionally enable `rustls-tls`; we depend on the explicit `reqwest`
+# feature without `default-features` so a future TLS-stack swap is opt-in.
+openidconnect = { version = "4", default-features = false, features = ["reqwest", "rustls-tls"] }
+
+# Auth: AES-256-GCM AEAD for refresh-token-at-rest encryption.
+# aes-gcm 0.10.3 (crates.io 2026-05-14), RustCrypto, MIT/Apache-2.0.
+aes-gcm = "0.10"
+
+# Issue #24: SHA-256 of the appellant's source IP for the appeals
+# rate-limit accounting path. RustCrypto family, already in the
+# transitive lockfile via aes-gcm / proto-blue.
+# sha2 0.10.9 (crates.io 2026-05-14): MIT/Apache-2.0.
+sha2 = "0.10"
+
+# Auth: opaque session-ID encoding + sealed-bytes serialisation.
+# base64 0.22.1 (crates.io 2026-05-14).
+base64 = "0.22"
+
+# Auth: cryptographic RNG for nonces and session IDs.
+# rand 0.8.6 (crates.io 2026-05-14) — pinned to the 0.8 line because
+# openidconnect 4.0.1 transitively requires `rand ^0.8.5`. The 0.9/0.10
+# lines are also published but would force a workspace-wide multi-version
+# tree we do not need yet.
+rand = "0.8"
+
+# Auth: hex decoding for the 32-byte cookie key env var.
+# hex 0.4.3 (crates.io 2026-05-14).
+hex = "0.4"
+
+# Auth: cookie-attribute helpers (HttpOnly / Secure / SameSite=Lax).
+# cookie 0.18.1 (crates.io 2026-05-14). axum-extra 0.10 also re-exports
+# `cookie`; we depend on it explicitly so the typed builder is in scope at
+# every cookie construction site.
+cookie = "0.18"
+
+# Auth: typed cookie extraction for axum 0.8.
+# axum-extra 0.10.0 is the latest line compatible with axum 0.8 (axum-extra
+# 0.12 requires axum ^0.8.9 too but pulls in a 0.12 cookie major; we stay on
+# 0.10 to keep the cookie major at 0.18 across the workspace).
+axum-extra = { version = "0.10", features = ["cookie", "query"] }
+
+# Auth: typed-redacted wrapper around the OIDC client secret.
+# secrecy 0.10.3 (crates.io 2026-05-14): redacts `Debug` + zeroises on drop.
+secrecy = { version = "0.10", features = ["serde"] }
+
+# HTTP middleware utilities.
+# tower-http 0.6.10 (crates.io 2026-05-14) is already in the lockfile via
+# axum-extra; declaring it at the workspace level lets the backend opt into
+# the `trace` and `auth` feature subsets directly.
+tower-http = { version = "0.6", features = ["trace", "auth"] }
+
+# Event bus (#16). The bus is the seam between event producers (firehose
+# ingest, upstream-labeler consumer) and consumers (pattern engine, evidence
+# worker); the backend is Cargo-feature-selected per deployment profile —
+# Kafka for the Bluesky profile, NATS for the labeler profile (design.md
+# §3.1).
+#
+# `rdkafka` 0.39.0 (crates.io 2026-05-14): MIT/Apache-2.0. The current major
+# of the de-facto Rust Kafka client (a thin wrapper around librdkafka). We
+# disable defaults because the default feature set additionally enables
+# `libz` unconditionally — we want `tokio` (we are a tokio workspace) but
+# leave compression and the `cmake-build` shortcut opt-in so a stock
+# `cargo build` finds a system librdkafka instead of building one. Operators
+# on hosts without a system librdkafka can enable `cmake-build` /
+# `ssl-vendored` at the consumer crate; that's an operator decision, not a
+# default the workspace forces.
+rdkafka = { version = "0.39", default-features = false, features = ["tokio"] }
+
+# `async-nats` 0.48.0 (crates.io 2026-05-14): Apache-2.0. The current major
+# of the official Rust client for NATS — the default event-bus backend for
+# the labeler deployment profile (design.md §3.1; single-binary, no
+# ZooKeeper, runs on a small VM).
+async-nats = "0.48"
+
+# `bytes` 1.11.1 (crates.io 2026-05-14, already in the lockfile via
+# tokio / hyper / async-nats / axum): MIT. The NATS backend's `publish`
+# takes a `bytes::Bytes` payload; declaring the dep at the workspace level
+# pins the major and avoids a transitive-only reach for a type that
+# appears in the bus's call sites.
+bytes = "1"
+
+# `bincode` 2.0.1 (crates.io 2026-05-14): MIT. NOTE: 3.0.0 is published but
+# contains a single `compile_error!("https://xkcd.com/2347/")` (a protest
+# release that fails to compile by design) and is unusable; 2.0.1 is the
+# latest functional line. We use bincode for the on-the-wire envelope —
+# smaller and faster than serde_json, and the bus is internal-only so we
+# don't need JSON's human-readability. The `serde` feature exposes
+# `bincode::serde::encode_to_vec` / `decode_from_slice` so existing
+# `serde::Serialize` / `Deserialize` impls (including the upstream
+# `proto_blue` event types reached via `NormalizedEvent`) round-trip without
+# requiring a separate `bincode::Encode` derive on every payload.
+bincode = { version = "2", features = ["serde"] }
+
+# `futures` 0.3.32 (crates.io 2026-05-14, already in the lockfile via
+# proto-blue / async-nats / leptos / wasm-bindgen-futures): MIT/Apache-2.0.
+# The bus trait returns `BoxStream<'static, ...>` from `subscribe()` so the
+# trait stays dyn-compatible; `futures::stream::BoxStream` is the canonical
+# alias and `futures::StreamExt` adapts the per-backend subscriber types
+# into that shape.
+futures = "0.3"
+
+# `ciborium` 0.2.2 (crates.io 2026-05-14, already in the lockfile via
+# proto-blue's CBOR stack — proto-blue-lex-cbor depends on ciborium-ll
+# transitively): MIT/Apache-2.0. Used by the labeler (`#26`) to encode
+# atproto subscription frames: each WebSocket message is a `(header, body)`
+# pair of DAG-CBOR values concatenated on the wire. We use ciborium directly
+# (not `proto-blue-lex-cbor`) because the frame envelope is plain CBOR — the
+# IPLD discriminator types `lex-cbor` adds are unnecessary for the
+# subscription protocol's outer framing.
+ciborium = "0.2"
+
+# `proptest` 1.5.0 (crates.io 2026-05-14): MIT/Apache-2.0. Property-based
+# testing harness used by the pattern detectors (#17 SimHash, future
+# #18 MinHash, #19 anomaly bands) to assert algebraic invariants —
+# e.g. "for any pair of u64, hamming distance is bounded by 64", "identical
+# hashes within window always cluster". Declared at the workspace level so
+# downstream pattern-engine sibling crates pin the same major. Used only as
+# a dev-dependency by `polaris-backend`; it never enters the production
+# build graph.
+proptest = "1"
+
+# Labeler signing-key custody (issue #29 / REQ-11). The four `SigningKey`
+# implementations under `polaris-backend/src/labeler/signer/` need:
+#
+# - `scrypt` 0.11.0 (crates.io 2026-05-14): MIT/Apache-2.0. KDF for the
+#   `passphrase-sealed` mode. Params at OWASP-current recommendation
+#   (N=32768, r=8, p=1) are declared as `const` in the impl module.
+# - `keyring` 3.7.0 (crates.io 2026-05-14): MIT/Apache-2.0. Cross-platform
+#   OS keychain wrapper (macOS Keychain, freedesktop Secret Service via
+#   `secret-service-rs`, Windows DPAPI / Credential Manager). The `3.x`
+#   line is the current major; the API stabilised the per-platform
+#   feature gates we depend on.
+# - `aws-sdk-kms` 1.94.0 (crates.io 2026-05-14): Apache-2.0. Used by the
+#   `cloud-kms-oracle` mode for per-signature KMS RPCs. Pinned with
+#   `default-features = false` because the SDK's default feature set
+#   includes a `native-tls` transport — we opt into `rustls` to match the
+#   workspace TLS posture (reqwest + sqlx). Gated behind the
+#   `kms-integration` Cargo feature in `polaris-backend` so a stock build
+#   does not pull the AWS SDK + tokio-aws-config tree.
+# - `aws-config` 1.10.0 (crates.io 2026-05-14): Apache-2.0. The KMS SDK
+#   needs an `aws_config::SdkConfig` to authenticate; declaring it at the
+#   workspace level pins the major next to the SDK pin so they bump
+#   together. Same `default-features = false` + rustls posture as
+#   `aws-sdk-kms`.
+#
+# `k256` 0.13.x is already in the lockfile transitively via
+# `proto-blue-crypto`; we do NOT redeclare it at the workspace level so
+# the major stays single-sourced through proto-blue. Likewise `zeroize`
+# is pulled in transitively (via `aes-gcm`, `secrecy`, `k256`) and the
+# signing-key impls only need it via the proto-blue / secrecy surface.
+scrypt = "0.11"
+keyring = "3"
+# `zeroize` 1.8.x (already in the lockfile transitively via aes-gcm /
+# secrecy / k256): MIT/Apache-2.0. Direct dependency for the
+# `passphrase-sealed` signer's KDF buffer — the input passphrase must be
+# wiped from process memory immediately after `scrypt` derives the AES
+# key. Pinning at the workspace level keeps the major aligned with the
+# secrecy crate's re-export.
+zeroize = "1"
+aws-sdk-kms = { version = "1", default-features = false, features = [
+    "rustls",
+    "rt-tokio",
+] }
+aws-config = { version = "1", default-features = false, features = [
+    "rustls",
+    "rt-tokio",
+    "behavior-version-latest",
+] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+rust_2018_idioms = { level = "deny", priority = -1 }
+
+[workspace.lints.clippy]
+# Catch-all warning groups (lower priority so item-level allows can override)
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+
+# Restriction lints — enforce discipline around panics and debug output
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "warn"
+
+# Allow: module_name_repetitions fires on every `polaris_types::types::Subject`
+# style of re-export that the Rust API Guidelines (C-REEXPORT) actually encourages.
+# A crate named `polaris-types` will naturally have items in a `types` submodule;
+# the lint produces false positives in that context without improving clarity.
+module_name_repetitions = "allow"
+
+# Allow: missing_errors_doc requires every Result-returning fn to have an
+# `# Errors` section. The Rust API Guidelines (C-FAILURE) encourage this for
+# *stable library crates*; for an early-development internal workspace it
+# produces noise before the API surface is stable. Re-enable at M4 hardening.
+missing_errors_doc = "allow"

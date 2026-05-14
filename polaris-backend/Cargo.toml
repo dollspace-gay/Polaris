@@ -1,0 +1,217 @@
+[package]
+name = "polaris-backend"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Polaris backend: Axum HTTP server, ingest workers, label emission, and evidence preservation."
+
+[[bin]]
+name = "polaris-backend"
+path = "src/main.rs"
+
+# Operator-side labeler-key rotation CLI (issue #30, REQ-12, AC-15).
+# One-command rotation driven by a resumable state machine; lives in the
+# `polaris-backend` crate so the migration / rotation module / DB pool are
+# all on a single Cargo unit. The binary is small (CLI + thin glue), the
+# heavy lifting is in `polaris_backend::labeler::rotation`.
+[[bin]]
+name = "labeler-key-rotate"
+path = "src/bin/labeler_key_rotate.rs"
+
+[lib]
+name = "polaris_backend"
+path = "src/lib.rs"
+
+# Event-bus backend selection (#16). Matches design.md §3.1: Kafka for the
+# Bluesky deployment profile, NATS for the labeler profile (single-binary,
+# no ZooKeeper, runs on a small VM). Features are additive — enabling both
+# compiles both modules and is a supported configuration for a single
+# binary that bridges the two; the labeler profile leaves only `bus-nats`
+# enabled for a smaller binary footprint.
+[features]
+default = ["bus-nats"]
+bus-kafka = ["dep:rdkafka"]
+bus-nats = ["dep:async-nats", "dep:bytes"]
+# Labeler signing-key custody — cloud KMS oracle mode (issue #29).
+#
+# The `cloud-kms-oracle` posture requires the AWS SDK to make a KMS RPC
+# on every `sign()` call; the SDK + its tokio-runtime + rustls TLS stack
+# are heavy enough that a labeler-profile deployment without a KMS
+# integration should not pay the binary-size cost. Gated behind a Cargo
+# feature so the default `polaris-backend` build is unchanged. The
+# integration test against localstack lives behind the same gate.
+kms-integration = ["dep:aws-sdk-kms", "dep:aws-config"]
+
+[dependencies]
+# Axum: the `ws` feature is required for the labeler's
+# `subscribeLabels` WebSocket endpoint (#26). It's an additive feature — the
+# rest of the HTTP router is unaffected — and the underlying `hyper-tungstenite`
+# dep is already in the workspace lockfile via `tokio-tungstenite`. Re-declaring
+# axum at the per-crate level rather than the workspace level so the feature
+# selection lives next to the consumer.
+axum = { workspace = true, features = ["ws"] }
+sqlx.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+proto-blue.workspace = true
+polaris-types = { path = "../polaris-types" }
+
+# Issue #30 / REQ-12 / AC-15: the rotation state machine's
+# `step_publish_service_record` invokes the publish crate's pure
+# `build_labeler_service_record` constructor to catch a misconfigured
+# new key (bad did:key form, non-HTTPS service URL) early — before the
+# operator's out-of-band publish run. Path-only because the publish
+# binary is a sibling crate in this workspace; no version bound is
+# meaningful when both crates rev together.
+polaris-publish-labeler-record = { path = "../polaris-publish-labeler-record" }
+
+# Issue #30 / REQ-12 / AC-15: the `labeler-key-rotate` binary (src/bin/
+# labeler_key_rotate.rs) consumes clap's derive macros for `--mode`,
+# `--resume`, `--new-key-path`, `--reason`, `--dry-run`. Workspace-pinned
+# (clap 4.x with `derive`); already in the lockfile via xtask /
+# polaris-publish-labeler-record.
+clap.workspace = true
+
+# Labeler subscription-frame CBOR encoder (#26). Encodes the
+# atproto `(header, body)` frame pair on each `subscribeLabels`
+# message. Workspace-pinned (root `Cargo.toml`); already in the
+# lockfile via proto-blue's CBOR stack.
+ciborium.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+
+# Appeals workflow (issue #24). `sha2` hashes the appellant's source IP at
+# the API boundary before persistence — the privacy bar is "we never store
+# raw IPs." Workspace-pinned per the root `Cargo.toml` (MIT/Apache-2.0).
+sha2.workspace = true
+
+# Event bus (#16). `async-trait` is required to keep `EventBus` dyn-compatible
+# (the trait carries `async fn`s and is consumed by tests as `&dyn EventBus<T>`);
+# `bincode` is the on-the-wire envelope codec; `futures` provides
+# `BoxStream`. The two backend crates are optional and gated on
+# `bus-kafka` / `bus-nats`.
+async-trait.workspace = true
+bincode.workspace = true
+futures.workspace = true
+rdkafka = { workspace = true, optional = true }
+async-nats = { workspace = true, optional = true }
+# `bytes` is only needed by the NATS backend's publish path; gating it to
+# the `bus-nats` feature keeps the `bus-kafka`-only build graph slim.
+bytes = { workspace = true, optional = true }
+
+# Auth (issue #9). Each dependency is justified inline in the workspace
+# `Cargo.toml` against a crates.io check on 2026-05-14.
+openidconnect.workspace = true
+aes-gcm.workspace = true
+base64.workspace = true
+rand.workspace = true
+hex.workspace = true
+cookie.workspace = true
+axum-extra.workspace = true
+secrecy.workspace = true
+tower-http.workspace = true
+
+# Labeler signing-key custody (issue #29 / REQ-11). Workspace-pinned, each
+# justified inline at the root `Cargo.toml`.
+#
+# - `k256` is depended on transitively via proto-blue-crypto (the K-256
+#   primitives Polaris signs labels with); we do not redeclare it at the
+#   workspace level so the major stays single-sourced through proto-blue.
+# - `scrypt` is the KDF used by the `passphrase-sealed` mode.
+# - `keyring` is the cross-platform OS-keychain wrapper used by the
+#   `os-keychain` mode.
+# - `zeroize` redacts on drop for in-process passphrase buffers; already in
+#   the lockfile via `secrecy` / `aes-gcm` / `k256`. We pin a direct
+#   dependency so the redaction is visible at the consumer call site
+#   instead of relying on transitive availability.
+# - `aws-sdk-kms` + `aws-config` are gated behind the `kms-integration`
+#   feature (see [features] above).
+scrypt.workspace = true
+keyring.workspace = true
+zeroize.workspace = true
+aws-sdk-kms = { workspace = true, optional = true }
+aws-config = { workspace = true, optional = true }
+
+# Offline-mode note: sqlx 0.8 uses a `.sqlx/` directory (one JSON per query)
+# as the offline query cache. This issue introduces zero `sqlx::query!`
+# macros, so the cache is empty but the directory is committed via a
+# `.gitkeep` so #13 can populate it via `cargo sqlx prepare` without a fresh
+# `mkdir` step. The old single-file `sqlx-data.json` layout was removed
+# in sqlx 0.7+.
+
+[dev-dependencies]
+# Pinned at the latest crates.io stable as of 2026-05-14:
+#   testcontainers          0.27.3 (rust-version 1.88)
+#   testcontainers-modules  0.15.0 (rust-version 1.88, "postgres" module)
+# The pre-flight document quoted 0.23 / 0.11 — those are stale. The current
+# majors require Rust 1.88, which matches the workspace toolchain exactly.
+testcontainers = "0.27"
+testcontainers-modules = { version = "0.15", features = ["postgres"] }
+tokio = { workspace = true, features = ["test-util", "macros"] }
+
+# `tower` 0.5.3 (already in the lockfile via axum). The `util` feature
+# exposes `ServiceExt::oneshot`, which the case-api integration test
+# (#14) uses to drive Axum's `Router` as a tower service without
+# binding a TCP listener — the canonical pattern for in-process HTTP
+# tests against axum. The runtime cost is zero (`tower` is already
+# compiled into the lockfile), this just promotes the dependency from
+# transitive to direct for `tests/`.
+tower = { version = "0.5", features = ["util"] }
+# `http-body-util` 0.1.x is the body-utilities crate that backs axum's
+# `axum::body::to_bytes` shape in tower-style tests. Already transitively
+# in the lockfile via axum 0.8.
+http-body-util = "0.1"
+
+# Integration-test dependencies for issue #9 (verified crates.io
+# 2026-05-14):
+#   wiremock                0.6.5   — mock OIDC issuer/token endpoints
+#   reqwest                 0.12.x  — already in the lockfile via proto-blue;
+#                                     pinned to the 0.12 line because
+#                                     openidconnect 4.0.1 transitively
+#                                     requires `^0.12`.
+wiremock = "0.6"
+reqwest = { workspace = true }
+# `url` is already in the lockfile via reqwest; declared explicitly so the
+# OIDC integration test can parse the authorize_url query params.
+url = "2"
+
+# `tracing-test` 0.2.6 (crates.io 2026-05-14) — installs a per-test
+# `tracing` subscriber and captures emitted events into a `logs_contain` /
+# `logs_assert` API. Used by `tests/sql_injection_auth.rs` to verify that
+# malformed-token payloads are never echoed to logs by the middleware /
+# session-store path. MIT/Apache-2.0.
+tracing-test = "0.2"
+
+# tokio-tungstenite 0.26.2 (crates.io 2026-05-14, already in the lockfile
+# via proto-blue-ws): MIT. Used by `tests/firehose_reconnect.rs` to stand
+# up a server-side fixture firehose: bind a TCP listener, accept WebSocket
+# upgrades, parse the `?cursor=` query parameter from the handshake, and
+# emit CBOR-encoded `Frame::Message` payloads through `proto_blue::ws`.
+# Pinning to 0.26 matches the exact version proto-blue-ws compiles against,
+# so the dev-dep adds zero new crates to the binary build graph.
+tokio-tungstenite = "0.26"
+
+# `proptest` (workspace pin; see root Cargo.toml). Used by
+# `src/pattern/simhash.rs`'s in-module test suite to assert algebraic
+# properties of the Hamming-distance primitive: any pair of u64 hashes
+# yields a popcount in `[0, 64]`. Dev-only — proptest never enters the
+# production build graph.
+proptest = { workspace = true }
+
+# `tempfile` 3.x (already in the lockfile transitively via testcontainers /
+# proto-blue): MIT/Apache-2.0. Used by `src/labeler/signer/file_plain.rs`'s
+# in-module tests to write a freshly-generated K-256 secret to a
+# disposable file with mode 0o600 and then load it back through the
+# real `from_path` constructor. Dev-only.
+tempfile = "3"
+
+[lints]
+workspace = true

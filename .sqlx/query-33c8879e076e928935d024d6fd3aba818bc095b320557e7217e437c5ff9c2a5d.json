@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            kind        AS \"kind!: String\",\n            evidence    AS \"evidence!: serde_json::Value\",\n            detected_at AS \"detected_at!: DateTime<Utc>\"\n        FROM observations\n        WHERE kind IN (\n            'image_hash_cluster', 'account_cohort',\n            'reply_brigade',      'report_volume_anomaly'\n        )\n        ORDER BY detected_at DESC\n        LIMIT $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "kind!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "evidence!: serde_json::Value",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 2,
+        "name": "detected_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "33c8879e076e928935d024d6fd3aba818bc095b320557e7217e437c5ff9c2a5d"
+}

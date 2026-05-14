@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO moderator_roles (moderator_id, role) VALUES ($1, 'senior_moderator')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a4f5f9d5004a9fa4af874ccb5dfc2fbe7df49b0c838c9d980404b71e9b606903"
+}

@@ -1,0 +1,26 @@
+# Identifiers that clippy's doc-markdown lint should not flag as needing backtick escaping.
+# These are domain-specific terms from ATProto, cryptography, and the Polaris design.
+doc-valid-idents = [
+    "AT-URI",
+    "AT-URIs",
+    "DAG-CBOR",
+    "did:plc",
+    "did:web",
+    "did:key",
+    "NSID",
+    "NSIDs",
+    "PDS",
+    "AppView",
+    "K-256",
+    "P-256",
+    "PKCE",
+    "DPoP",
+    "PAR",
+    "MST",
+    "CAR",
+    "SimHash",
+    "MinHash",
+    "..",
+    "Polaris",
+    "ATProto",
+]

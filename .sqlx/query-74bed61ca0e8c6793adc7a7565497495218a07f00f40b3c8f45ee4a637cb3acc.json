@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO labels (\n                src, uri, cid, val, neg, sig, action_id,\n                subject_did, label_cbor, signing_did\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n            RETURNING seq, cts, signed_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "cts",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 2,
+        "name": "signed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Bytea",
+        "Uuid",
+        "Text",
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "74bed61ca0e8c6793adc7a7565497495218a07f00f40b3c8f45ee4a637cb3acc"
+}

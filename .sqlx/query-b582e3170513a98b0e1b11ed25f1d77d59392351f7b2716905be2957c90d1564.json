@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE rotation_state\n            SET new_public_key_did = $1,\n                last_step = 'key_generated'::rotation_step,\n                last_step_at = now()\n            WHERE id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b582e3170513a98b0e1b11ed25f1d77d59392351f7b2716905be2957c90d1564"
+}

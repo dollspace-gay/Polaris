@@ -1,0 +1,18 @@
+# Trunk build configuration for `polaris-frontend`.
+#
+# Trunk (current stable 0.21.x, crates.io 2026-05-14) is the build pipeline
+# for the wasm bundle: it compiles the crate for `wasm32-unknown-unknown`,
+# runs wasm-bindgen, and emits the JS shim + asset bundle into `dist/`.
+#
+# The HTML entry point at `index.html` carries a single `<link data-trunk
+# rel="rust" href="Cargo.toml" />` element that points Trunk at this crate;
+# no extra wasm-pack / wasm-bindgen-cli wiring is required.
+
+[build]
+target = "index.html"
+dist = "dist"
+public_url = "/"
+
+[serve]
+addresses = ["127.0.0.1"]
+port = 8081

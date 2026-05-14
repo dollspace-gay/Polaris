@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO pattern_action_signatures (pattern_action_id, signing_moderator_id)\n            VALUES ($1, $2)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8ad91ba81247b0ef77ccb318bbf459d08d8ac7a712e2c7f2d394b21a877d2a45"
+}

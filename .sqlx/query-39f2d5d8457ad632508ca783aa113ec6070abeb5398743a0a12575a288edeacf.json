@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO moderator_exposure_settings (moderator_id, daily_cap)\n            VALUES ($1, $2)\n            ON CONFLICT (moderator_id)\n            DO UPDATE SET daily_cap = EXCLUDED.daily_cap, updated_at = now()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "39f2d5d8457ad632508ca783aa113ec6070abeb5398743a0a12575a288edeacf"
+}

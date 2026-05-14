@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE rotation_state\n            SET last_step = 'aborted'::rotation_step,\n                last_step_at = now(),\n                error = $1\n            WHERE id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2ebc03bbd3e58a5d20f5c5c58e98b3d78a69c6311fd427dc902143b7ae12975d"
+}

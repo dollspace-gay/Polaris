@@ -1,0 +1,96 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO actions (\n                incident_id, subject_id, moderator_id, kind, label_value,\n                reasoning, policy_refs, reversible_until, reverses_action_id\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n            RETURNING id, incident_id, subject_id, moderator_id, kind, label_value,\n                      reasoning, policy_refs, reversible_until, reverses_action_id,\n                      emitted_to_atproto, created_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "incident_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "subject_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "moderator_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "label_value",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "reasoning",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "policy_refs",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 8,
+        "name": "reversible_until",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "reverses_action_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "emitted_to_atproto",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "TextArray",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "3bd4c873545f8acf0c99531ccc49b9eb99c7853b5e50df89a6f3d1a7138dd39c"
+}

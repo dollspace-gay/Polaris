@@ -1,0 +1,88 @@
+[package]
+name = "polaris-frontend"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Polaris frontend: Leptos WASM application for the moderation dashboard."
+
+[lib]
+name = "polaris_frontend"
+path = "src/lib.rs"
+# Leptos compiles to cdylib for the WASM target and rlib for native targets
+# (tests + tooling). Trunk consumes the cdylib output to drive wasm-bindgen.
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "polaris-frontend"
+path = "src/main.rs"
+
+[dependencies]
+# Framework
+leptos.workspace = true
+leptos_router.workspace = true
+leptos_meta.workspace = true
+
+# Workspace primitives
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+polaris-types = { path = "../polaris-types" }
+
+# wasm ↔ JS surface. wasm-bindgen + js-sys + web-sys compile on every target
+# (the no-op shim ships on native) — we list them as plain deps so the
+# native rlib build keeps the same source tree as the wasm cdylib build.
+wasm-bindgen.workspace = true
+js-sys.workspace = true
+web-sys.workspace = true
+
+# proto-blue uses target-conditional dependency tables to select the correct
+# HTTP and WebSocket backends automatically:
+#   - native (x86_64, etc.): reqwest + tungstenite + hickory-resolver
+#   - wasm32-unknown-unknown: gloo-net + gloo-ws + HTTPS .well-known
+# Polaris mirrors that pattern — no feature gymnastics required on our side;
+# adding proto-blue as a plain dependency gives the right backend per target.
+proto-blue.workspace = true
+
+# ── Native-only deps ────────────────────────────────────────────────────
+# `polaris-frontend` builds for native as an `rlib` so workspace tooling
+# (cargo check, cargo doc, IDE rust-analyzer) works without a wasm target.
+# The Polaris API client's native impl uses `reqwest`; the wasm impl uses
+# `gloo-net`. Selection is at the module-cfg level inside `src/api_client/`.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqwest = { workspace = true }
+
+# ── wasm-only deps ──────────────────────────────────────────────────────
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook.workspace = true
+gloo-net.workspace = true
+wasm-bindgen-futures.workspace = true
+# `uuid` (pulled in transitively via `polaris-types`) reaches `getrandom`
+# under wasm32, and `getrandom` 0.3+ refuses to compile for
+# `wasm32-unknown-unknown` without an explicit backend selection. Three
+# versions of `getrandom` end up in the dep tree (0.2 via `rand 0.8`,
+# 0.3 via direct, 0.4 via `uuid 1.23`); each is enabled here with the
+# wasm-js backend feature so feature unification gives every transitive
+# user the browser-side `crypto.getRandomValues` backend. Without these
+# the wasm build fails with `cannot find RngImp in imp` (uuid 1.23) and
+# `inner_u32 not found` (getrandom 0.4) errors.
+getrandom_04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
+getrandom_03 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
+
+# ── Dev / test deps ─────────────────────────────────────────────────────
+# `wasm-bindgen-test` 0.3.71 (crates.io 2026-05-14): MIT/Apache-2.0. The
+# browser-runtime test harness for wasm-bindgen crates. Lets us drive
+# Leptos components through a headless browser (geckodriver / chromedriver)
+# and exercise validation contracts that depend on real DOM events.
+# Listed as a normal dev-dep on every target so the test binary compiles on
+# native too (the `#[wasm_bindgen_test]` attribute is target-aware).
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[lints]
+workspace = true

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT public_key_did\n        FROM signing_key_history\n        WHERE active_from <= $1\n          AND (active_until IS NULL OR active_until > $1)\n        ORDER BY active_from DESC\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "public_key_did",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e6b3f1414d690b4970119cb05ef51ddbb4a7e55f3f92a5860427db64595925a6"
+}

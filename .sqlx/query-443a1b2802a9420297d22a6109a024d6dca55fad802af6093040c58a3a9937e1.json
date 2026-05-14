@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT share_with_manager AS \"share_with_manager!: bool\"\n            FROM moderator_exposure_settings\n            WHERE moderator_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "share_with_manager!: bool",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "443a1b2802a9420297d22a6109a024d6dca55fad802af6093040c58a3a9937e1"
+}

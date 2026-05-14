@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth_oidc_login_states (state, pkce_verifier, csrf_nonce)\n              VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "edeb159351ba673c0e7be8347a7d782b4d8bba4bf152af3b19ca932aed8f83c2"
+}

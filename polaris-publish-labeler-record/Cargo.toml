@@ -1,0 +1,36 @@
+[package]
+name = "polaris-publish-labeler-record"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "CLI to publish app.bsky.labeler.service record to operator's Bluesky account (REQ-2 / AC-2 of .design/polaris-proto-blue-integration.md)."
+
+[lib]
+name = "polaris_publish_labeler_record"
+path = "src/lib.rs"
+
+[[bin]]
+name = "polaris-publish-labeler-record"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+proto-blue.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde_json.workspace = true
+secrecy = { workspace = true, features = ["serde"] }
+
+# URL parsing for the `--service-url` flag. `url` 2.5.x is already in the
+# lockfile transitively via proto-blue (which uses it for its XRPC base
+# URL); we add it as a direct dep here so the build is explicit about
+# the version it links against. MIT/Apache-2.0.
+url = "2"
+
+[lints]
+workspace = true

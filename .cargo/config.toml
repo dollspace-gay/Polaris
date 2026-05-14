@@ -1,0 +1,4 @@
+[alias]
+# Run `cargo xtask <subcommand>` to invoke the xtask binary.
+# Example: `cargo xtask check-frontend-boundary`
+xtask = "run --package xtask --"

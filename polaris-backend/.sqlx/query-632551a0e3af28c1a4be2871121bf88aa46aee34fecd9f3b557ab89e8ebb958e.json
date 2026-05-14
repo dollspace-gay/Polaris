@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO labels (src, uri, cid, val, neg, exp, sig, action_id)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n            RETURNING id, seq, src, uri, cid, val, neg, cts, exp, sig\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "src",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "uri",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "cid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "val",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "neg",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "cts",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "exp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "sig",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Timestamptz",
+        "Bytea",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "632551a0e3af28c1a4be2871121bf88aa46aee34fecd9f3b557ab89e8ebb958e"
+}

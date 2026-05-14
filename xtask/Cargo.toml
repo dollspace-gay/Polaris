@@ -1,0 +1,25 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Polaris workspace automation tasks (invoked via `cargo xtask <subcommand>`)."
+
+[lib]
+name = "xtask"
+path = "src/lib.rs"
+
+[[bin]]
+name = "xtask"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+walkdir.workspace = true
+regex.workspace = true
+anyhow.workspace = true
+
+[lints]
+workspace = true

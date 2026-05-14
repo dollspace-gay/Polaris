@@ -1,0 +1,27 @@
+[package]
+name = "polaris-types"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Polaris-internal types: Subject, Incident, Action, Observation, Report, Moderator."
+
+# INVARIANT (AC-8): polaris-types MUST NOT depend on proto-blue, directly or
+# transitively. These types are plain Rust + serde; ATProto wire types live in
+# polaris-backend and polaris-frontend, not here.
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+# Issue #24: `polaris_types::appeal::InvalidTransition` derives `thiserror::Error`
+# so the `AppealStatus::transition_to` rejection is typed and `Display`-printable
+# without re-implementing the boilerplate. `thiserror` 2.x has no transitive
+# dependencies beyond `proc-macro2` / `quote` / `syn` — all already in the
+# lockfile via the rest of the workspace — so the AC-8 invariant
+# (`polaris-types` must not depend on `proto-blue`) is unaffected.
+thiserror.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE pattern_actions\n        SET status = 'executed', executed_at = now()\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "54766f0f5e6886d69295b73d0db3dd308705590b8eac53881f25a4f0a93503df"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO pattern_action_subjects (pattern_action_id, subject_id)\n            VALUES ($1, $2)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b23376609a25a8149681f2614d99d8bfc2fb6fd5c4f0628c5464d7b00474b8d1"
+}
