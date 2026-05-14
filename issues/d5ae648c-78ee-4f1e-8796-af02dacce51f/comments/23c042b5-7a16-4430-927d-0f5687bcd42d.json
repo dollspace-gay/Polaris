@@ -1,0 +1,10 @@
+{
+  "uuid": "23c042b5-7a16-4430-927d-0f5687bcd42d",
+  "issue_uuid": "d5ae648c-78ee-4f1e-8796-af02dacce51f",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE (subagent truncated at tool_uses=133; architect-trailing closed three mechanical gaps).\n\nIndependent verification:\n- cargo build --workspace: clean (native).\n- cargo clippy --workspace --all-targets -- -D warnings: clean.\n- cargo build --target wasm32-unknown-unknown -p polaris-frontend: clean. AC-6 + AC-12 mechanically proven.\n- cargo clippy --target wasm32-unknown-unknown -p polaris-frontend --lib -- -D warnings: clean.\n- cargo fmt --check: exit 0 (after architect-trailing cargo fmt fix for one import-ordering diff in atproto_client/native.rs).\n- Module layout matches spec: api_client/{mod,native,wasm}.rs + atproto_client/{mod,native,wasm}.rs + routes/{mod,dashboard}.rs + app.rs + error.rs + lib.rs + main.rs.\n- Forbidden-pattern grep clean: zero unwrap/expect in non-test src; zero tokio; zero leptos_axum; zero panic/todo/dbg; zero crate-root allow; zero unsafe.\n\nArchitect-trailing fixes (all mechanical, all in scope of #10's deliverables):\n1. cargo fmt to fix import ordering in atproto_client/native.rs:10.\n2. Created polaris-frontend/index.html (Trunk-spec deterministic template).\n3. Created .github/workflows/ci.yml with 4-job shape: fmt, clippy --workspace --all-targets, test --workspace (with postgres:16 service), wasm-build (cargo build --target wasm32-unknown-unknown -p polaris-frontend).\n\nTruncation was a token-budget exhaustion, not scope-narrowing; subagent landed the structural work correctly before running out.",
+  "created_at": "2026-05-14T13:30:45.570701318Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAW2+7hGCUKrhG6HL//mh3VBg/40/pFivXc2T0UtcLnz/sg2SQtSGxAk15jZ7T02USFp6T90aiopeFI9m6uaiTDA=="
+}
