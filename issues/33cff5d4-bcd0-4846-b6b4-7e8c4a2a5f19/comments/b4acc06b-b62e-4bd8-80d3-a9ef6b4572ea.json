@@ -1,0 +1,10 @@
+{
+  "uuid": "b4acc06b-b62e-4bd8-80d3-a9ef6b4572ea",
+  "issue_uuid": "33cff5d4-bcd0-4846-b6b4-7e8c4a2a5f19",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE-WITH-FOLLOW-UPS.\n\nIndependent verification:\n- cargo build --workspace: clean.\n- cargo clippy --workspace --all-targets -- -D warnings: clean.\n- cargo fmt --check: exit 0.\n- SQLX_OFFLINE=true cargo build --workspace: clean (28 .sqlx entries, was 27; +1 for update_status query).\n- API source landed: cases.rs, dto.rs, error.rs, policy.rs, state.rs + mod.rs wiring + healthz preserved.\n\nTruncation at tool_uses=97 mid-decision about tower dev-dep for ServiceExt. Implementation is clean and complete; only the integration test file (tests/case_api.rs) is the gap.\n\nFollow-up filed: #52 — Add case_api integration test suite for AC-7 + auth-gate runtime proof. AC-7 has static enforcement via #11's xtask and DB-level via #9's middleware tests; runtime proof of the 401 + 400 + 404 + 201 contract on the new endpoints lives in this follow-up.",
+  "created_at": "2026-05-14T14:29:21.706974510Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABADMgXpaDALnFFg74sDqY4UVa1Z9/IAtpBaOcARa22kL+5bEzbCH/fqrEojkbHRXBKzytik2DVqrwbUkFM+TpOCw=="
+}
