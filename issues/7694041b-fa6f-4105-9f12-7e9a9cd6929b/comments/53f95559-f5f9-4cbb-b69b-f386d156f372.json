@@ -1,0 +1,10 @@
+{
+  "uuid": "53f95559-f5f9-4cbb-b69b-f386d156f372",
+  "issue_uuid": "7694041b-fa6f-4105-9f12-7e9a9cd6929b",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** Embedded tokio-tungstenite server bound to 127.0.0.1:0 with state machine: accept → send frames 1..K → close → accept reconnect → parse ?cursor=K → send frames K+1..N. FirehoseWorker drives against the fixture. Assertion pins post-reconnect events carry seq > disconnect-point seq (proves cursor-driven resume, not just frame-count). Close path uses WebSocket close frame with reconnect-eligible code, not connection drop. tokio-tungstenite as dev-dep (reuse workspace pin if available). Forbidden patterns: no unwrap/expect outside cfg(test) (whole file IS test code).",
+  "created_at": "2026-05-14T23:44:11.200563333Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAfKV+7GenocLfj8GWeIcLAhkY27ZPnoI1WBswg0RY1AHrHf/NJQsZYbNU/qnNOo8WJtnptR6frOssWZILca0sDA=="
+}
