@@ -1,0 +1,10 @@
+{
+  "uuid": "49debc90-7342-44a1-a671-bfc7d5c763c9",
+  "issue_uuid": "084370df-ad1f-4969-81cc-457ec8f05aac",
+  "author": "TeIq",
+  "content": "**Scope.** Foundation pass: establish the Cargo workspace, dependency baselines, lints, CI, and the minimum scaffolding that lets every later milestone land code without rework. Maps to design.md §11 M0 and `.design/polaris-proto-blue-integration.md` §I.\n\n**Children (5).** Workspace setup; Postgres+sqlx scaffold; ModeratorAuth+OIDC scaffold; Leptos+wasm32 CI; xtask frontend-boundary check.\n\n**Done when.** `cargo build --workspace` succeeds on a fresh clone; clippy + fmt clean; an empty Axum app boots; an empty Leptos app serves; CI runs `cargo build --target wasm32-unknown-unknown -p polaris-frontend` (AC-12).\n\n**Rust-quality bar set here propagates downstream.**\n- `lints.workspace = true` in every crate `Cargo.toml`.\n- `#![deny(unsafe_code)]` workspace-wide unless a crate has a documented SAFETY rationale.\n- `cargo clippy --workspace --all-targets -- -D warnings` is the green-build contract from commit 1.\n- Newtype IDs (e.g., `SubjectId(Uuid)`) not type aliases.\n- `thiserror` for crate-local error enums; `anyhow` only in `main.rs`-level binary glue.",
+  "created_at": "2026-05-14T06:31:28.414014106Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA8Eyo/uEUOSJxNFZ1utaI6KVpmxu/0rQTbh+6p9f7WcCtDYqKDasLVNIcWLbXgSRCRmoxHSyMHm2fEzklXy8lAA=="
+}
