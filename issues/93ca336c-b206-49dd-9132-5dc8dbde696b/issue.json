@@ -1,0 +1,10 @@
+{
+  "uuid": "93ca336c-b206-49dd-9132-5dc8dbde696b",
+  "display_id": 62,
+  "title": "Bump aes-gcm 0.10 -> 0.11 when stable (remove deprecated GenericArray allows)",
+  "status": "open",
+  "priority": "low",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T18:40:13.414064829Z",
+  "updated_at": "2026-05-14T18:40:13.414064829Z"
+}
