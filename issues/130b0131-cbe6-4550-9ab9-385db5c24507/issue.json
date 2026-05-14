@@ -2,10 +2,11 @@
   "uuid": "130b0131-cbe6-4550-9ab9-385db5c24507",
   "display_id": 31,
   "title": "Implement AtprotoOauthAuthVerifier as second ModeratorAuth backend",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "a8e9b027-6310-40f8-bfce-5a92fca5e06f",
   "created_by": "TeIq",
   "created_at": "2026-05-14T06:32:36.048621632Z",
-  "updated_at": "2026-05-14T06:32:36.048621632Z"
+  "updated_at": "2026-05-14T19:51:45.967771982Z",
+  "closed_at": "2026-05-14T19:51:45.967771982Z"
 }
