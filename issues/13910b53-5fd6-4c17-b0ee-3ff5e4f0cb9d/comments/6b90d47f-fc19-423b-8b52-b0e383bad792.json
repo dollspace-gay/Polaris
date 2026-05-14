@@ -1,0 +1,10 @@
+{
+  "uuid": "6b90d47f-fc19-423b-8b52-b0e383bad792",
+  "issue_uuid": "13910b53-5fd6-4c17-b0ee-3ff5e4f0cb9d",
+  "author": "TeIq",
+  "content": "**Scope.** #16 landed memory + kafka + nats backends with compile-tests for the feature gates and trait conformance. Live integration tests (testcontainers-driven publish→subscribe round-trips against real Kafka + NATS brokers) deferred to keep the dispatch under the truncation threshold.\n\n**Deliverables.**\n- polaris-backend/tests/bus_kafka_integration.rs — testcontainers Kafka (apache/kafka or confluentinc image), publish + subscribe + bincode envelope round-trip + bounded backpressure.\n- polaris-backend/tests/bus_nats_integration.rs — testcontainers NATS, same round-trip shape.\n- Both #[cfg(feature = \"bus-kafka\")] / #[cfg(feature = \"bus-nats\")] gated.\n\n**Done when.** Both integration tests run live against testcontainers and assert publish→subscribe equivalence + bounded backpressure behaviour.",
+  "created_at": "2026-05-14T15:26:14.609737346Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAzurfdEyXTtQQzb1ZFtxxZjU/Bt+HrQvLq+jQXbSLzy3JrZzHOQA47erDuk35HEdwUkc/8oUf1nd03XosSHoIBg=="
+}
