@@ -1,0 +1,10 @@
+{
+  "uuid": "8111e9d3-b19c-44a4-8c14-7226a21cd2e8",
+  "issue_uuid": "efbb6e57-721e-404c-b69c-7e9c1cf07690",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** New migration 16: upstream_labelers + upstream_labeler_keys (pubkey cache with TTL). New polaris-backend/src/ingest/upstream_labels.rs with UpstreamLabelerConsumer per-upstream task. Reconnect with exponential backoff + jitter. Signature verification via proto_blue_crypto::K256Verifier — unsigned/wrong-sig labels dropped with tracing::warn!. Trust weight: weights JSONB keyed by label_value → f32 (default 0.5). Observation::ExternalLabel insert via existing repo; trigger refreshes risk_signals. Cursor persists per-upstream so reconnect resumes without loss. Wire-level reconnect-with-loss integration test deferred to #51.",
+  "created_at": "2026-05-14T19:52:16.436122511Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAFAaCn9xAKCwvtwg35bPZt4H5v0yf9NxUGf2fcHCWxW9KsU8VLHylzalh13I0Op5LvBsLqqOswtxRl8sGCAT8Dg=="
+}
