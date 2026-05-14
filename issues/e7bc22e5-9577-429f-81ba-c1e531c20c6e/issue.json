@@ -2,10 +2,11 @@
   "uuid": "e7bc22e5-9577-429f-81ba-c1e531c20c6e",
   "display_id": 11,
   "title": "Add xtask check-frontend-boundary script enforcing API boundary at CI",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "084370df-ad1f-4969-81cc-457ec8f05aac",
   "created_by": "TeIq",
   "created_at": "2026-05-14T06:31:44.649171503Z",
-  "updated_at": "2026-05-14T06:31:44.649171503Z"
+  "updated_at": "2026-05-14T13:39:43.864827364Z",
+  "closed_at": "2026-05-14T13:39:43.864827364Z"
 }
