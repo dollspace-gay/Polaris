@@ -1,0 +1,10 @@
+{
+  "uuid": "ae24f77b-a1db-4cfd-83fa-41660a8d04c4",
+  "issue_uuid": "8898435a-8acc-47ef-9c5f-bf9fb8fe5920",
+  "author": "TeIq",
+  "content": "**Scope.** Add the wellness, routing, and appeals layer that distinguishes Polaris from Ozone. Specialty + load + exposure-aware routing (§5.4), exposure tracking with operator-controlled caps (§5.7), appeals workflow as linked incidents (§5.8), and second-opinion attachments (§5.6). Maps to design.md §11 M3.\n\n**Children (4).** Routing engine; exposure tracking + forced-break prompts; appeals workflow; second-opinion conversation attachments.\n\n**Done when.** A new moderator gets a calibrated easy-mode queue, exposure caps are enforced at routing time, an appeal opens a linked incident with original context, and a senior reviewer's conversation attaches permanently and searchably.\n\n**Rust-quality.**\n- Exposure thresholds + cap state are typed (`ExposureBudget(NonZeroU16)`) not bare integers.\n- Wellness data is operator-visible only with consent; the storage layer enforces this — no API route can leak.\n- Routing is deterministic given input + state — testable as a pure function plus an I/O layer.",
+  "created_at": "2026-05-14T06:31:32.240736974Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAGocqYz96T3O3FIP7R9N9oBDjEU8A+557bQ33uUtnQtigP/dXvclnIApgpCl1mdZ9rEZPcveXxN+ZTGlR8dnvCw=="
+}
