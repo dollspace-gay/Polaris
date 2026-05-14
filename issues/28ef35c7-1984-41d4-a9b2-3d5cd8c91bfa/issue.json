@@ -2,10 +2,11 @@
   "uuid": "28ef35c7-1984-41d4-a9b2-3d5cd8c91bfa",
   "display_id": 17,
   "title": "Implement SimHash image-hash dedup for coordinated-image detection",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "1ab6ae17-4f9a-48e3-881c-0d9721b03565",
   "created_by": "TeIq",
   "created_at": "2026-05-14T06:31:59.708241625Z",
-  "updated_at": "2026-05-14T06:31:59.708241625Z"
+  "updated_at": "2026-05-14T15:34:21.800156218Z",
+  "closed_at": "2026-05-14T15:34:21.800156218Z"
 }
