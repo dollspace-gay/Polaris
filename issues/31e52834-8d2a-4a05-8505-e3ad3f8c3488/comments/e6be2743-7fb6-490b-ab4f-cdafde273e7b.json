@@ -1,0 +1,10 @@
+{
+  "uuid": "e6be2743-7fb6-490b-ab4f-cdafde273e7b",
+  "issue_uuid": "31e52834-8d2a-4a05-8505-e3ad3f8c3488",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE-WITH-FOLLOW-UPS.\n\nIndependent verification: build/clippy/fmt/SQLX_OFFLINE/wasm/xtask all clean. 11 reversal unit tests pass. Forbidden-pattern grep clean: zero UPDATE on actions in any src, zero unwrap/expect in non-test reversal code.\n\nAppend-only invariant preserved: every reversal is a new Action row with kind=Reverse + reverses_action_id; the original action is never UPDATEd. Authorization is a pure function with full unit coverage — testable in isolation.\n\nHooks for label neg=true emission are flagged in source for #28 to consume when M4 label emission lands; no premature signing wiring.\n\nFollow-up filed: #55 — pre-existing bad_request_carries_static_message test failure in api/error.rs (not from #36; surfaced during dispatch).",
+  "created_at": "2026-05-14T15:06:11.889578490Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAUFBokvYllammF2Kg7p5X2KOBgTnVYe6sufvE0KEypzuOVq1bdrgLcQN77wMblFoi6uuirp/8dbG6eY9TwioOBw=="
+}
