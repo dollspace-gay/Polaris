@@ -1,0 +1,11 @@
+{
+  "uuid": "4466df44-3c96-40ab-944a-9b758f4e63f5",
+  "display_id": 29,
+  "title": "Implement SigningKey trait with file-plain, passphrase-sealed, os-keychain, cloud-kms-oracle impls",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "a8e9b027-6310-40f8-bfce-5a92fca5e06f",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T06:32:30.917792247Z",
+  "updated_at": "2026-05-14T06:32:30.917792247Z"
+}
