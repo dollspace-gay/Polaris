@@ -1,0 +1,10 @@
+{
+  "uuid": "0572b772-0cb6-4bc9-b14b-ca588aa378e4",
+  "issue_uuid": "329ae090-e871-420a-a295-6cb34d38d240",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, M5 design-doc batch).** M5 issues are deliberately v2+ scope per design. Plan comments prescribe '/design doc first.' Dispatching a single agent to produce 8 design docs at .design/m5/{42-49}-<slug>.md format. Each: 200-300 lines covering REQ + AC + architecture sketch + open questions ready for human review. Implementation issues stay open; design docs unblock them.",
+  "created_at": "2026-05-14T22:16:39.289385820Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAGQa0a54oEaZoO9LIvZCvtMaBRyT8N6P/jSz0ZyEs5kQDZUJMt393ZptqhKxmmerQhQXXqHe9z/WzSTlDWVOWAQ=="
+}
