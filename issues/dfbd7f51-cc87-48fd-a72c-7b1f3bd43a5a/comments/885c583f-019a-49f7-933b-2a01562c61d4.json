@@ -1,0 +1,10 @@
+{
+  "uuid": "885c583f-019a-49f7-933b-2a01562c61d4",
+  "issue_uuid": "dfbd7f51-cc87-48fd-a72c-7b1f3bd43a5a",
+  "author": "TeIq",
+  "content": "Origin: #27 audit. The published app.bsky.labeler.service record alone does NOT make Polaris discoverable — the operator's DID document needs its #atproto_labeler service entry pointing at the same service_url. polaris-publish-labeler-record validates the URL early but stops short of updating the DID document. Helper CLI or doc snippet needed. Likely shape: `polaris-publish-did-service` companion that calls com.atproto.identity.updateHandle / signPlcOperation depending on did:method.",
+  "created_at": "2026-05-14T18:14:42.090064883Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAlKQlAJ8Fl9qZZwTAfV+NyjGHjB9ShQ1oxOQ8glJwjPXW6TtZP6p8+c+yQA/FZRH9WZIWTfKxgelu/xlmjtwQDg=="
+}
