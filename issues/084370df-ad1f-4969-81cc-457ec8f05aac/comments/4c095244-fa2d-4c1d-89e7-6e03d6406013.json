@@ -1,0 +1,10 @@
+{
+  "uuid": "4c095244-fa2d-4c1d-89e7-6e03d6406013",
+  "issue_uuid": "084370df-ad1f-4969-81cc-457ec8f05aac",
+  "author": "TeIq",
+  "content": "All 5 M0 children closed APPROVE/APPROVE-WITH-FOLLOW-UPS by the architect: #7 (workspace scaffold), #8 (Postgres+sqlx), #9 (ModeratorAuth+OIDC+sessions), #10 (Leptos+wasm CI), #11 (xtask boundary check). The M0 evidence floor — cargo build/clippy/fmt clean across workspace; wasm32 build clean; auth integration tests green against PG16; xtask scanner finds 0 violations on real frontend — is met. M0 is the foundation downstream issues build on; M1 (#3, firehose+incident aggregation) is now ready.",
+  "created_at": "2026-05-14T13:39:47.226023817Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA5FpAcs2LKsymuo2DGbu8DcudwNjy6uNz0AdbEFoggkrTOmpWYNDt+yhx2lDaEuEVEn4yDsX+uegXFuR+kBfvAA=="
+}
