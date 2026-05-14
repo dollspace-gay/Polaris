@@ -1,0 +1,11 @@
+{
+  "uuid": "45927540-2a45-4eae-b729-00b9da1f0dcc",
+  "display_id": 7,
+  "title": "Set up Cargo workspace with polaris-types, polaris-backend, polaris-frontend, xtask crates",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "084370df-ad1f-4969-81cc-457ec8f05aac",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T06:31:34.829297275Z",
+  "updated_at": "2026-05-14T06:31:34.829297275Z"
+}
