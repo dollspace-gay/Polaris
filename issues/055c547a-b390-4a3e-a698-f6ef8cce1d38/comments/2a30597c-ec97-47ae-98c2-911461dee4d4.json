@@ -1,0 +1,10 @@
+{
+  "uuid": "2a30597c-ec97-47ae-98c2-911461dee4d4",
+  "issue_uuid": "055c547a-b390-4a3e-a698-f6ef8cce1d38",
+  "author": "TeIq",
+  "content": "Delivered: WellnessError thiserror; ExposureTracker with record/status_for_me/remaining_budget/aggregate_for_manager(consent:bool)/set_daily_cap/set_share_with_manager. GET /api/wellness/exposure/me, PUT /me/cap, PUT /me/share-with-manager (moderator id from Extension only). Migration adds moderator_exposure + moderator_exposure_settings. PgModeratorDirectory wires exposure into routing. 9 unit tests on pure status logic + 4 integration tests on testcontainers PG16. Manager-view endpoint deferred to senior-role-gate integration; per-Action hook deferred to M4 audit chain.",
+  "created_at": "2026-05-14T16:52:02.974488834Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA4jrP1eOGdOB/5UbS/p/m2mWKQfx+FyJpNRoxjFjND3k/LaniClTNgIMiuagYq7rlYUhME07ItXncBeYARWiODQ=="
+}
