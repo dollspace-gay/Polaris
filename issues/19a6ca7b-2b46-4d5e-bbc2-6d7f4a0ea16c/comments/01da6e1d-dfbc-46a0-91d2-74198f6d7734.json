@@ -1,0 +1,10 @@
+{
+  "uuid": "01da6e1d-dfbc-46a0-91d2-74198f6d7734",
+  "issue_uuid": "19a6ca7b-2b46-4d5e-bbc2-6d7f4a0ea16c",
+  "author": "TeIq",
+  "content": "Delivered: GET /api/dashboard backend handler returning DashboardSnapshot DTO over 4 panels (report_volume / clusters / coordinated_signals / moderator_load). Leptos PatternDashboard page mounted at /, replacing the #10 placeholder. 4 dashboard components: report_volume_chart (hand-rolled SVG sparkline + anomaly bands shaded + ▲ glyphs, non-color-only signal, ARIA role=img + title/desc), cluster_list (drill-down to case view), coordinated_signals (kind icon + count + timestamp), moderator_load (per-category bars). 5-second LocalResource refetch for polling-based live updates. PolarisApiClient.get_dashboard extension (native + wasm). 6 backend unit tests + frontend wasm-clean build verified. ApiState gained pool field for cross-aggregate dashboard queries; cluster ranking computed in Rust over bounded result set with typed Severity enum ordering.",
+  "created_at": "2026-05-14T16:04:48.156368279Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAvVjysMQq9+IAPFICJUF5mjErHxJBRF8EYrw+I7tfu/uQoLGveEEboT5RiPgkAEO4D/v1TPaznG+hoahF4+pZAA=="
+}
