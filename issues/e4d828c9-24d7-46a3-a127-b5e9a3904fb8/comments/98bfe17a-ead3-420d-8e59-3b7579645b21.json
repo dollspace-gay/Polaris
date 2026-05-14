@@ -1,0 +1,10 @@
+{
+  "uuid": "98bfe17a-ead3-420d-8e59-3b7579645b21",
+  "issue_uuid": "e4d828c9-24d7-46a3-a127-b5e9a3904fb8",
+  "author": "TeIq",
+  "content": "**Scope.** #15 landed the case-view UI with the action composer including client-side reasoning-length validation (>= 10 chars gates the submit button). The wasm-bindgen-test for that gate did not land before #15 truncated.\n\n**Deliverables.**\n- polaris-frontend/tests/composer_validation.rs as a wasm-bindgen-test.\n- Mount ActionComposer with a stub PolarisApiClient.\n- Drive reasoning length to 9, 10, 100; assert submit button disabled/enabled states match the gate.\n- wasm-bindgen-test = '0.3' dev-dep added if not present.\n- Test binary compiles under cargo test -p polaris-frontend --target wasm32-unknown-unknown --no-run; runtime requires headless browser infra which is operator-environment-dependent.\n\n**Done when.** Test binary compiles cleanly; CI step runs it when headless-browser infra is available (separate CI-infra concern).\n\n**Origin.** #15 subagent truncated at tool_uses=106 mid-decision about test infra.",
+  "created_at": "2026-05-14T14:45:10.681045951Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOqr8zWmOT82vPdqRmU2If6igqNhK+NRPoYkO2YHnANeuKJCJRFyA1bOg4AkzYoxuJ/EnNZBfSUz1FpmDGF+5CQ=="
+}
