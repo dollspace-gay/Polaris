@@ -1,0 +1,10 @@
+{
+  "uuid": "86e475c1-0506-4994-ad3d-128560733f45",
+  "issue_uuid": "3154a634-dcce-4a81-9944-5c1f4da447f8",
+  "author": "TeIq",
+  "content": "Delivered: MinhashIndex trait + MemoryMinhashIndex with config-time band-mismatch validation. NonZeroU16 typed config (num_perm/num_bands/band_rows); NonZeroUsize min_cohort_size. Universal-hash family for the MinHash permutations. LSH banding via per-instance RandomState. CohortObservation carries cohort_id (band-hash), members, similarity_estimate (f32 fraction of matching bands as Jaccard estimate). Rolling-window eviction. Single-emit (band_idx, band_hash) dedup. 8 scenario tests + 2 proptest properties (identical features → identical signatures; threshold-emit) all pass. polaris-backend/src/pattern/{mod,minhash}.rs.",
+  "created_at": "2026-05-14T15:40:43.432626965Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASMiO2LpShO6efbtW5w6kMyGEhSvtsg3GizUFTjdWZImLOpYn+KdaLTuNLqMspu2cq+TW4qyR+x/E5OE6kCE/AQ=="
+}
