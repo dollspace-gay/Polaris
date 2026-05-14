@@ -1,0 +1,10 @@
+{
+  "uuid": "09e5294c-5fde-429b-990e-45d0b312a935",
+  "issue_uuid": "7694041b-fa6f-4105-9f12-7e9a9cd6929b",
+  "author": "TeIq",
+  "content": "**Scope.** Add the firehose reconnect integration test that #12 left as a follow-up after subagent truncation. The worker's reconnect path is implemented (polaris-backend/src/ingest/firehose.rs:348 — Ok(None) arm rebuilds Firehose with the current cursor); this issue is the fixture-infrastructure work to mechanically prove it.\n\n**Deliverables.**\n- polaris-backend/tests/firehose_reconnect.rs.\n- Embedded tokio-tungstenite server fixture that accepts a connection, sends N decoded frames with monotonic seq, closes mid-stream, and on the next connection resumes from the cursor query parameter sending frames cursor+1..N.\n- Test drives FirehoseWorker against the fixture and asserts end-state event count = N (no duplicates, no gaps).\n- Use the same testcontainers Postgres 16 pattern as the existing tests.\n- Add 'tokio-tungstenite' as dev-dep if not already present (it's transitively pulled via proto-blue-ws).\n\n**Done when.** AC-9 mechanical proof passes: forced WebSocket close mid-stream → worker resumes within 30s from persisted cursor with no event loss.\n\n**Origin.** #12's subagent truncated at tool_uses=85 while making a tokio-tungstenite version pinning decision; the worker code landed correctly but this test did not. Filed as follow-up rather than blocking #12 because (a) the reconnect code is reviewable by reading firehose.rs:348-360, (b) cursor persistence is covered by tests/firehose_cursor_persistence.rs, (c) the fixture infrastructure is its own piece of work.",
+  "created_at": "2026-05-14T13:52:07.138059512Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAs7P/0KN6mpjbINABqW8xCNs7+uga3DqYhBORGB7qS7vfF8OQ40RB+6CmKn1JYLoV3lqvv19EQLo/r1JqXFX2CA=="
+}
