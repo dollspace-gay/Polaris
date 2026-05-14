@@ -1,0 +1,10 @@
+{
+  "uuid": "0e41a7d5-80f8-4416-88d1-a4ead94b453d",
+  "issue_uuid": "e4afca16-8ad3-47d4-be13-bc3c26050719",
+  "author": "TeIq",
+  "content": "Origin: #27 audit. Subagent added `url = \"2\"` as a direct dep on polaris-publish-labeler-record. Already in workspace lockfile transitively via proto-blue; cleanup is to add to root Cargo.toml [workspace.dependencies] and reference via `url.workspace = true`. Mechanical.",
+  "created_at": "2026-05-14T18:14:40.599663523Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAr4LhvUyDCvy8EcFxlmgWjIXdkbCAVpc3MoUKnn0huMinHGW3dxZH2aVh89crc0BM7KAnUtQBgyW7mlcMgYlhDg=="
+}
