@@ -1,0 +1,10 @@
+{
+  "uuid": "774ff312-97a6-4005-803f-05584464cffc",
+  "issue_uuid": "45927540-2a45-4eae-b729-00b9da1f0dcc",
+  "author": "TeIq",
+  "content": "Delivered: All workspace foundation files created — root Cargo.toml (workspace + lints + deps), rust-toolchain.toml, clippy.toml (with doc-valid-idents including ATProto), .gitignore extended, .cargo/config.toml (xtask alias), polaris-types/ (Cargo.toml + src/lib.rs, no proto-blue dep), polaris-backend/ (Cargo.toml + src/lib.rs + src/main.rs), polaris-frontend/ (Cargo.toml + src/lib.rs), xtask/ (Cargo.toml + src/main.rs with clap CLI), README.md. polaris-types and xtask build + clippy + fmt clean under 1.85. cargo xtask --help works. polaris-types has no proto-blue in cargo tree --depth 1. Full workspace build blocked by proto-blue MSRV bug — reported honestly in deliverable.",
+  "created_at": "2026-05-14T07:10:29.885125407Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAAQUa0dMSDiEm20ZRapNx64HbjhPwtjIa0wJ168tNyFqRCpatNNmTi5JRrSD7VBkDwpAt/I7WDZQwTNDfqHS5CA=="
+}
