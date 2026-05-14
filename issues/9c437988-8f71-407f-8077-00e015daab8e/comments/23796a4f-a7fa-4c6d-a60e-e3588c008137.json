@@ -1,0 +1,10 @@
+{
+  "uuid": "23796a4f-a7fa-4c6d-a60e-e3588c008137",
+  "issue_uuid": "9c437988-8f71-407f-8077-00e015daab8e",
+  "author": "TeIq",
+  "content": "All M1 children closed: #12 firehose worker (APPROVE-WITH-FOLLOW-UPS → #51 reconnect-test fixture), #13 schema+repos (APPROVE), #14 case API (APPROVE-WITH-FOLLOW-UPS → #52 case-api test), #15 case view UI (APPROVE-WITH-FOLLOW-UPS → #53 xtask refinement (closed), #54 composer test), #36 action reversal workflow (APPROVE-WITH-FOLLOW-UPS → #55 pre-existing api/error test).\n\nM1 evidence floor met:\n- Live firehose ingest worker with cursor persistence + auto-reconnect (#12).\n- Subject/Incident/Action/Report Postgres schema + repository layer with append-only enforcement (#13).\n- Subject-centric case API with auth gate + typed error contract (#14).\n- Leptos case view UI rendering subject metadata + history + reports + action composer with reasoning-length validation (#15).\n- Action reversal workflow with 24h moderator window + senior override + append-only preservation (#36).\n\nCI gates: cargo build/clippy/fmt clean across workspace; wasm32 build clean; cargo xtask check-frontend-boundary 0 violations; .sqlx cache covers all query! macros; integration tests pass live against testcontainers Postgres 16.",
+  "created_at": "2026-05-14T15:06:33.064346693Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAqBZi8UbFCl3BLzty62GU+g3BTlFLgjsnspLM4b/h5TWKEOVHZGgwaobp/tor3GxhS3zvUsiCrQze+NmBpcM+BA=="
+}
