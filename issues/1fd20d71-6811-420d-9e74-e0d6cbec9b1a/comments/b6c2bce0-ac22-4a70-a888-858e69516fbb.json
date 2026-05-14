@@ -1,0 +1,10 @@
+{
+  "uuid": "b6c2bce0-ac22-4a70-a888-858e69516fbb",
+  "issue_uuid": "1fd20d71-6811-420d-9e74-e0d6cbec9b1a",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE-WITH-FOLLOW-UPS.\n\nIndependent verification:\n- cargo build --workspace: clean.\n- cargo build --target wasm32-unknown-unknown -p polaris-frontend: clean. AC-6/AC-12 still proven.\n- cargo clippy --workspace --all-targets -- -D warnings: clean.\n- cargo clippy --target wasm32-unknown-unknown -p polaris-frontend --lib -- -D warnings: clean.\n- cargo fmt --check: exit 0 (after architect-trailing cargo fmt).\n- 21 src files in polaris-frontend/src/ — pages/case_view, components/{subject_header,history_timeline,report_list,action_composer,network_panel}, extended api_client/dto + native + wasm, app.rs routing update.\n- Forbidden-pattern grep clean: zero tokio, zero panic/todo/dbg, zero unwrap/expect in non-test src.\n\nxtask check-frontend-boundary now reports 8 violations — all legitimate gateway code inside api_client/{native,wasm}.rs which IS the central PolarisApiClient. Rule over-broadness, not a code defect. Filed as follow-up #53 (recommend Option A: path-aware skip in the xtask rule).\n\nComposer wasm-bindgen-test not landed before truncation. Filed as follow-up #54.",
+  "created_at": "2026-05-14T14:45:11.969887210Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABARujlT2j1EYBqItZPo42HfeGxIFVLPqmXNytJEjF5rXVmjyPx/WooH+JbMCrN2nf3mc7sszhWhmJxnE6i6C25Dg=="
+}
