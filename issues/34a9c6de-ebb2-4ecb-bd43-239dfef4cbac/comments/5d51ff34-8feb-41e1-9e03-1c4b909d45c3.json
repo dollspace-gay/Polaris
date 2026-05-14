@@ -1,0 +1,10 @@
+{
+  "uuid": "5d51ff34-8feb-41e1-9e03-1c4b909d45c3",
+  "issue_uuid": "34a9c6de-ebb2-4ecb-bd43-239dfef4cbac",
+  "author": "TeIq",
+  "content": "APPROVE-WITH-FOLLOW-UPS. Structural completion: rotation state machine (Pending→KeyGenerated→KeyWritten→ServiceRecordPublished→HistoryRecorded→OldKeyRevoked→Swapped→Complete), append-only trigger on signing_key_history (raises P0001 on DELETE / illegal UPDATE), idempotent atomic-write helper, resumable --resume path, labeler-key-rotate binary with documented exit codes. Independent evidence: workspace build clean, clippy clean, fmt exit 0, 6 rotation unit tests pass (state-machine purity, atomic write, DB enum round-trip), xtask boundary 0 violations, .sqlx regenerated 82→96 entries. Gap: AC-15 binding e2e integration test (emit-rotate-emit-verify-both) not yet shipped — filed as #65. Per-mode rotation for the three non-file-plain custody modes filed as #64.",
+  "created_at": "2026-05-14T19:29:43.544219939Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA7oxV/6JvHjNT9QZVwQey8IdP9e6ai+TgadiosFKrKSx1jtJoR5PrXx6dm1qfVA8rB4zTDYuaa5Ray382zAJxDQ=="
+}
