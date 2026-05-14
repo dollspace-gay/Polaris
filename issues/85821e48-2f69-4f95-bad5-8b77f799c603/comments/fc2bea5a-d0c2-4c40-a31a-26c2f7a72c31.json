@@ -1,0 +1,10 @@
+{
+  "uuid": "fc2bea5a-d0c2-4c40-a31a-26c2f7a72c31",
+  "issue_uuid": "85821e48-2f69-4f95-bad5-8b77f799c603",
+  "author": "TeIq",
+  "content": "Resolution: proto-blue 0.3.2 published upstream with rust-version correctly declared as 1.88. Polaris bumped to match.\n\nChanges applied:\n- rust-toolchain.toml: channel 1.85 → 1.88\n- Cargo.toml workspace.package: rust-version \"1.85\" → \"1.88\"\n- Cargo.toml workspace.dependencies: leptos pin relaxed from \"0.8.3\" to \"0.8\" (was pinned only because of the same MSRV issue)\n- cargo update pulled proto-blue + all 13 sub-crates from 0.3.1 to 0.3.2\n\nVerification under rustc 1.88.0:\n- cargo build --workspace: clean (33.36s).\n- cargo clippy --workspace --all-targets -- -D warnings: clean (26.45s).\n- cargo fmt --check: clean.\n- AC-8 invariant intact: cargo tree -p polaris-types --depth 1 shows only chrono / serde / serde_json / uuid. No proto-blue.\n\nWorkspace is now in the state #7's evidence floor originally required. #8 and #10 unblocked.",
+  "created_at": "2026-05-14T12:24:02.524999824Z",
+  "kind": "resolution",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA69yVvuIYsoimGpJHp7X84oRD3jyBIXmPJfspOH7BHH5RsrdptbVNJYp1ooFBEtCr+5DOtPEjfbbGANsLLNvYDw=="
+}
