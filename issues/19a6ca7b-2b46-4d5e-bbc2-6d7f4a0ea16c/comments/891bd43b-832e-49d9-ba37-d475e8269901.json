@@ -1,0 +1,10 @@
+{
+  "uuid": "891bd43b-832e-49d9-ba37-d475e8269901",
+  "issue_uuid": "19a6ca7b-2b46-4d5e-bbc2-6d7f4a0ea16c",
+  "author": "TeIq",
+  "content": "**Scope.** Replace the queue as the default landing page with the pattern dashboard (design.md §5.1). Shows report-volume timeline, active incident clusters, coordinated-action signals, moderator-load summary.\n\n**Deliverables.**\n- `polaris-frontend/src/pages/dashboard.rs` as the `/` route.\n- `polaris-frontend/src/components/dashboard/`:\n  - `report_volume_chart.rs` — sparkline + anomaly bands.\n  - `cluster_list.rs` — ranked by severity × reach with drill-down.\n  - `coordinated_signals.rs` — cohort + image-hash burst signals.\n  - `moderator_load.rs` — queue depth per category.\n- Live updates via WebSocket subscription to `/api/dashboard/live` — pushes new observations as they're emitted.\n- Drill-downs link to filtered case views.\n\n**References.**\n- design.md §5.1 (pattern dashboard), §3.1 (frontend WebSocket for live updates).\n\n**Rust-quality.**\n- Charts: prefer SVG via `leptos`-native rendering or a wasm-clean lib (`plotters` with SVG backend); avoid Canvas unless required.\n- WebSocket: connection lifecycle owned at the dashboard component; reconnect with backoff.\n- Avoid re-rendering the whole dashboard on every event — derive signals per-panel so only the touched panel updates.\n\n**Testing.**\n- `wasm-bindgen-test`: assert dashboard renders against a fixture observation payload.\n- E2E: replay synthetic anomaly + cohort observations and assert the UI surfaces both within 1 second.\n\n**Done when.** A logged-in moderator's `/` route shows the four-panel dashboard with live updates from a running pattern engine.",
+  "created_at": "2026-05-14T06:32:09.112573711Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAoc9YklVA/+h8X/iIdG2o9bpyql9iB698ELNP+T6DWq+aEGABnG7+kFn4F05HVLETLedp37WPeFyjcGNsItkrAA=="
+}
