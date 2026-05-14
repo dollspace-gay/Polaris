@@ -1,0 +1,10 @@
+{
+  "uuid": "f98d9b34-d282-4c70-87e2-4e207281f551",
+  "issue_uuid": "e96a82a4-68bd-42b3-b0a0-7d253355e370",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, M5 epic handoff).** M4 complete this commit cycle: #31/#32/#33/#34/#35/#38/#39/#40 closed. Next: M5 epic with #42-#49 children. Commit lands M4 final state.",
+  "created_at": "2026-05-14T22:15:53.502777810Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAWiSZyU5wkv+eJ6cqEwbTrs7njqXTlLL7m7xuyTxWfQunyqq4bnqkjrA93pLqtXMxfSL54H/VggManjbDSVDcDg=="
+}
