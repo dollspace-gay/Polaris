@@ -8,8 +8,9 @@
   "parent_uuid": "1e4ecc01-1928-4b4e-a4d3-958ecc0d3577",
   "created_by": "TeIq",
   "created_at": "2026-05-14T21:34:16.878448418Z",
-  "updated_at": "2026-05-14T21:34:18.240481036Z",
+  "updated_at": "2026-05-14T21:34:19.421347333Z",
   "labels": [
-    "security"
+    "security",
+    "threat-model"
   ]
 }
