@@ -1,0 +1,10 @@
+{
+  "uuid": "9275c640-8991-415c-b2e9-c3ccd443d69f",
+  "issue_uuid": "3a55c61c-761d-4700-937e-ba207641289d",
+  "author": "TeIq",
+  "content": "Delivered: labels table migration (seq BIGSERIAL + indexed uri/seq). LabelerError thiserror. LabelRepo trait + PgLabelRepo with sqlx::query!-checked insert/query_by_uris/stream_from_cursor. LabelBroadcaster wrapping tokio::sync::broadcast (capacity 1024). HTTP query_labels handler (axum-extra Query for multi-value uris). WebSocket subscribe_labels handler with backfill from ?cursor=N + live broadcast fan-out + cancel-safe biased select!. CBOR framing per atproto spec: header { op: 1, t: '#labels' } + body { seq, labels: [...] }. Mounted on public router subtree. 3 module unit tests (frame encode + broadcaster delivery + no-subscribers) + 2 integration tests (query 200 + missing-uris 400).",
+  "created_at": "2026-05-14T17:54:46.867388166Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAfPf++/oaN6LSXhtIqz8pTED+k2F/1RfhwEyuesIG0rN9yFHBA4tcVw4jXrF+79zzZR1WcJTglNRSWNYR9omTDw=="
+}
