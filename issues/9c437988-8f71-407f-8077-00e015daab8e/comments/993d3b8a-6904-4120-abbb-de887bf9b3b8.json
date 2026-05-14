@@ -1,0 +1,10 @@
+{
+  "uuid": "993d3b8a-6904-4120-abbb-de887bf9b3b8",
+  "issue_uuid": "9c437988-8f71-407f-8077-00e015daab8e",
+  "author": "TeIq",
+  "content": "**Scope.** Wire Polaris to the live ATProto firehose, persist reports + observations, and aggregate reports into incidents bound to subjects. Delivers the subject-centric case view (design.md §5.2). Maps to design.md §11 M1 and `.design/polaris-proto-blue-integration.md` REQ-8, AC-9.\n\n**Children (4).** Firehose worker; Subject/Incident/Action/Report schema + repositories; subject-centric case API; Leptos case-view UI.\n\n**Done when.** A running Polaris consumes the firehose with cursor persistence, ingests synthetic reports, aggregates them per subject, and a moderator can open a case in the UI and see the full state. AC-9 passes end-to-end.\n\n**Rust-quality.**\n- Async lifetimes: ingest tasks own their own connection pool handles; no `Arc<Mutex<Connection>>` shared across tasks.\n- Backpressure: bounded channels between ingest and persistence with documented capacity choices.\n- Idempotent inserts on every storage path — firehose replays must not duplicate rows.",
+  "created_at": "2026-05-14T06:31:29.700807812Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAeNTcjO/brhHvwzn1v58wLZYz0DnnzrD99dO4CfJldzRH9M6Bz56XUb2hBjaO/zgEBdofTdVPohfxwyyuczPeCw=="
+}
