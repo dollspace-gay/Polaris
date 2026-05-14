@@ -1,0 +1,10 @@
+{
+  "uuid": "8a99a611-319c-4cf0-bbfa-66ea00e78d7c",
+  "issue_uuid": "1e4ecc01-1928-4b4e-a4d3-958ecc0d3577",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence floor green: cargo build clean, clippy clean, fmt exit 0, 6/6 threat-test binaries run hermetically against testcontainers PG16-alpine. Per-threat status: T1 PASS (every_action_records_moderator_id_and_ts), with anomaly-detector test #[ignore]+follow-up. T2 FULLY WIRED — 2 PASS including verify_chain tamper detection. T3 PASS (every_report_records_reporter_did), with reporter-rep weighting #[ignore]+follow-up. T4 PASS for dedup + reporter-did capture; CSAM-priority-bypass #[ignore]+#75 follow-up. T5 PASS (malicious_payload_round_trips_as_json_string_literal) — backend boundary; frontend-side click-to-reveal #[ignore]+#76 follow-up. T6 FULLY WIRED — 3 PASS (emitted_label_src_is_labeler_did_not_moderator_id, labels_table_has_no_moderator_column, audit_log_actor_carries_moderator_id_on_action_commit). Each #[ignore] carries rationale + follow-up issue number. CI gate exists via existing cargo test --workspace job picking up threat_* test files.",
+  "created_at": "2026-05-14T21:48:17.412888801Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAaLMytKc8Osg7b/AagVaGfoXhEYhGrI3/D31+VdqT21cWb1CcERELGaIKlWVrmPFhocFOvKWTf326Y93cdGR5Cw=="
+}
