@@ -1,0 +1,10 @@
+{
+  "uuid": "038cb661-84a9-4edf-9fac-ad6142e562cb",
+  "issue_uuid": "644dd6ab-1e4c-4a81-9294-93faaf80d129",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).**\n\n**North star applied.** AC-3 closes the loop on REQ-3: Polaris must emit ATProto-spec labels that downstream AppViews can verify. Each Label/Takedown action must produce a signed, CBOR-canonical, persisted record that proto-blue's own subscribeLabels consumer accepts without modification.\n\n**Source-doc reassessment.** Re-quoting from .design/polaris-proto-blue-integration.md REQ-3/AC-3 against current code: labels table does NOT yet exist (migration 12 `00000000000012_labels.sql` is referenced in repo plans but not implemented); SigningKey trait does NOT yet exist (that's #29's job). This dispatch is blocked at the trait layer — without #29, the emitter has no signer to call. **Reorder**: do #29 first, then #28.\n\n**Reorder decision.** Switching focus to #29 (SigningKey trait + 4 impls). #28's plan comment quotes `SigningKey::sign (the trait from M4_D)` — the trait must land before its consumer. Done-when on #28 requires real signatures; can't validate without a real signer.\n\nWill release #28 lock and claim #29.",
+  "created_at": "2026-05-14T18:16:41.808415962Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAS0/KzsOdzzilRmJdp4jQXnC0jpCQEzOsl+c0lZRRiOgtFPRAfUj6JaSAjSRcqlef2MlfXkgFMZu9yXWAd6HRAg=="
+}
