@@ -1,0 +1,11 @@
+{
+  "uuid": "329ae090-e871-420a-a295-6cb34d38d240",
+  "display_id": 42,
+  "title": "Define Polaris-owned NSIDs for cross-instance federation",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "e96a82a4-68bd-42b3-b0a0-7d253355e370",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T06:46:13.734312380Z",
+  "updated_at": "2026-05-14T06:46:13.734312380Z"
+}
