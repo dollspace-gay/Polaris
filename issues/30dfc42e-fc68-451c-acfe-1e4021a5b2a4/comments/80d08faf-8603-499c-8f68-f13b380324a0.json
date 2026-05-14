@@ -1,0 +1,10 @@
+{
+  "uuid": "80d08faf-8603-499c-8f68-f13b380324a0",
+  "issue_uuid": "30dfc42e-fc68-451c-acfe-1e4021a5b2a4",
+  "author": "TeIq",
+  "content": "Delivered: appeals table + calibration_events table migration. polaris-types::appeal::AppealStatus state machine with transition_to validation. AppealRepo trait + Pg impl. CalibrationEventRepo trait + Pg impl. POST /api/appeals (public, IP-rate-limited via SHA-256 hashed IPs, 5/hour). POST /api/appeals/:id/decide (auth-gated, original-author-excluded defense-in-depth). GET /api/appeals/:id. Routing extended with exclude_moderator field; appeal review never assigned to original action's author. On Reversed decision: action reversed via #36's path + CalibrationEvent written for original author (feedback, not discipline). 5-test integration suite covers: submit + 429 rate limit, state machine invalid transition, routing exclusion, calibration event written, original-author 403.",
+  "created_at": "2026-05-14T17:19:07.808479900Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA4jqfaxxOIGjOFSArbTq9HIVf/AIUHBoXqaopOvjkJikWRBCwlaVwsNaJoLHIUwtlx+d+Ye3sR6+B72OrsED5Bg=="
+}
