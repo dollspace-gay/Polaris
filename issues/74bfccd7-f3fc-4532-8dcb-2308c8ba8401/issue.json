@@ -1,0 +1,10 @@
+{
+  "uuid": "74bfccd7-f3fc-4532-8dcb-2308c8ba8401",
+  "display_id": 70,
+  "title": "Live proto-blue XRPC fetcher (replaces NotWiredEvidenceFetcher)",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T20:41:50.399066509Z",
+  "updated_at": "2026-05-14T20:41:50.399066509Z"
+}
