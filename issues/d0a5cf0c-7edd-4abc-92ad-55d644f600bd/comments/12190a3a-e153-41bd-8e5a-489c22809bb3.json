@@ -1,0 +1,10 @@
+{
+  "uuid": "12190a3a-e153-41bd-8e5a-489c22809bb3",
+  "issue_uuid": "d0a5cf0c-7edd-4abc-92ad-55d644f600bd",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** Migration 20: reporter_stats. polaris-backend/src/reputation/{mod,score}.rs with pure reputation(stats, now) -> ReputationScore (Bayesian smoothing, operator-config prior). Action insert hook increments stats per kind. ReputationScore newtype clamped [0,1]. Pattern engine integration via Box<dyn ReputationProvider>. Case view DTO carries reporter context. Property tests: brand-new=prior, established-good>0.95, established-bad<0.05. Subsumes #74 (which I filed for the T3 wiring).",
+  "created_at": "2026-05-14T22:32:35.046182811Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAVUHWWiZWKKMf7SKs8eazK/HagOmk0t3ySiYTyjNUbI3UekEdpW61ZaS9RvzsaD24bz/JDVSrOTg72oYAlK4sDw=="
+}
