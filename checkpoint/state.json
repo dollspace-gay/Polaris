@@ -2,12 +2,7 @@
   "next_display_id": 1,
   "next_comment_id": 1,
   "display_id_map": {},
-  "locks": {
-    "51": {
-      "agent_id": "TeIq",
-      "claimed_at": "2026-05-14T22:56:03.346771393Z"
-    }
-  },
+  "locks": {},
   "issues": {},
   "unsigned_event_warnings": [
     {
@@ -614,11 +609,16 @@
       "agent_id": "TeIq",
       "agent_seq": 121,
       "timestamp": "2026-05-14T22:56:03.346771393Z"
+    },
+    {
+      "agent_id": "TeIq",
+      "agent_seq": 122,
+      "timestamp": "2026-05-14T23:43:07.071369089Z"
     }
   ],
   "watermark": {
-    "timestamp": "2026-05-14T22:56:03.346771393Z",
+    "timestamp": "2026-05-14T23:43:07.071369089Z",
     "agent_id": "TeIq",
-    "agent_seq": 121
+    "agent_seq": 122
   }
 }
