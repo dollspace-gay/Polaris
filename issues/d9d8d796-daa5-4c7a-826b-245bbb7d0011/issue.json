@@ -2,10 +2,11 @@
   "uuid": "d9d8d796-daa5-4c7a-826b-245bbb7d0011",
   "display_id": 19,
   "title": "Add report-volume anomaly bands using rolling statistics",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "1ab6ae17-4f9a-48e3-881c-0d9721b03565",
   "created_by": "TeIq",
   "created_at": "2026-05-14T06:32:05.254536666Z",
-  "updated_at": "2026-05-14T06:32:05.254536666Z"
+  "updated_at": "2026-05-14T15:47:24.303439438Z",
+  "closed_at": "2026-05-14T15:47:24.303439438Z"
 }
