@@ -1,0 +1,10 @@
+{
+  "uuid": "3508a9ee-c71e-4e37-8f70-f2adfbd32675",
+  "issue_uuid": "60248efe-f8bc-41e9-9318-5890504ca02a",
+  "author": "TeIq",
+  "content": "Origin: #27 audit. --oauth flag in polaris-publish-labeler-record is wired to AuthMode::Oauth but submit_record returns UserError::OauthNotYetWired pending operator-supplied OAuth client-metadata JSON. The loader, the metadata-schema validation, and the OAuthClient instantiation path need a single home — likely a shared polaris-backend/src/auth/atproto module so both this CLI and the backend's M4 ATProto OAuth verifier (#31) share one config surface.",
+  "created_at": "2026-05-14T18:14:43.565576165Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAwEazTgncI/fIy2eA/ogYUihAl/ChCztlr/LepBGbUrul6B6liaBwbSc6qeZsrKnF0HeF7oJcfMqZozD6OZnlCg=="
+}
