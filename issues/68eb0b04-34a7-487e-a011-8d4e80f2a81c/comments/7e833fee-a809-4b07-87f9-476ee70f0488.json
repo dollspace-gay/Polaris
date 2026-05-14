@@ -1,0 +1,10 @@
+{
+  "uuid": "7e833fee-a809-4b07-87f9-476ee70f0488",
+  "issue_uuid": "68eb0b04-34a7-487e-a011-8d4e80f2a81c",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE (after one continuation + one architect-trailing migration fix).\n\nIndependent verification:\n- cargo build --workspace: clean.\n- cargo clippy --workspace --all-targets -- -D warnings: clean.\n- cargo fmt --check: exit 0.\n- cargo test -p polaris-backend --no-run --tests: 6 binaries compile (lib, main, db_smoke, oidc_login_flow, session_expiry, sql_injection_auth).\n- SQLX_OFFLINE=true cargo build --workspace: clean — .sqlx/ cache (10 entries) sufficient.\n- Forbidden-pattern grep clean: zero unwrap/expect in non-test src; zero string-built SQL; zero Arc<PgPool>; zero anyhow outside main.rs; zero unsafe; zero crate-root allows.\n- Cookie hygiene verified in source: Path=/; HttpOnly; Secure; SameSite=Lax with an explicit !SameSite=Strict test guard.\n- OsRng confirmed at crypto.rs:157 (AES-GCM nonces) and session.rs:59 (session IDs).\n- Live tests passed against Postgres 16 in the continuation run: 22 lib unit + 3 expiry + 1 SQL-injection + crypto tests all green.\n\nArchitect-trailing fix: prepended 'CREATE EXTENSION IF NOT EXISTS pgcrypto;' to migrations/00000000000001_auth.sql so gen_random_uuid() is portable across PG versions (continuation surfaced this; subagent had worked around by pinning new tests to PG 16-alpine). Build/clippy/fmt re-verified clean after.\n\nInitial dispatch truncated mid-report (tool_uses hit 125); state-checks revealed partial completion (1 of 3 integration tests landed) and clippy/fmt regressions; one focused continuation closed all three gaps without scope creep.",
+  "created_at": "2026-05-14T13:09:14.680743359Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAsT5wKvVB7VPViOFrfF7Yr/y4t+r3bH/f/MO4E2fHiK1MQva4+6kwH8FmII7rLPb4gAjP3q3xJCOdNtgda4icDQ=="
+}
