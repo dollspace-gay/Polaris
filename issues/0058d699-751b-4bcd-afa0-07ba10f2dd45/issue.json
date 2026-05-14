@@ -1,0 +1,11 @@
+{
+  "uuid": "0058d699-751b-4bcd-afa0-07ba10f2dd45",
+  "display_id": 16,
+  "title": "Add event bus abstraction with Kafka and NATS backends (feature-gated)",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "1ab6ae17-4f9a-48e3-881c-0d9721b03565",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T06:31:57.166925195Z",
+  "updated_at": "2026-05-14T06:31:57.166925195Z"
+}
