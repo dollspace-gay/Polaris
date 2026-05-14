@@ -1,0 +1,10 @@
+{
+  "uuid": "056bd13e-6dd0-425d-a2ba-689c60266042",
+  "issue_uuid": "23197136-4c0d-46eb-a38a-3cc2d33b6a02",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence floor green: cargo build --workspace --all-targets clean, clippy clean, fmt exit 0, 5/5 auth::webauthn lib tests pass, 5/5 auth::login_gate lib tests pass, 8/8 webauthn_roundtrip integration tests pass (1 ignored, soft-token bridge tracked under #80). Per-profile default proven (Bluesky=true / Labeler=false / env override semantics both ways). Gate logic proven: SessionReady when require=false, EnrollmentRequired when require+no-creds, AssertionRequired when require+has-creds. Sign-count regression detection proven via sign_count_regression_yields_cloning_detected. webauthn_credentials migration applied; 4 HTTP endpoints wired (register/start, register/finish, assert/start, assert/finish). Frontend UI screens deferred to #77; soft-token round-trip bridge deferred to #80. AC: moderator on Bluesky profile cannot reach dashboard without registered hardware key — proven by gate logic + per-profile default + EnrollmentRequired/AssertionRequired response shapes.",
+  "created_at": "2026-05-14T22:15:29.464136873Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAJqZ3KtUHcBb+i0q0ssrjQZ+nqG7uEeTGzesgLMOL2NzEZtSx3NxIvXoIB9hDjcMvaDHCvvs1DjMK7TZZr/yxAw=="
+}
