@@ -1,0 +1,10 @@
+{
+  "uuid": "514dc34e-1152-41ca-8330-0522c6c083ae",
+  "issue_uuid": "da463e7e-ff0c-410b-b7bd-ebed79ace948",
+  "author": "TeIq",
+  "content": "Decision: testcontainers pinned at 0.27 / testcontainers-modules at 0.15 (latest crates.io stable as of 2026-05-14). Pre-flight quoted 0.23/0.11 which are stale; current majors require rust-version 1.88, matching the workspace toolchain exactly.",
+  "created_at": "2026-05-14T12:32:15.306523094Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPoujDr28hadsswhiSp00pGrTmsmBrjgahYL/8kk/f2qcGg4OemwV1BQr9FPYiikGDGFRQ7435ZNK/i8PowFuDQ=="
+}
