@@ -1,0 +1,10 @@
+{
+  "uuid": "a56d4462-67bd-494b-8323-27bfadc6b143",
+  "issue_uuid": "45927540-2a45-4eae-b729-00b9da1f0dcc",
+  "author": "TeIq",
+  "content": "Plan: create all workspace files in this order: root Cargo.toml, rust-toolchain.toml, clippy.toml, .gitignore update, .cargo/config.toml, polaris-types/ (Cargo.toml + src/lib.rs), polaris-backend/ (Cargo.toml + src/lib.rs + src/main.rs), polaris-frontend/ (Cargo.toml + src/lib.rs), xtask/ (Cargo.toml + src/main.rs), README.md. Versions: axum=0.8, sqlx=0.8, tokio=1, leptos=0.8, proto-blue=0.3, anyhow=1, thiserror=2, tracing=0.1, tracing-subscriber=0.3, serde=1, serde_json=1, uuid=1, chrono=0.4, clap=4. sqlx stable is 0.8.6 (0.9 is alpha). Will verify with cargo build --workspace + clippy + fmt + cargo tree -p polaris-types --depth 1 before reporting.",
+  "created_at": "2026-05-14T07:01:11.292102488Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAwUEqwzJsYLQWLEN6h6PLy/N+eOrnuwpdxQ3V9E+QW3oFEcLimcIr2XLg2eESd7pFsh11SA2X8zQ0/4qKk1y0Dg=="
+}
