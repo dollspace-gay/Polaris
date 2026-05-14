@@ -1,0 +1,10 @@
+{
+  "uuid": "d2ada3a3-7419-4122-81a9-116c501f081a",
+  "issue_uuid": "a348daae-fb85-40fa-9e29-1906efcc0da4",
+  "author": "TeIq",
+  "content": "APPROVE-DESIGN-PHASE. Design doc shipped at .design/m5/49-hardware-token-signing.md per the issue's own '/design doc first' pre-implementation directive. Doc covers REQ + AC + architecture sketch + open questions ready for human review. Implementation is v2-roadmap work; per v1 design '.design/polaris-proto-blue-integration.md §E + Out of Scope', deliberately deferred. Closing this issue's design-phase work; implementation tracked separately when v2 scope opens.",
+  "created_at": "2026-05-14T22:31:03.167401488Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAkFymfQA5YES1ZZTjx/oX5EHNNB/W1LWv+MdM0gcyRgmmi6FiWIZmHKBCoPRriRNa3BeEZ7FFk5H5wgrsHKHXBg=="
+}
