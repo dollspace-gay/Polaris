@@ -1,0 +1,10 @@
+{
+  "uuid": "78ef1a0f-d690-437d-90f0-fb4e21550bd0",
+  "issue_uuid": "28b34df3-bdda-483a-9d31-d53421ee6714",
+  "author": "TeIq",
+  "content": "APPROVE-DESIGN-PHASE. Design doc shipped at .design/m5/47-trust-model.md per the issue's own '/design doc first' pre-implementation directive. Doc covers REQ + AC + architecture sketch + open questions ready for human review. Implementation is v2-roadmap work; per v1 design '.design/polaris-proto-blue-integration.md §E + Out of Scope', deliberately deferred. Closing this issue's design-phase work; implementation tracked separately when v2 scope opens.",
+  "created_at": "2026-05-14T22:31:00.469943399Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA/LuJIi0SazkBbG+SvUuIRzNZ59v6otqXjuiaeVv3dLRtJ1rcWQmzjFFC33fTOudZDErMi/sQzwFyMZQoCf3ZAQ=="
+}
