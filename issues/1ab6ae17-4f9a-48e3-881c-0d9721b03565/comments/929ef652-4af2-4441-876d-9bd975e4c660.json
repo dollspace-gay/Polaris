@@ -1,0 +1,10 @@
+{
+  "uuid": "929ef652-4af2-4441-876d-9bd975e4c660",
+  "issue_uuid": "1ab6ae17-4f9a-48e3-881c-0d9721b03565",
+  "author": "TeIq",
+  "content": "**Scope.** Add the pattern detection layer that turns reports + firehose events into observed clusters: image-hash bursts (SimHash), sock-puppet cohorts (MinHash), report-volume anomalies. Pattern dashboard becomes the default home view (design.md §5.1). Pattern actions land here (design.md §5.3). Maps to design.md §11 M2.\n\n**Children (6).** Event-bus abstraction (Kafka/NATS feature-gated); SimHash dedup; MinHash cohort detection; anomaly bands; pattern dashboard UI; pattern action endpoints with senior co-sign.\n\n**Done when.** A moderator sees clustered incidents on the pattern dashboard, can drill in, and can act on a cluster with senior co-sign gating. Synthetic fixtures replay the design.md §3.2 invariants.\n\n**Rust-quality.**\n- Pattern engine is a service trait — `polars` / `simhash` / `probminhash` are *implementations*, not the public surface.\n- Algorithmic constants (rolling-window sizes, similarity thresholds, anomaly Z-scores) live in named config, never inline literals.\n- Streaming code uses `Stream` trait properly; no `.collect::<Vec<_>>()` of unbounded inputs.",
+  "created_at": "2026-05-14T06:31:30.991508869Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAqrjTJi+1QTjgi5ARue6pW6bL1At2/yBOoyp2510zJF5lC0d2euHcnIoqhFfJ30p5is320gT52WQsvP1L2uOIDw=="
+}
