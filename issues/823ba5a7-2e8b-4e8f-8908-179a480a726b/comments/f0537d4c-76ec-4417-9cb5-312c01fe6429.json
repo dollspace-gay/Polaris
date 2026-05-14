@@ -1,0 +1,10 @@
+{
+  "uuid": "f0537d4c-76ec-4417-9cb5-312c01fe6429",
+  "issue_uuid": "823ba5a7-2e8b-4e8f-8908-179a480a726b",
+  "author": "TeIq",
+  "content": "Q2 (labeler signing-key custody) resolved after researching Ozone's actual posture.\n\nOzone ships OZONE_SIGNING_KEY_HEX as a plaintext hex env var in /ozone/ozone.env, read by Node at startup. No encryption at rest, no KMS, no passphrase, no OS keychain, no Vault. That is the security posture every active labeler operates under today — defense is rotation, not at-rest.\n\nPolaris's decision (RESOLVED in doc):\n- SigningKey trait with four impls: file-plain, passphrase-sealed, os-keychain, cloud-kms-oracle.\n- Labeler profile default = file-plain (matches Ozone; startup logs a WARN identifying posture and pointing at alternatives).\n- Bluesky profile default = cloud-kms-oracle (rejects file-plain at startup).\n- Key rotation is first-class: polaris labeler-key rotate as a one-command flow; old keys retained in revoked_keys table for historical verification.\n\nThreat-model honesty: encrypted-at-rest modes defend T1-T3 only; only cloud-kms-oracle defends T4 (code-exec-as-service).\n\nDoc changes:\n- §B signing-key paragraph rewritten with mode table + rotation discussion.\n- REQ-11 (SigningKey trait + impls) and REQ-12 (rotation tooling) added.\n- AC-13 (impls exist), AC-14 (startup warning + Bluesky-profile refusal), AC-15 (rotation end-to-end) added.\n- Q2 marked RESOLVED inline.\n- Out of Scope: TPM/hardware-token modes deferred post-v1; Ozone migration noted as config-rename for the signing key.\n\nCounts: 12 REQs, 15 ACs, 1 open question remaining (Q3 frontend lexicon validation).\nPipeline hash: sha256:63648332397db04df3240f0326e87770b80e6ea1ab7d49264e60d2e082c2baca",
+  "created_at": "2026-05-14T05:31:02.780381651Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA9UJKt9gNsnFB1f41H1ocfHhv/JRkE03gvvRodVCmuwY0gIY6og9TPVJA/97jrK4Fi9nRpKNX0F3UARRRYNsjAQ=="
+}
