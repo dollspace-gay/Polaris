@@ -1,0 +1,10 @@
+{
+  "uuid": "c18991e3-2a16-4fee-8e5b-b833c8d84b59",
+  "issue_uuid": "45927540-2a45-4eae-b729-00b9da1f0dcc",
+  "author": "TeIq",
+  "content": "Delivered: 4-crate Cargo workspace (polaris-types, polaris-backend, polaris-frontend, xtask) with edition 2024 / rust-version 1.85 / strict workspace lints / shared dep pins via [workspace.dependencies]. polaris-types verified clean of proto-blue (AC-8). clippy.toml doc-valid-idents covers project terminology. .cargo/config.toml aliases xtask. README quickstart updated. Build + clippy + fmt clean on the crates that don't transitively depend on proto-blue; full workspace build blocked by upstream proto-blue MSRV bug now tracked at #50.",
+  "created_at": "2026-05-14T07:13:52.007057712Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA2PGVJdzrN2s2nM6Hh64vm5fS/Xk/03jhtL2aYnW+9K6lFZOhLCvvInguUPGSn5WdkBQdUQG6l0bAnnjLjZX1Dw=="
+}
