@@ -1,0 +1,10 @@
+{
+  "uuid": "4d64bf9b-2ff7-46fa-bc3f-dabe1460e6bd",
+  "issue_uuid": "c3b8fcb3-863a-4459-9883-e621db76b43c",
+  "author": "TeIq",
+  "content": "Delivered: 5 repository modules (subject, incident, action, report, observation) under polaris-backend/src/repo/, each exposing a Repo trait + PgImpl + New<Type> input type. RepoError thiserror enum with SQLSTATE-routed variants (UniqueViolation 23505, ForeignKey 23503, AppendOnlyViolation P0001). AFIT-based async fn in trait per dispatch directive. polaris-types enum-to-DB string mapping via existing as_str/from_wire methods on each type. ObservationKind serialized via (discriminator, payload) split into kind TEXT + evidence JSONB columns and reconstructed on read. tests/repo_roundtrip.rs round-trips Subject/Incident/Action/Report/Observation with cross-aggregate FK chain. tests/actions_append_only.rs proves the BEFORE UPDATE trigger raises SQLSTATE P0001 AND the row is unchanged AND RepoError::AppendOnlyViolation is the routed variant. 15 new .sqlx/ cache entries committed. AC-8 invariant intact (polaris-types still has zero proto-blue dependency).",
+  "created_at": "2026-05-14T14:17:13.399817284Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAcyE4srich5xJb10RCTYHY7Vccl/pLQTk64ZFlPsXmhCwP/CuVPjj0WUIzKkTiCP2WI94wDLLU5jLR3rQawxUDw=="
+}
