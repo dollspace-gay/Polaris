@@ -1,0 +1,10 @@
+{
+  "uuid": "9e5b1ffc-62fc-4561-a5a2-c843e15a0955",
+  "issue_uuid": "0058d699-751b-4bcd-afa0-07ba10f2dd45",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE-WITH-FOLLOW-UPS.\n\nIndependent verification:\n- cargo build --workspace (default = bus-nats): clean.\n- cargo build --workspace --no-default-features: clean.\n- cargo clippy --workspace --all-targets -- -D warnings: clean.\n- cargo fmt --check: exit 0.\n- cargo test -p polaris-backend --lib bus: 6/6 pass (4 memory + 2 nats compile-tests).\n- Forbidden grep: zero anyhow in bus/, zero unsafe, zero non-test unwrap/expect.\n- cargo xtask check-frontend-boundary: 0 violations.\n\nSubagent caught stale dep versions in pre-flight (rdkafka 0.37→0.39, async-nats 0.42→0.48, bincode 3.0 is a deliberate protest-release with compile_error so we pin to 2.0.1). Good source-doc-verification hygiene.\n\nScope-narrowing check: kafka + nats live integration tests deferred to follow-up #56 per dispatch authorization. Not an escape; explicitly scoped.",
+  "created_at": "2026-05-14T15:26:15.952317336Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAgqABa5KSXrJN+lDg9drIDgzwQcbsvimUlfUtKprVZkimL23MWMkgrsUZ7vh/wmLmINDSTkNyeN/BFHmd2b9SBQ=="
+}
