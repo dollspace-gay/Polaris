@@ -1,0 +1,10 @@
+{
+  "uuid": "f322ad99-ebe5-48da-a18b-e2ebb7346206",
+  "issue_uuid": "644dd6ab-1e4c-4a81-9294-93faaf80d129",
+  "author": "TeIq",
+  "content": "APPROVE-WITH-FOLLOW-UPS. Independent evidence floor green: workspace build clean (0 warnings), clippy --workspace --all-targets -D warnings clean, fmt exit 0, 8/8 labeler::emitter lib tests pass (round-trip verify, tamper detect, takedown negation, idempotency), xtask boundary 0 violations, all unwrap/expect hits inside #[cfg(test)] mod tests, zero hand-rolled label JSON. Migration 13 ALTERs existing labels table (from #26) with partial unique index WHERE action_id IS NOT NULL enabling negation rows. Sig is computed over sig-omitted canonical CBOR; persisted bytes are sig-omitted so verifiers run verify(label_cbor, sig) directly. Follow-up filed: #63 (cloud-kms serde tag mismatch from #29).",
+  "created_at": "2026-05-14T19:06:49.446633978Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAWg5pPElHZeGKDmOQvL9PFJQnJLnDCq5rincbCmKxuHtK3GKr6GbyUjvlK7t5E9cBQT+iIlf4Lrr/0mAaKrjdDg=="
+}
