@@ -1,0 +1,10 @@
+{
+  "uuid": "4f7b0380-75a7-4f60-bfea-786aee4cb678",
+  "issue_uuid": "85821e48-2f69-4f95-bad5-8b77f799c603",
+  "author": "TeIq",
+  "content": "**Scope.** proto-blue 0.3.1 declares rust-version = \"1.85\" but uses let-chain syntax requiring 1.88, breaking polaris-backend and polaris-frontend builds. The Polaris-side workspace scaffold (#7) is correct; this issue tracks the workspace-coordination decision needed to unblock downstream M0 work (#8, #10).\n\n**Options.**\n- A. Wait for proto-blue patch release (filed upstream: see proto-blue tracker). Polaris MSRV stays at 1.85.\n- B. Unilaterally bump workspace rust-version to 1.88. Allows immediate progress; also lets us un-pin leptos from 0.8.3 to current 0.8.x.\n- C. Pin to a pre-let-chain proto-blue version (0.2.x or older 0.3 if available). Likely loses recent features; check changelog.\n\n**Recommendation pending architect / user.** Option B (bump to 1.88) is the lowest-friction path if there is no strong reason to stay on 1.85. The proto-blue maintainer is the same operator, so coordinating the upstream fix is also viable (Option A) without the typical lag.\n\n**Blocks**: #8, #10, and any downstream issue that touches polaris-backend or polaris-frontend (i.e. most of M0+).\n\n**Rust-quality.** Whatever option lands, rust-version is updated in exactly one place ([workspace.package] in root Cargo.toml). No per-crate overrides. CI's toolchain pin in rust-toolchain.toml moves in lockstep.\n\n**Done when.** `cargo build --workspace` succeeds on the pinned toolchain.",
+  "created_at": "2026-05-14T07:13:46.497786184Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAA6PHumZSXCNWl+uied9ZVJjGWzD2zx9+j/vEDs0hQz+kV04JhQ9P+HhtrUEyyCQAI2x9JKtonGZsYsK6gX/1BA=="
+}
