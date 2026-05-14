@@ -1,0 +1,10 @@
+{
+  "uuid": "db6514dc-20af-4c28-89a4-f13255fe93c6",
+  "issue_uuid": "1ab6ae17-4f9a-48e3-881c-0d9721b03565",
+  "author": "TeIq",
+  "content": "All M2 children closed: #16 event bus (APPROVE-WITH-FOLLOW-UPS → #56 kafka/nats integration tests), #17 SimHash dedup (APPROVE), #18 MinHash cohorts (APPROVE), #19 anomaly bands (APPROVE), #20 pattern dashboard (APPROVE-WITH-FOLLOW-UPS → #57 WebSocket live-feed), #21 pattern actions with cosign (APPROVE).\n\nM2 evidence floor met:\n- Bus abstraction with memory + kafka + nats backends, feature-gated.\n- Three pattern detectors (SimHash image-hash brigades, MinHash account cohorts, anomaly bands via Welford) all producing typed observations.\n- Pattern dashboard at / with 4 panels, polling-based live updates, SVG charts with non-color-only accessibility signals.\n- Pattern actions with senior co-sign gating, per-subject Action rows in atomic transaction, append-only invariant preserved.\n\nCI gates: build/clippy/fmt clean across workspace; wasm32 build clean; xtask 0 violations in 26 frontend files; .sqlx cache covers all query! macros; live integration tests pass against testcontainers Postgres 16.",
+  "created_at": "2026-05-14T16:28:16.012895897Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAFuiWKKF1CUJQs2gzGkQn4adiNdjylBX5h3VshoYxDH9xjkeD0PhztGj3EYgVGiRbvGJSp26DVlmS9R9Itt7zBg=="
+}
