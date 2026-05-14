@@ -1,0 +1,10 @@
+{
+  "uuid": "04dd4eaa-ca96-4fc3-91d5-6fc30606fb46",
+  "display_id": 63,
+  "title": "Fix #29 cloud-kms serde tag mismatch (variant produces cloud-kms; code expects cloud-kms-oracle)",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T19:06:30.334065986Z",
+  "updated_at": "2026-05-14T19:06:30.334065986Z"
+}
