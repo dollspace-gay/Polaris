@@ -1,0 +1,10 @@
+{
+  "uuid": "bc27b188-bd57-4eae-9b4f-ceaf74381148",
+  "issue_uuid": "fbbd7bce-154c-4263-9d52-e783c8a94424",
+  "author": "TeIq",
+  "content": "Delivered: ApiError::BadRequest and ApiError::Conflict variants now render via self.to_string() in IntoResponse rather than emitting bare interior fragments. Wire body matches the #[error] Display contract. Other variants unchanged.",
+  "created_at": "2026-05-14T15:08:38.833392060Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABABfw0Ngundy8kD8VZnuh1HchW+hYcATr8JFarM6oXgudJ/jKfnWzXOqcbr1Cdo70liAzeBMj9w3Re+0TlAwOlCw=="
+}
