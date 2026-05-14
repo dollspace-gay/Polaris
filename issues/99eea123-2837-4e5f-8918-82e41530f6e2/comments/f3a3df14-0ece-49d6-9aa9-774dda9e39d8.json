@@ -1,0 +1,10 @@
+{
+  "uuid": "f3a3df14-0ece-49d6-9aa9-774dda9e39d8",
+  "issue_uuid": "99eea123-2837-4e5f-8918-82e41530f6e2",
+  "author": "TeIq",
+  "content": "**Scope.** design.md §10 mobile question. v1 is desk-only; on-call escalation may want a mobile surface. The bar is \"respond to a P1 escalation from a phone\" — not full moderation workflows on mobile.\n\n**v1 connection points.**\n- v1 has all the API surface; this issue adds a constrained client.\n\n**Scope sketch (refine in design doc).**\n- Mobile-friendly subset of the case view (read-only + take/release-only initially).\n- Native via Tauri Mobile, PWA, or React Native — pick after the design pass measures cost/benefit.\n- Push notification path for P1 escalations.\n\n**References.**\n- design.md §10 mobile open question.\n\n**Pre-implementation.**\n- `/design polaris-mobile-oncall` doc; explicit non-goals to keep the surface small.\n\n**Rust-quality.**\n- If Tauri Mobile: stays in Rust-end-to-end; deps audited for mobile target compatibility.\n- If PWA: extends the existing Leptos frontend with a `viewport=mobile` route subset.\n\n**Testing.**\n- Push delivery latency tested on real devices.\n- Critical-path scenario rehearsed: P1 fires → mod gets push → opens app → takes ownership → calls senior.",
+  "created_at": "2026-05-14T06:46:19.839814930Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAtcl3F4kTFka+A6l1K1G5C8jhvOkmawjOfGiw/G1XkAR5H7WLG/WpNpcz2Wt9NPPlr7IY3SSds+StDj7Rf9qrBw=="
+}
