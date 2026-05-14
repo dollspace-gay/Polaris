@@ -1,0 +1,10 @@
+{
+  "uuid": "58a9e30e-e0e0-4d7b-a400-0ce507e7ff03",
+  "issue_uuid": "51b2497d-984d-4b37-8f0a-b9eca8116d83",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** proto-blue-lexicon (or proto-blue umbrella) on polaris-frontend deps. New polaris-frontend/src/validation.rs builds Registry from embedded lexicon JSON (mirroring polaris-publish-labeler-record's load_client_metadata pattern). ActionComposer signal calls Registry::validate() with 50ms debounce. Errors as typed LexValidationError variants render inline. xtask check-wasm-symbols reads release artifact and asserts lexicon symbol presence. Native unit tests for Registry + composer integration; headless wasm-bindgen-test source shipped, gate on feature flag (sandbox may lack chromedriver). Bundle-budget gate filed as #71 if not in scope here.",
+  "created_at": "2026-05-14T20:43:02.195263553Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOWf4HBfFM8y3GSx/rdTMVnzlvWMRuQNuTLUv+Qu54jsCq2MYfqMddTde+usrmrr5t2eVs1vsk9GPpYnsh+B6AA=="
+}
