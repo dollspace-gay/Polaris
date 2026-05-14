@@ -1,0 +1,10 @@
+{
+  "uuid": "118db95d-1c02-4b62-a084-a2be5a9720fc",
+  "issue_uuid": "130b0131-cbe6-4550-9ab9-385db5c24507",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence floor green: workspace build clean, clippy clean, fmt exit 0, 24 auth lib tests pass, 6/6 atproto_login integration tests pass (incl. AC-4 binding atproto_login_flow_persists_session_row, factory_selects_atproto_backend_from_config, OIDC regression test, and three negative paths), xtask boundary 0 violations, all forbidden-grep hits in cfg(test). AC-4 atproto half + AC-5 atproto half ship end-to-end. AnyModeratorAuth enum hosts AFIT-typed verifiers (AFIT not dyn-compatible). LoginHint enum on trait. DPoP keypair sealed via same Crypto module as OIDC refresh tokens; sealed bytes ride in sessions.refresh_token_enc. Follow-ups filed: #66 (DPoP-nonce-rotation refresh flow), #67 (HTTP handlers for /auth/atproto/{login,callback}).",
+  "created_at": "2026-05-14T19:51:44.712031872Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAwCuOUE7sRio1IKRJI9PxAjtdDQcVeW8OKJMNHV7AMNLCRmWXRKhkMr9CQPun0jXKdbyrK8+7l4UC5+Q6bnxvCA=="
+}
