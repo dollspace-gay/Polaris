@@ -1,0 +1,10 @@
+{
+  "uuid": "7610b43d-1b67-418d-960b-985f2f889144",
+  "issue_uuid": "23197136-4c0d-46eb-a38a-3cc2d33b6a02",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** Migration 19: webauthn_credentials (id, moderator_id, credential_id BYTEA UNIQUE, public_key BYTEA, sign_count BIGINT, transports, created_at). webauthn-rs crate. polaris-backend/src/auth/webauthn.rs: WebauthnVerifier with register_start/finish + assert_start/finish. AuthConfig: require_hardware_key flag, Profile::default profile-aware (Bluesky=true, Labeler=false). Post-login gate after OIDC/ATProto. Soft-token round-trip via webauthn-rs's test helpers. sign-count monotonicity check raises typed WebauthnError + tracing::error!. UI screens deferred to #77. 4 HTTP endpoints wired into api/.",
+  "created_at": "2026-05-14T21:48:49.176535730Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAVGe5hV2HifvEBZo2ZSmI6nxBgeXS3z00LnIJpTA9BRayVqFeJELOlPUDQrsr+80JauomQzRTeyyNIGSHJ+/zCw=="
+}
