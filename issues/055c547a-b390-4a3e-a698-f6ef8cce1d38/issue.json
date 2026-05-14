@@ -1,0 +1,11 @@
+{
+  "uuid": "055c547a-b390-4a3e-a698-f6ef8cce1d38",
+  "display_id": 23,
+  "title": "Implement exposure tracking per moderator with operator-controlled caps",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "8898435a-8acc-47ef-9c5f-bf9fb8fe5920",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T06:32:15.634446854Z",
+  "updated_at": "2026-05-14T06:32:15.634446854Z"
+}
