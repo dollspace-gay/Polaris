@@ -1,0 +1,10 @@
+{
+  "uuid": "bd6a85f4-6044-4339-b517-2b5f9bc039c2",
+  "issue_uuid": "31e52834-8d2a-4a05-8505-e3ad3f8c3488",
+  "author": "TeIq",
+  "content": "Delivered: can_reverse pure authorization function with 11 unit tests; ActionRepo::find_reversal for double-reverse guard; POST /api/actions/:action_id/reverse handler ≤25 lines; ApiError::Forbidden 403 variant; ReversalAuthError typed enum mapping to Forbidden/Conflict; frontend Reverse-button affordance in history_timeline.rs mirroring backend eligibility; PolarisApiClient.reverse_action extension (native + wasm). 5-scenario integration test (within-window, after-window, senior-anytime, non-eligible, double-reverse) with append-only proofs. .sqlx cache regenerated. Reasoning >= 10 char validation enforced. AC-7 maintained — xtask 0 violations.",
+  "created_at": "2026-05-14T15:06:13.761900661Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA9DRHFLWzhAR24mL4h+dpSSH00bGRlzoKTOvWGTk7So+6ow2CozvFhD7zRaVv2V1iqmwZ3T5RCcSNj0hOJHEjDA=="
+}
