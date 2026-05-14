@@ -1,0 +1,10 @@
+{
+  "uuid": "12bedfb4-6a6c-4c88-bb14-b46209165701",
+  "display_id": 53,
+  "title": "Refine xtask hardcoded_mutating_route rule to allow PolarisApiClient gateway",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T14:45:04.117340628Z",
+  "updated_at": "2026-05-14T14:45:04.117340628Z"
+}
