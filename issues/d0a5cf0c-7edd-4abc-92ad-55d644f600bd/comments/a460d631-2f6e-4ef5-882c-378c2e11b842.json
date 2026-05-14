@@ -1,0 +1,10 @@
+{
+  "uuid": "a460d631-2f6e-4ef5-882c-378c2e11b842",
+  "issue_uuid": "d0a5cf0c-7edd-4abc-92ad-55d644f600bd",
+  "author": "TeIq",
+  "content": "APPROVE-WITH-FOLLOW-UPS. Independent evidence floor green: cargo build --workspace --all-targets clean, clippy clean, fmt exit 0, 17/17 reputation lib tests pass (property tests for brand-new=prior, established-good>0.95, established-bad<0.05, time-decay-toward-prior over 5 half-lives, ReputationScore clamping rejects NaN/inf/out-of-range), 6/6 reputation integration tests pass against testcontainers PG16-alpine. Pure reputation() function (no I/O, no allocation). PgReputationProvider wired into Report+Action insert paths in shared tx. Dashboard build_report_volume gains weighted_count column. Subsumes follow-up #74 (T3 wiring). Deep MemoryAnomalyDetector rewiring filed as #79.",
+  "created_at": "2026-05-14T22:55:26.508567169Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAP3D7NoLz8JhJ5k64xvOu8yd0/aDam+y3lmwGWZxMzC+5rYp1U7bpChmakdn2nDLJKlTiPihIlP5xrqKgpfHQCQ=="
+}
