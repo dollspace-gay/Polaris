@@ -2,10 +2,11 @@
   "uuid": "19a6ca7b-2b46-4d5e-bbc2-6d7f4a0ea16c",
   "display_id": 20,
   "title": "Build Leptos pattern dashboard as the default home view",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "1ab6ae17-4f9a-48e3-881c-0d9721b03565",
   "created_by": "TeIq",
   "created_at": "2026-05-14T06:32:07.841712495Z",
-  "updated_at": "2026-05-14T06:32:07.841712495Z"
+  "updated_at": "2026-05-14T16:04:49.487515313Z",
+  "closed_at": "2026-05-14T16:04:49.487515313Z"
 }
