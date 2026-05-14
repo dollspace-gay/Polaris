@@ -1,0 +1,10 @@
+{
+  "uuid": "97e3e061-aee8-4e3a-9277-07b756c0783f",
+  "issue_uuid": "da463e7e-ff0c-410b-b7bd-ebed79ace948",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE.\n\nIndependent verification:\n- cargo build --workspace: clean.\n- cargo clippy --workspace --all-targets -- -D warnings: clean.\n- cargo fmt --check: clean (exit 0).\n- cargo test -p polaris-backend --no-run --tests: 3 binaries compiled (lib, main, db_smoke).\n- Forbidden-pattern grep across polaris-backend/src/: zero unwrap()/expect( hits; zero string-built SQL; zero Arc<PgPool> wrapping (only a doc comment explaining why NOT to wrap); zero anyhow in non-main src (only doc comments documenting the policy); zero crate-root #![allow]; zero unsafe.\n- db/mod.rs rustdoc captures design invariants; DbError preserves cause chain via #[source]; Db::ping uses explicit drop(conn) over let _ for documented intent.\n\nDispatch deviated honestly from pre-flight on dep versions (testcontainers 0.27 / testcontainers-modules 0.15 instead of pre-flight's stale 0.23 / 0.11), with crates.io verification recorded.\n\nTwo YAGNI surfaces left as forward-compat for #13 (ConfigError::InvalidInt variant, Db::pool() accessor) — both reachable from #13's repository work; cost of preemptive trim > cost of leaving.\n\ndb_smoke not executed against live Postgres (Docker not assumed in this env); binary compiles, self-skips when Docker absent. #13 exercises the path under a real DB.",
+  "created_at": "2026-05-14T12:34:14.773378748Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA1lJElxHn8dtpEtJOLNvYQfIvecktPHoNxIdcaynz0rUjk+RxhqikikhoYqGYhHgE2mhPYc7FALSNzJf6c/v5CQ=="
+}
