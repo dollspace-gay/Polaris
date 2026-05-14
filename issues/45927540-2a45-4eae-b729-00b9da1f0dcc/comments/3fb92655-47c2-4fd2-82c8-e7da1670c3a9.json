@@ -1,0 +1,10 @@
+{
+  "uuid": "3fb92655-47c2-4fd2-82c8-e7da1670c3a9",
+  "issue_uuid": "45927540-2a45-4eae-b729-00b9da1f0dcc",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE-WITH-FOLLOW-UPS.\n\nIndependent verification:\n- cargo tree -p polaris-types --depth 1: 4 deps (chrono, serde, serde_json, uuid). No proto-blue. AC-8 satisfied.\n- cargo build -p polaris-types -p xtask: clean.\n- cargo clippy -p polaris-types -p xtask --all-targets -- -D warnings: clean.\n- cargo fmt --check: clean.\n- Forbidden-pattern grep across all polaris-*/src and xtask/src: zero hits for unwrap()/expect(/todo!()/unimplemented!()/dbg!/crate-root #![allow].\n- workspace.lints baseline present in root Cargo.toml; every member crate has [lints] workspace = true.\n- proto-blue MSRV bug reproduced independently: proto-blue 0.3.1 declares rust-version=1.85 but uses Rust 1.88 let-chain syntax in proto-blue-identity, proto-blue-ws, proto-blue-lexicon.\n\nPolaris-side scaffold is correct. The cargo build --workspace failure is upstream, not in this issue's scope.\n\nFollow-ups filed:\n- proto-blue tracker: bug report on the MSRV/let-chain mismatch.\n- Polaris #50: workspace MSRV resolution decision; blocks #8 and #10 until resolved.\n\nSubagent's leptos=0.8.3 pin is documented + acceptable as a workspace-coordination choice; will be relaxed when MSRV is decided.\n\nNo other deviations from the pre-flight.",
+  "created_at": "2026-05-14T07:13:50.583026917Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAuw1MqmOuq/G8G2WBdLJfop0Zs04zI8Sk4SCw+7Dg6MS8hMh5dk0egyILfp+jzoSlAgcB4oBvVXz4V8MTzf6xDw=="
+}
