@@ -1,0 +1,10 @@
+{
+  "uuid": "dd94b7db-9390-486b-b1ae-dc46893ba9df",
+  "issue_uuid": "29b54913-9b67-44a7-8b0d-969bb1aa412e",
+  "author": "TeIq",
+  "content": "Delivered: FirehoseWorker struct with bounded mpsc outbound channel, tokio_util::sync::CancellationToken shutdown with cursor-flush-before-exit, tokio::sync::watch-free single-task cursor ownership pattern, tokio::time::interval flush every N events OR T seconds (configurable), reconnect on clean upstream close rebuilding Firehose with current cursor. FirehoseConfig + FirehoseError + NormalizedEvent types. Migration 00000000000002_firehose_cursor.sql with single-row UPSERT pattern + monotonic seq guard. Integration test firehose_cursor_persistence.rs proves cursor read+upsert round-trip under testcontainers Postgres 16. .sqlx/ cache grew from 10 to 12 with the two new firehose query metadata files.",
+  "created_at": "2026-05-14T13:52:11.213935668Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPLfFrbTVkr3YmEFwAJqw9RJtsld2a/1vE4wJGrIBGlP1d7FuLelCj9Qkb5rtou0m6jt0CTy8fESTwJlyHr+8Dw=="
+}
