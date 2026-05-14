@@ -1,0 +1,10 @@
+{
+  "uuid": "cc195a27-e49d-448c-93dd-10ef5119b29c",
+  "issue_uuid": "e96a82a4-68bd-42b3-b0a0-7d253355e370",
+  "author": "TeIq",
+  "content": "**Scope.** Everything captured as \"Out of Scope\" in `.design/polaris-proto-blue-integration.md` and as open questions in `design.md` §10. Grouping into a single roadmap epic since these items don't share a coherent milestone shape — they're independent expansions.\n\n**Children (8).**\n1. Define Polaris-owned NSIDs (foundation for federation).\n2. Add live federation of mod conversations across labeler instances.\n3. Add mobile / on-call surface.\n4. Add ML classifier integration via gRPC.\n5. Add Ozone-to-Polaris migration tooling.\n6. Add richer cross-labeler trust model.\n7. Add TPM-sealed signing key SigningKey impl.\n8. Add hardware-token (PKCS#11 / FIDO2) SigningKey impl.\n\n**Each child requires a design pass before implementation.** Each carries a scope sketch + v1 connection points so the work is tractable when picked up, but the deliverables list will be refined in a per-item design doc (use the `/design` skill to produce them).\n\n**Block chain.** M5 is blocked by M4 (#6) — v1 must reach beta before v2 work starts. Within M5, only the federation pair has an internal block: live federation depends on Polaris-owned NSIDs landing first.\n\n**Done when.** All eight children are designed, implemented, and closed. v2 is a release milestone, not a single shipping unit — children may ship independently as point releases.",
+  "created_at": "2026-05-14T06:46:12.152930037Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAvGSkWOsJeC0HSpj9EV8JkT8V2kZgA2eOVZEqEcdGkb843w/rmSpaP/5CRmrCjj68F+iPUCSwmXeSjmThI0BqDg=="
+}
