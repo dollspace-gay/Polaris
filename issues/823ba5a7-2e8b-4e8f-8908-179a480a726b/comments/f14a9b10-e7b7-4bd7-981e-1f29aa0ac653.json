@@ -1,0 +1,10 @@
+{
+  "uuid": "f14a9b10-e7b7-4bd7-981e-1f29aa0ac653",
+  "issue_uuid": "823ba5a7-2e8b-4e8f-8908-179a480a726b",
+  "author": "TeIq",
+  "content": "Q3 (frontend lexicon validation bundle) resolved: include.\n\nFrontend bundles proto-blue-lexicon and a minimal Registry containing the schemas operators can author records against in the UI (v1: com.atproto.label.defs, app.bsky.labeler.service). User-constructed records validate client-side via Registry::validate() before submission; errors inline, no network round-trip.\n\nDoc changes:\n- REQ-13 added: frontend includes proto-blue-lexicon + minimal registry.\n- AC-16 added: invalid composer input surfaces error within 100ms, zero HTTP requests for validation; wasm-objdump confirms lexicon engine in bundle.\n- §D Frontend section: paragraph added about the lexicon bundle being an accepted trade-off, with note that the registry is shaped to allow further trimming if needed.\n- Q3 marked RESOLVED inline; captured by REQ-13/AC-16.\n\nDoc state: 13 REQs, 16 ACs, 0 open questions, 3 resolved questions (Q1, Q2, Q3).\nPipeline hash: sha256:4c36246ff5e7136dc7f4d8b4f135b4be8f3ef9ee2302fa4fca759734c1d59184",
+  "created_at": "2026-05-14T05:51:19.751356299Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAfraXEk0HF8lDODDGu2M4iMAJER0N69woYWGhWOLdyIGOKcMcDGfXzZlir0xdw5KX0Tqr7CuX8CfHVv5GN817Cw=="
+}
