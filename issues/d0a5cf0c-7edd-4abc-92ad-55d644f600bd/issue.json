@@ -2,10 +2,11 @@
   "uuid": "d0a5cf0c-7edd-4abc-92ad-55d644f600bd",
   "display_id": 37,
   "title": "Add reporter reputation scoring and false-report weighting in pattern engine",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "1ab6ae17-4f9a-48e3-881c-0d9721b03565",
   "created_by": "TeIq",
   "created_at": "2026-05-14T06:45:57.840985021Z",
-  "updated_at": "2026-05-14T06:45:57.840985021Z"
+  "updated_at": "2026-05-14T22:55:27.922775034Z",
+  "closed_at": "2026-05-14T22:55:27.922775034Z"
 }
