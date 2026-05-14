@@ -1,0 +1,10 @@
+{
+  "uuid": "b1478fee-025c-49a8-84da-7dece3ea177f",
+  "issue_uuid": "30dfc42e-fc68-451c-acfe-1e4021a5b2a4",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE (1 continuation needed — initial dispatch truncated leaving appeals module never wired into router).\n\nIndependent verification:\n- cargo build --workspace: clean.\n- cargo clippy --workspace --all-targets -- -D warnings: clean.\n- cargo fmt --check: exit 0.\n- SQLX_OFFLINE=true cargo build --workspace: clean.\n- cargo xtask check-frontend-boundary: 0 violations.\n- cargo test -p polaris-types --lib appeal: 12/12 pass.\n\nContinuation surfaced and fixed: prior dispatch created api/appeals.rs but never declared the module in api/mod.rs — appeals API code had never been compiled. Continuation added module declaration, sha2 dep, three ApiState fields, three route registrations, plus the 5-scenario integration test. The pre-existing oidc_login_flow_persists_session_row failure (mock IdP signature verification) is unrelated to #24 and predates this dispatch.",
+  "created_at": "2026-05-14T17:19:06.272646326Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAwDUy/MNnvmcqBfR5sBeIOrldJZkiXcuLC/1AQHTz0UqCcPXxSwsJauW92w2C0DlE0eJhgVYZyWsrGRwRYaXdDA=="
+}
