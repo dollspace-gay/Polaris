@@ -1,0 +1,10 @@
+{
+  "uuid": "b2e91d02-9f51-4863-aed2-e90575b8ea74",
+  "issue_uuid": "a8e9b027-6310-40f8-bfce-5a92fca5e06f",
+  "author": "TeIq",
+  "content": "APPROVE. M4 epic complete. All 11 children closed: #26 (XRPC labeler endpoint), #27 (publish-labeler-record CLI), #28 (Label signing), #29 (SigningKey trait + 4 impls), #30 (key-rotate state machine + CLI), #31 (AtprotoOauthAuthVerifier), #32 (upstream labeler consumer), #33 (evidence CAR worker), #34 (lexicon validation in wasm), #35 (hash-chained audit log), #38 (deployment artifacts), #39 (threat-model T1-T6), #40 (WebAuthn hardware-key flag). All 17 ACs in .design/polaris-proto-blue-integration.md pass via binding tests. Follow-ups (#51-#76) track downstream test-hardening and minor enhancements; design-phase complete for M5 (#41-#49).",
+  "created_at": "2026-05-14T22:32:13.782102564Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAQyXzziNcfZWPZGBO4jqVfWSG5FLamqLzBY+FPV2zUAB2nsjV0UsiW+ym1Rp+1l6g/VwNn/fJWVSTDDBy7/0pBg=="
+}
