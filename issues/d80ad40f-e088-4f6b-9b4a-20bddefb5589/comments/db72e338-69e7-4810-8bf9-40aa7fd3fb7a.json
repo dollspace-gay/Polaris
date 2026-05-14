@@ -1,0 +1,10 @@
+{
+  "uuid": "db72e338-69e7-4810-8bf9-40aa7fd3fb7a",
+  "issue_uuid": "d80ad40f-e088-4f6b-9b4a-20bddefb5589",
+  "author": "TeIq",
+  "content": "APPROVE-WITH-FOLLOW-UPS. Independent evidence floor green: build clean, clippy clean, fmt exit 0, 9/9 evidence:: lib tests pass, 4/4 evidence_worker integration tests pass (incl. AC-11 binding ac11_binding_evidence_car_persists_and_round_trips with byte-identity read_car round-trip), xtask boundary 0 violations. CRITICAL: pre-existing tests/actions_append_only.rs STILL PASSES after the trigger rewrite — the actions_reject_update() rewrite permits EXACTLY two NULL→non-NULL transitions (evidence_car_cid, emitted_to_atproto) gated by IS NOT DISTINCT FROM on every other column. Content invariant (reasoning, kind, label, policy_refs, etc.) remains strict. Carve-out is narrow, monotonic, and protected. Filed follow-ups: #68 (S3 + minio), #69 (retry-with-backoff), #70 (live proto-blue XRPC fetcher).",
+  "created_at": "2026-05-14T20:42:23.191501466Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAuQCqNAD6TDHgij6XvhFhXNkbcFnXQuq5pA781YyZioVJE2GeSgaEoCBVoyzZdMkjtts95bPMlb6ObE6CcNpnBw=="
+}
