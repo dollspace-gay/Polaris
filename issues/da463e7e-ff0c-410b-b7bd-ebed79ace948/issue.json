@@ -2,12 +2,13 @@
   "uuid": "da463e7e-ff0c-410b-b7bd-ebed79ace948",
   "display_id": 8,
   "title": "Add Postgres + sqlx scaffold with compile-time-checked migrations",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "084370df-ad1f-4969-81cc-457ec8f05aac",
   "created_by": "TeIq",
   "created_at": "2026-05-14T06:31:37.344338038Z",
-  "updated_at": "2026-05-14T07:13:47.876138532Z",
+  "updated_at": "2026-05-14T12:34:17.483626595Z",
+  "closed_at": "2026-05-14T12:34:17.483626595Z",
   "blockers": [
     "85821e48-2f69-4f95-bad5-8b77f799c603"
   ]
