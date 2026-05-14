@@ -1,0 +1,10 @@
+{
+  "uuid": "df65798c-de18-4a68-9c69-e824b0292373",
+  "issue_uuid": "a8e9b027-6310-40f8-bfce-5a92fca5e06f",
+  "author": "TeIq",
+  "content": "**Scope.** Stand Polaris up as a first-class labeler service: host the labeler XRPC endpoints, sign and emit labels, consume third-party labeler signals, preserve evidence, validate label records client-side, and complete the security hardening (audit chain, threat-model coverage, signing-key custody, rotation tooling). Maps to design.md §11 M4 and `.design/polaris-proto-blue-integration.md` REQ-1, REQ-2, REQ-3, REQ-4 (second half), REQ-9, REQ-10, REQ-11, REQ-12, REQ-13.\n\n**Children (10).** XRPC labeler endpoint; publish-labeler-record CLI; label signing; SigningKey trait + 4 impls; key-rotate CLI; AtprotoOauthAuthVerifier; inbound third-party labels; evidence-CAR worker; lexicon validation engine in wasm bundle; hash-chained audit log.\n\n**Done when.** All 16 acceptance criteria in `.design/polaris-proto-blue-integration.md` pass; threat-model coverage tests green; beta-with-partner-labeler exit criteria from design.md §11 M4 met.\n\n**Rust-quality.**\n- Cryptographic correctness rules (`.crosslink/rules/rigor.md` §Cryptographic correctness) apply at every signing/verification site — fresh RNG, audited libraries (`k256` via `proto-blue-crypto`), authenticated ciphertext where applicable, current algorithms.\n- The `SigningKey` trait is `Send + Sync` and never panics — every error becomes a typed `SigningError` variant.\n- `unsafe` is banned in this milestone too; if KMS bindings require FFI, isolate in a single crate with `// SAFETY:` documentation + `cargo miri test`.",
+  "created_at": "2026-05-14T06:31:33.558129956Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAEvLXFOJIgTViUfQUX1ZDzJ3533cjb77jZLs2kIWOpbuoHnBHu1J+Cd3s62viax7dsA2f8P8ib/EVm1ZHAfoKCA=="
+}
