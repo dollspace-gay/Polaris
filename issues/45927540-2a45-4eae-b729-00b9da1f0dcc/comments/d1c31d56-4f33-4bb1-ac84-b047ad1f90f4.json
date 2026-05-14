@@ -1,0 +1,10 @@
+{
+  "uuid": "d1c31d56-4f33-4bb1-ac84-b047ad1f90f4",
+  "issue_uuid": "45927540-2a45-4eae-b729-00b9da1f0dcc",
+  "author": "TeIq",
+  "content": "Blocker: proto-blue 0.3.1 declares rust-version=1.85 but uses let-chain syntax (if let ... && let ...) in proto-blue-ws, proto-blue-identity, and proto-blue-lexicon. Let-chains were stabilized in Rust 1.88 (RFC 2497). This is an MSRV bug in proto-blue — its declared rust-version does not match its actual requirements. Files affected: proto-blue-ws-0.3.1/src/keepalive.rs:242, proto-blue-identity-0.3.1/src/did.rs:108-109, proto-blue-lexicon-0.3.1/src/lexicons.rs, proto-blue-lexicon-0.3.1/src/validation.rs. Combined with leptos 0.8.4+ also requiring 1.88, the transitive dep graph for this workspace cannot build under Rust 1.85. Two resolution paths: (A) bump workspace rust-version to 1.88 — requires architect approval; (B) keep 1.85 but exclude proto-blue from polaris-backend and polaris-frontend for this #7 skeleton milestone, noting that proto-blue integration is a separate implementation concern.",
+  "created_at": "2026-05-14T07:09:02.466187207Z",
+  "kind": "blocker",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAd4aSpV7LZQlo8WItDYYvMgnRuC+5EcBy6V3m7V+6JNTZxEvs95FuuDn5ee9YDHVFwEyM2z2pH53IK3URvIdLAA=="
+}
