@@ -1,0 +1,10 @@
+{
+  "uuid": "e4afca16-8ad3-47d4-be13-bc3c26050719",
+  "display_id": 59,
+  "title": "Migrate url dep to [workspace.dependencies]",
+  "status": "open",
+  "priority": "low",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T18:14:11.527080916Z",
+  "updated_at": "2026-05-14T18:14:11.527080916Z"
+}
