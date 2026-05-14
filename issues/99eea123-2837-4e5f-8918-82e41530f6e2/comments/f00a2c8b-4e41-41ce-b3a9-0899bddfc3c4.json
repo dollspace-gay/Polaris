@@ -1,0 +1,10 @@
+{
+  "uuid": "f00a2c8b-4e41-41ce-b3a9-0899bddfc3c4",
+  "issue_uuid": "99eea123-2837-4e5f-8918-82e41530f6e2",
+  "author": "TeIq",
+  "content": "APPROVE-DESIGN-PHASE. Design doc shipped at .design/m5/44-mobile-app.md per the issue's own '/design doc first' pre-implementation directive. Doc covers REQ + AC + architecture sketch + open questions ready for human review. Implementation is v2-roadmap work; per v1 design '.design/polaris-proto-blue-integration.md §E + Out of Scope', deliberately deferred. Closing this issue's design-phase work; implementation tracked separately when v2 scope opens.",
+  "created_at": "2026-05-14T22:30:56.505273294Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAayyNY61xOQVOKAJaEQGaf+TkHQ0PTBXugfQodZX9+oB/C5uYipbEAJJ/AXNLijlcdLPRERsV/6o2FsR4kV7NAw=="
+}
