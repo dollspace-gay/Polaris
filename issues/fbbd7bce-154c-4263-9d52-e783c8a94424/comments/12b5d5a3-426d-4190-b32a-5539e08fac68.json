@@ -1,0 +1,10 @@
+{
+  "uuid": "12b5d5a3-426d-4190-b32a-5539e08fac68",
+  "issue_uuid": "fbbd7bce-154c-4263-9d52-e783c8a94424",
+  "author": "TeIq",
+  "content": "**Scope.** Pre-existing failing unit test in polaris-backend/src/api/error.rs: bad_request_carries_static_message asserts body[\"error\"] == \"invalid request: reasoning too short\" but the IntoResponse impl emits the bare static message (\"reasoning too short\"). Either the test or the impl needs to align — the IntoResponse rendering shape is the public contract.\n\nSurfaced during #36's reversal-workflow dispatch; not caused by it.\n\n**Done when.** cargo test -p polaris-backend --lib api::error passes.",
+  "created_at": "2026-05-14T15:06:09.971478604Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABADZp5gh3z2SKohzzwM77CRednSfRK9qi36p5utPgR39Cb7IxQVrnV6uGSDg8JXrJc45n6bhHQdDrIPglFdaDbAg=="
+}
