@@ -1,0 +1,11 @@
+{
+  "uuid": "23197136-4c0d-46eb-a38a-3cc2d33b6a02",
+  "display_id": 40,
+  "title": "Add hardware-key (WebAuthn) requirement config flag with per-profile enforcement",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "a8e9b027-6310-40f8-bfce-5a92fca5e06f",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T06:46:05.839381343Z",
+  "updated_at": "2026-05-14T06:46:05.839381343Z"
+}
