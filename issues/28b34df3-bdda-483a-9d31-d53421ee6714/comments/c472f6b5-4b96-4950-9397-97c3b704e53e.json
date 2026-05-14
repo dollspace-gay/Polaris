@@ -1,0 +1,10 @@
+{
+  "uuid": "c472f6b5-4b96-4950-9397-97c3b704e53e",
+  "issue_uuid": "28b34df3-bdda-483a-9d31-d53421ee6714",
+  "author": "TeIq",
+  "content": "**Scope.** design.md §10 cross-labeler trust model question. v1 ships a flat per-upstream weight; v2 supports richer models: per-source × per-category, per-source × per-subject-class, time-decayed (older labels carry less weight), and operator-defined custom expressions.\n\n**v1 connection points.**\n- v1's `upstream_labelers.weights JSONB` (#32) is shaped to accept richer policies without schema change — this issue expands what goes in the JSONB.\n\n**Scope sketch (refine in design doc).**\n- Trust-policy DSL or a structured config form.\n- Default templates (e.g., \"trust X for spam at 0.8, decay half-life 30d; ignore harassment\").\n- UI to preview \"with this policy, recent labels from X have weight Y.\"\n- Backward-compat: existing v1 flat weights continue to work.\n\n**References.**\n- design.md §10 cross-labeler trust model question.\n- `.design/polaris-proto-blue-integration.md` §G (richer trust model stays open).\n\n**Pre-implementation.**\n- `/design polaris-trust-model` doc.\n\n**Rust-quality.**\n- Trust function is a pure `fn weight(observation, policy) -> f32` — easy to test.\n- DSL parser (if applicable) errors give clear locations; use `nom` or `chumsky` for the grammar.\n- Defaults sane: an unspecified category falls back to per-source flat weight, then global default.\n\n**Testing.**\n- Property: weight in `[0.0, 1.0]` for any policy + observation combination.\n- Snapshot test: a representative policy applied to a representative observation set yields a stable weight map.",
+  "created_at": "2026-05-14T06:46:27.507175363Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAbxhePYdFggbtm3k/EBpcBiJL/kIQjc5SASjSDcJkjAFcHLLV3tPkJS6iijWHQx3Q04AHgiGinrfk/huIuv+wAw=="
+}
