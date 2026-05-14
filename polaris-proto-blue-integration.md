@@ -1,0 +1,214 @@
+---
+title: "Polaris tech architecture — proto-blue integration"
+tags: ["design-doc"]
+sources: []
+contributors: ["TeIq"]
+created: 2026-05-14
+updated: 2026-05-14
+---
+
+
+## Design Specification
+
+### Summary
+
+This document iterates the tech-side sections of `design.md` v0.2 (§3 Architecture, §5.9 Labeler interop, §6 Backend Implementation Notes, §7 Frontend Implementation Notes) by grounding Polaris on `proto-blue` — the in-house ATProto SDK at `/home/doll/proto-blue/proto-blue` — in place of the originally-named `atrium-api`. The shape of Polaris does not change; the bindings to ATProto do. Four decisions concretize the iteration: Polaris hosts its own labeler XRPC endpoint (rather than emitting to an external one), moderator authentication is pluggable across OIDC and ATProto OAuth, the Leptos frontend reads public ATProto data directly via wasm-compiled proto-blue while all non-public state stays Axum-proxied, and Polaris's internal data model stays as plain Rust types with no Polaris-owned NSIDs in v1.
+
+### Requirements
+
+- REQ-1: Polaris hosts `com.atproto.label.subscribeLabels` and `com.atproto.label.queryLabels` as a native XRPC server using `proto_blue_xrpc::server::XrpcServer` (the `server` feature of `proto-blue-xrpc`, which mounts on an `axum::Router`). Polaris is the labeler service that downstream AppViews subscribe to, not a producer that writes into an external labeler.
+- REQ-2: Polaris ships a small administrative binary (`polaris-publish-labeler-record`) that writes an `app.bsky.labeler.service` record to the operator's controlled Bluesky account, declaring the public hostname and the labeler's signing key. The record is constructed from the generated type `proto_blue_api::generated::app::bsky::labeler::service`.
+- REQ-3: Every `Action` of kind `Label` or `Takedown` produces a `com.atproto.label.defs::Label` value (from `proto_blue_api::generated::com::atproto::label::defs`) signed with a K-256 keypair via `proto_blue_crypto`. The signed `Label` is what `subscribeLabels` streams to consumers.
+- REQ-4: Moderator authentication is gated by a `polaris-backend` `ModeratorAuth` trait, shaped after `proto_blue_xrpc::server::AuthVerifier`, with two compiled-in implementations: `OidcAuthVerifier` (uses `openidconnect` against an operator IdP) and `AtprotoOauthAuthVerifier` (wraps `proto_blue_oauth::OAuthClient`). The active backend is selected at startup from a config key `[auth] backend = "oidc" | "atproto"`.
+- REQ-5: The Leptos frontend in `polaris-frontend` depends on the `proto-blue` umbrella crate with `default-features = false`, opting into wasm-capable subsets (`net`, `ws`, `resolver` as those land per proto-blue issues #25/#26/#27; the wasm-clean base set — `syntax`, `crypto`, `lex_data`, `lex_cbor`, `lex_json`, `common`, `lexicon`, `repo` — is usable today). Read paths for public ATProto data (profile lookups, public posts, public blobs) go through a `PublicAtprotoClient` abstraction that calls proto-blue directly from the browser.
+- REQ-6: All non-public state — incidents, reports, observations, actions, moderator session, audit log — is exposed only through Polaris's first-party HTTP API on Axum. The Leptos frontend has no code path that reaches a Polaris mutating endpoint via XRPC or a non-Polaris transport.
+- REQ-7: The internal data model (`Subject`, `Incident`, `Action`, `Observation` as defined in `design.md` §4) lives in a `polaris-types` workspace crate as plain `serde`-derived Rust structs. No Polaris-owned NSIDs (e.g., `gay.dollspace.polaris.incident`) are authored in v1.
+- REQ-8: Firehose ingest uses `proto_blue::repo::Firehose` (the higher-level firehose abstraction the umbrella crate exposes when its `ws` feature is enabled), persisting the `seq` cursor to Postgres on each batch flush and resuming from the persisted cursor on reconnect.
+- REQ-9: Inbound label signals from third-party labelers (`design.md` §5.9) are consumed via the generated `com.atproto.label.subscribeLabels` client over `proto-blue-ws`, one connection per configured upstream. Each upstream's labels are persisted as an `Observation { kind: ExternalLabel { source: Did, label_value: String, weight: f32 }, ... }` attached to the matching `Subject`.
+- REQ-10: Evidence preservation: when a moderator takes action on an ATProto record, an evidence worker fetches the relevant slice of the subject's repo (typed `com.atproto.sync.getBlocks` call via `proto_blue_xrpc::XrpcClient`, MST traversal via `proto_blue_repo`), packages the slice as a CAR file (`proto_blue_repo::blocks_to_car`), and stores the CAR in object storage. The `Action` row references the CAR by content hash.
+
+### Acceptance Criteria
+
+- [ ] AC-1: A downstream consumer connecting to `wss://{polaris-host}/xrpc/com.atproto.label.subscribeLabels` receives a properly-framed stream of `Label` records signed by the labeler's K-256 key; signature verification against the labeler's declared signing key (from its `app.bsky.labeler.service` record) passes for every emitted label. Verified by an integration test that uses `proto-blue-interop-tests`'s differential harness against the `@atproto/*` TypeScript SDK as the consumer.
+- [ ] AC-2: Running `polaris-publish-labeler-record --account {handle} --signing-pubkey {did:key}` against a configured Bluesky operator account writes an `app.bsky.labeler.service` record to that account's repo, and the record validates against the lexicon registered in `proto_blue_lexicon`.
+- [ ] AC-3: A `Label` record emitted by Polaris is consumed without error by `proto-blue`'s own `subscribeLabels` consumer in a round-trip test (`polaris-backend` emits, separate test client subscribes).
+- [ ] AC-4: Two `ModeratorAuth` impls exist in `polaris-backend/src/auth/`: `oidc.rs` and `atproto.rs`. Each has an integration test that drives a synthetic moderator login end-to-end and produces an `AuthContext` carrying `moderator_id` plus a non-empty role set.
+- [ ] AC-5: With `[auth] backend = "atproto"` in config, a moderator completes a full PAR + PKCE + DPoP login flow against `bsky.social` and reaches the dashboard. With `[auth] backend = "oidc"`, the same end-state is reached against a configured OIDC provider (test uses `mock-oidc`).
+- [ ] AC-6: `polaris-frontend` builds for `wasm32-unknown-unknown` with `proto-blue` as a wasm-clean dependency (`default-features = false` plus whatever subset is wasm-ready at build time). The `PublicAtprotoClient` abstraction has a `wasm` impl backed by proto-blue and a `native` impl backed by `reqwest`, selected by `cfg(target_arch = "wasm32")`. When proto-blue's wasm `net` feature ships, flipping the `PublicAtprotoClient::wasm` impl to use it requires no changes outside `polaris-frontend/src/atproto_client.rs`.
+- [ ] AC-7: All mutating HTTP endpoints under `/api/*` on the Axum backend reject requests without a valid Polaris session cookie (verified by `tower::ServiceExt`-driven request tests). `polaris-frontend` has no `XrpcClient` instance that targets a Polaris-owned route — enforced by a `cargo xtask check-frontend-boundary` script that greps for forbidden patterns and is wired into CI.
+- [ ] AC-8: The `polaris-types` workspace crate builds standalone (no proto-blue dependency) and is imported by both `polaris-backend` and `polaris-frontend`. No type from `proto_blue_api::generated::*` appears in `polaris-types`' public surface.
+- [ ] AC-9: The firehose ingest worker survives a forced WebSocket close from a fixture upstream and resumes within 30 seconds from the last persisted cursor, with no event loss across the gap (verified by replaying a recorded firehose fixture and asserting end-state byte-equality).
+- [ ] AC-10: An inbound `Label` record from a configured third-party labeler is ingested, an `Observation { kind: ExternalLabel { .. } }` is attached to the matching `Subject` in Postgres within 5 seconds of receipt, and the observation surfaces in the subject's `risk_signals` denormalized field.
+- [ ] AC-11: Taking action on a post (via the `POST /api/actions` endpoint, kind = `Label`) triggers the evidence worker; within 30 seconds, a CAR blob containing the post record plus its MST proof path is stored in object storage and the `Action` row carries a `evidence_car_cid` reference. Reading the CAR back through `proto_blue_repo::read_car` reproduces the post's `LexValue` byte-for-byte.
+
+### Architecture
+
+### A. Crate map: replacing `atrium-api`
+
+Every reference to `atrium-api` in `design.md` v0.2 maps to a specific `proto-blue-*` crate, summarized here. The mapping is the canonical translation for §3.2, §5.9, and §6 of the original document:
+
+| Concern                                                | proto-blue crate(s)                                          |
+|--------------------------------------------------------|--------------------------------------------------------------|
+| Firehose subscription                                  | `proto-blue` (`ws` feature) → `proto_blue::repo::Firehose`   |
+| Hosted labeler endpoint (subscribeLabels / queryLabels) | `proto-blue-xrpc` (`server` feature) + generated lexicons   |
+| Outbound XRPC (PDS reads, sync.getBlocks, etc.)         | `proto-blue-xrpc` client (`fetch-reqwest` native, `fetch-web` wasm) |
+| Label record construction                              | `proto_blue_api::generated::com::atproto::label::defs::Label` |
+| Label record signing                                   | `proto-blue-crypto` (K-256 ECDSA via the `k256` crate)       |
+| Labeler service record (declaration on Bluesky)         | `proto_blue_api::generated::app::bsky::labeler::service`    |
+| Repo / MST / CAR (evidence preservation)               | `proto-blue-repo`                                            |
+| DID + handle resolution                                | `proto-blue-identity` (native; wasm pending proto-blue#26)   |
+| ATProto OAuth (moderator auth in labeler profile)       | `proto-blue-oauth`                                          |
+| Lexicon types on the wire                              | `proto_blue_api::generated::com::atproto::*`, `proto_blue_lexicon` for validation |
+| Frontend (wasm) ATProto access                         | `proto-blue` umbrella with `default-features = false`        |
+
+The `proto-blue` umbrella crate (`/home/doll/proto-blue/proto-blue/crates/proto-blue/src/lib.rs`) exposes feature flags `full` (default, native-only), `net` (xrpc), `ws` (websocket + `repo::Firehose`), `resolver` (identity), `oauth`, and `api`. The wasm-clean base set (`syntax`, `crypto`, `lex_data`, `lex_cbor`, `lex_json`, `common`, `lexicon`, `repo`) compiles to `wasm32-unknown-unknown` today; `net`/`ws`/`resolver`/`oauth`/`api` on wasm are tracked by proto-blue issues #25, #26, #27 (per the umbrella crate's rustdoc).
+
+### B. Polaris as a first-class labeler service
+
+This is the biggest architectural shift versus `design.md` v0.2. The original §3.2 framed Polaris as "emitting labels via atrium-api" — i.e., as a label *producer* that wrote to some other labeler service. `proto-blue-xrpc`'s `server` feature gives Polaris the ability to *be* the labeler service. The model becomes:
+
+```
+                                    ┌──────────────────────────────┐
+                                    │  Polaris labeler endpoint    │
+                                    │  ───────────────────────     │
+   AppViews, other labelers,        │  GET  /xrpc/com.atproto      │
+   Bluesky-PDS clients              │       .label.queryLabels     │
+   subscribing to Polaris  ────►    │  WS   /xrpc/com.atproto      │
+                                    │       .label.subscribeLabels │
+                                    │                              │
+                                    │  Backed by proto-blue-xrpc   │
+                                    │  XrpcServer mounted on the   │
+                                    │  same axum::Router as the    │
+                                    │  Polaris first-party API     │
+                                    └──────────────────────────────┘
+                                              ▲
+                                              │ signed Label records
+                                              │
+                                    ┌──────────────────────────────┐
+                                    │  Polaris emit service        │
+                                    │  - new Action → Label → sign │
+                                    │  - assigns seq, persists,    │
+                                    │    fan-outs to subscribers   │
+                                    └──────────────────────────────┘
+                                              ▲
+                                              │ on Action commit
+                                              │
+                                    ┌──────────────────────────────┐
+                                    │  Polaris case store (Postgres)│
+                                    │  actions, labels materialized│
+                                    │  view, seq counter           │
+                                    └──────────────────────────────┘
+```
+
+The `polaris-publish-labeler-record` binary (REQ-2) is a one-shot tool the operator runs at deploy time and on key rotation. It logs into the operator's Bluesky account via `proto_blue_oauth` (or accepts a long-lived app password via env var as a fallback) and writes the `app.bsky.labeler.service` record at the agreed AT-URI. The record declares Polaris's public hostname (where consumers connect for `subscribeLabels`) and the labeler's `did:key`-encoded P-256 or K-256 signing public key, which downstream verifiers fetch to authenticate Polaris's labels.
+
+The labeler's private signing key is the most sensitive secret Polaris holds. v1 storage policy:
+
+- **Bluesky / first-party profile**: cloud KMS (AWS/GCP/Azure KMS) holds the private key; Polaris signs by RPC to KMS rather than holding key material in process.
+- **Labeler profile (self-hosted)**: key sealed at rest in a file referenced by `[labeler] signing_key_path`; unsealed via OS keychain or operator-provided passphrase on process start.
+
+Both paths surface as a `SigningKey` trait that `proto-blue-crypto` can drive — the crate already supports BYO `Signer` impls.
+
+### C. Pluggable `ModeratorAuth`
+
+`design.md` §6 mandated OIDC. proto-blue ships a full ATProto OAuth 2.0 client (`proto-blue-oauth/src/client.rs` exposes `OAuthClient`, plus `DpopAlg`, `DpopKey`, `build_dpop_proof`, `PkceChallenge`, `OAuthSession`, etc.) that makes ATProto-native authentication feasible for the labeler profile. The two-profile architecture from `design.md` §3.1 maps directly:
+
+- `polaris-backend/src/auth/oidc.rs` — `OidcAuthVerifier`. Uses the `openidconnect` crate against the operator's IdP (Okta, Auth0, in-house Keycloak, etc.). Suitable for the Bluesky first-party profile and for any operator with existing identity infra. Returns a `ModeratorAuthCtx { moderator_id: ModeratorId, roles: Vec<Role>, ... }`.
+- `polaris-backend/src/auth/atproto.rs` — `AtprotoOauthAuthVerifier`. Wraps `proto_blue_oauth::OAuthClient`. The moderator enters a Bluesky handle on the login page; Polaris does identity resolution (via `proto-blue-identity` when wasm-ready, native today), fetches the PDS's OAuth metadata, runs PAR → authorization redirect → code exchange → DPoP-bound token retrieval. The resulting DID becomes the moderator's stable id; roles are looked up locally (Polaris owns the role assignment, not Bluesky).
+
+Both implementations are compiled into every Polaris binary unconditionally. Selection is per-process via the config key. The internal API beyond `ModeratorAuth` is identical: every Axum handler that needs a moderator pulls `Extension<ModeratorAuthCtx>` from request extensions, set by a single auth middleware that delegates to the configured backend.
+
+Polaris sessions, regardless of backend, are server-issued opaque cookies with TTL and refresh handled by Polaris. The upstream OAuth/OIDC tokens never leave the backend; the frontend never sees them.
+
+### D. Frontend: hybrid public-direct / private-proxied
+
+`design.md` §7 specified "type-shared with the backend via a single Rust crate." The shape of this changes slightly:
+
+- **`polaris-types`** (new crate) — Polaris-internal types only. `Subject`, `Incident`, `Action`, `Observation`, `Report`, `ModeratorId`, `SubjectId`, etc. Plain `serde`-derived Rust. No proto-blue dependency. Used by both `polaris-backend` and `polaris-frontend`.
+- **Stock ATProto types** — come from `proto_blue_api::generated::*`. This crate compiles to both native and (incrementally) wasm. No need for a hand-rolled shared crate to carry ATProto-shaped concerns — the generated code already does that, identically on both sides.
+
+The frontend then has two HTTP clients:
+
+1. **`PolarisApiClient`** — talks to `https://{polaris-host}/api/*` for everything Polaris-owned. Carries the Polaris session cookie. All mutations (create incident, take action, write comment, escalate) go here. All reads that touch non-public state (full subject history, reports, observations, audit log) go here.
+2. **`PublicAtprotoClient`** — abstraction over public ATProto reads. Has two impls:
+   - Native (used in tests, possibly in SSR): backed by `proto_blue_xrpc::XrpcClient` with `reqwest`.
+   - Wasm: backed by `proto_blue_xrpc::XrpcClient` with `gloo-net` (the `fetch-web` feature) — *when proto-blue's wasm `net` lands*. Until then, the wasm impl proxies through Polaris's backend at `/api/atproto-proxy/*`, which the boundary lint (AC-7) explicitly allows.
+
+This means the design is forward-compatible: the frontend's call sites use `PublicAtprotoClient` and don't care which transport executes the call. As proto-blue's wasm features ship, flipping the impl is a single-file change in `polaris-frontend/src/atproto_client.rs`.
+
+The boundary enforcement (AC-7) is mechanical: an `xtask check-frontend-boundary` greps `polaris-frontend/src/**/*.rs` for any reference to a path under `polaris-backend::api::mutations::*` or to a hardcoded Polaris mutating route string, and fails CI if found.
+
+### E. Internal data model stays plain Rust
+
+Per the decision in Phase 1: no Polaris-owned NSIDs in v1. `polaris-types` holds the `design.md` §4 types as plain Rust. The `design.md` §10 open question on "federation of mod conversations" remains open and is the natural place to introduce Polaris-owned lexicons (e.g., a `polaris.escalation` record for cross-instance handoff) when that becomes a v2 goal.
+
+`proto-blue-codegen` is *not* depended on by Polaris in v1 — Polaris consumes the already-generated lexicons that ship in `proto-blue-api`. The codegen crate becomes relevant only when Polaris defines its own NSIDs.
+
+### F. Firehose ingest
+
+`proto-blue` exposes `proto_blue::repo::Firehose` when the umbrella `ws` feature is on. The ingest worker:
+
+1. Constructs a `Firehose` configured for the operator's chosen relay (`bsky.network` for Bluesky, an operator-provided URL for labelers running against their own infrastructure).
+2. Resumes from a `seq` cursor persisted in Postgres (`firehose_cursor` table, single row).
+3. Decodes each `#commit` frame into typed events using `proto_blue_repo`'s MST/CAR primitives and `proto_blue_api`'s generated lexicons.
+4. Emits normalized events onto the internal event bus (Kafka for Bluesky profile, NATS for labeler profile, per `design.md` §3.1) for the pattern engine to consume.
+5. Batch-flushes the cursor on Postgres commit so resume is exactly-once at the cursor granularity.
+
+The reconnection / heartbeat policy lives inside `proto-blue-ws`'s `WebSocketKeepAlive`, which `Firehose` builds on — we get auto-reconnect with exponential backoff and read-side heartbeat for free.
+
+### G. Inbound third-party labels
+
+Mirrors the firehose ingest worker, one connection per configured upstream labeler. For each upstream:
+
+1. The operator configures `[[upstream_labelers]] did = "did:plc:..." weight = 0.8 categories = ["spam"]` etc.
+2. Polaris resolves the upstream's `app.bsky.labeler.service` record, extracts the public hostname and signing key.
+3. A `proto-blue-ws` connection to `wss://{upstream-host}/xrpc/com.atproto.label.subscribeLabels` streams labels in.
+4. Each `Label` is signature-verified against the upstream's declared key (using `proto-blue-crypto`).
+5. Verified labels become `Observation { kind: ExternalLabel { source, label_value, weight }, evidence: serde_json::Value, ... }` rows attached to the matching `Subject`.
+6. The `Subject`'s denormalized `risk_signals` is recomputed on observation insert.
+
+The per-category trust weight from `design.md` §10 is captured by storing the weight on the `Observation` itself at ingest time — refining the trust model later (e.g., source × category × time-decay) only requires changing the weight-computation function, not the schema.
+
+### H. Evidence preservation via `proto-blue-repo`
+
+A new subsystem not in `design.md` v0.2, motivated by having `proto-blue-repo` available. When `POST /api/actions` commits an action against a record-shaped subject, an evidence worker job is enqueued. The worker:
+
+1. Resolves the subject's repo location (`com.atproto.repo.describeRepo` via `XrpcClient`).
+2. Calls `com.atproto.sync.getBlocks` for the record CID and its MST proof path (the minimum CAR slice needed to verify the record's inclusion in a signed commit).
+3. Packages the slice using `proto_blue_repo::blocks_to_car` into a CAR file.
+4. Hashes the CAR (SHA-256), stores the bytes in object storage at `evidence/{sha256-prefix}/{sha256-hex}`, and updates the `Action` row's `evidence_car_cid` column with the content hash.
+5. The CAR is retained for the audit lifetime of the `Action` (currently: indefinitely; subject and action history is permanent per `design.md` §4).
+
+The proof: a future appeal or audit can read the stored CAR through `proto_blue_repo::read_car` and verify that the record at action time matches what Polaris claimed it was, regardless of whether the upstream record has since been edited or deleted.
+
+### I. Files / paths that materialize this design
+
+These are the new crates and modules the implementation will create. Listed for traceability against requirements; they don't all exist yet (this is a greenfield repo — only `design.md`, `LICENSE`, `README.md`, and `.crosslink/` are present today, verified by `ls /home/doll/Polaris/`):
+
+- `polaris-types/` — workspace crate. Subject/Incident/Action/Observation/Report/ModeratorId.
+- `polaris-backend/` — workspace crate. Axum app, ingest workers, emit service, evidence worker.
+  - `src/auth/oidc.rs` — `OidcAuthVerifier`.
+  - `src/auth/atproto.rs` — `AtprotoOauthAuthVerifier`.
+  - `src/labeler/server.rs` — mounts `proto_blue_xrpc::server::XrpcServer` for `subscribeLabels`/`queryLabels`.
+  - `src/labeler/signer.rs` — `SigningKey` trait + KMS-backed and file-backed impls.
+  - `src/ingest/firehose.rs` — `proto_blue::repo::Firehose` driver.
+  - `src/ingest/upstream_labels.rs` — third-party label consumer.
+  - `src/evidence/worker.rs` — CAR snapshotting on action commit.
+- `polaris-frontend/` — workspace crate. Leptos app.
+  - `src/atproto_client.rs` — `PublicAtprotoClient` trait + native + wasm impls.
+  - `src/api_client.rs` — `PolarisApiClient`.
+- `polaris-publish-labeler-record/` — binary crate. Operator tool.
+- `xtask/` — boundary check (AC-7) and other workspace tooling.
+
+The pattern engine, case store schema, wellness instrumentation, and routing layer are unaffected by this iteration and continue per `design.md` §3.2, §4, §5.4, §5.7.
+
+### Out of Scope
+
+- Defining Polaris-owned NSIDs (`polaris.incident`, `polaris.observation`, etc.). Deferred to a future iteration; folded into `design.md` §10's federation question.
+- Migrating off OIDC in environments that already deploy it. The two backends coexist; no migration path is mandated either direction.
+- Forking or vendoring proto-blue. Polaris depends on proto-blue as a normal Cargo dep (`path = "../proto-blue/proto-blue/crates/proto-blue"` in development, git dep in CI). Upstream is operator-controlled at `dollspace/proto-blue`.
+- Live federation of mod conversations across labeler instances (`design.md` §10). Out of scope for this tech iteration.
+- Migration tooling for operators currently running Ozone. Separate design.
+- Mobile / on-call surface (`design.md` §10). Out of scope.
+- ML classifier integration shape (`design.md` §10). Out of scope; orthogonal to the proto-blue integration.
+
