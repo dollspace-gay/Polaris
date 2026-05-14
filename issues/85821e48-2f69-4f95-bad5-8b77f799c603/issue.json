@@ -1,0 +1,10 @@
+{
+  "uuid": "85821e48-2f69-4f95-bad5-8b77f799c603",
+  "display_id": 50,
+  "title": "Resolve proto-blue 0.3.1 MSRV blocker (1.88 features under declared 1.85)",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T07:13:43.824776782Z",
+  "updated_at": "2026-05-14T07:13:43.824776782Z"
+}
