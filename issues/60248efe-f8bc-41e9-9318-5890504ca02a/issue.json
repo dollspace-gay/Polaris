@@ -1,0 +1,10 @@
+{
+  "uuid": "60248efe-f8bc-41e9-9318-5890504ca02a",
+  "display_id": 61,
+  "title": "OAuth client-metadata loader so --oauth path is end-to-end functional",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T18:14:24.166929117Z",
+  "updated_at": "2026-05-14T18:14:24.166929117Z"
+}
