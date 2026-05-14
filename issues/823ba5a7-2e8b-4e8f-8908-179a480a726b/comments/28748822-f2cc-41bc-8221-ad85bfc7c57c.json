@@ -1,0 +1,10 @@
+{
+  "uuid": "28748822-f2cc-41bc-8221-ad85bfc7c57c",
+  "issue_uuid": "823ba5a7-2e8b-4e8f-8908-179a480a726b",
+  "author": "TeIq",
+  "content": "Design doc drafted: .design/polaris-proto-blue-integration.md. 10 requirements, 11 acceptance criteria, 3 open questions (wasm-readiness gating, labeler signing-key custody, frontend lexicon validation). Decisions resolved in interview: Polaris hosts the labeler XRPC endpoint via proto-blue-xrpc server; pluggable ModeratorAuth (OIDC + ATProto OAuth); hybrid frontend (public-direct via wasm proto-blue, private-proxied via Axum); internal types stay plain Rust.",
+  "created_at": "2026-05-14T05:02:27.967596515Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAN3CG+6JU1jFy9ehVKabS6WsEjB92mtERMXEnplS4T1ZJbwKvI6zArhyjUfG6iUJeeVtZut0FSDpKGSr4mq2+AQ=="
+}
