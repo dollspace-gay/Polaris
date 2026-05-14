@@ -1,0 +1,10 @@
+{
+  "uuid": "5a873b14-b893-4686-8274-bf772721cc38",
+  "issue_uuid": "e2e18a5e-932f-4511-a047-29bae7746d63",
+  "author": "TeIq",
+  "content": "Origin: #31. AtprotoOauthAuthVerifier is constructed at startup but not bound to HTTP routes. Need: POST /auth/atproto/login (handle in body → call start_login → 303 Location), GET /auth/atproto/callback (state+code from query → call complete_login → set Polaris session cookie → 303 to /). Mirror polaris-backend/src/api/auth_oidc.rs (if exists) or follow the OIDC route shape. Wire into api/router with the same middleware-exempt pattern as OIDC routes.",
+  "created_at": "2026-05-14T19:51:35.290244590Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAN+k62oJJHhPBpxmhFm6nw7U3Lp69vQ3GbPFNnvGA/9MWTS5FMviWhVDjLCA2UjpCYIa2Y2V7nJIj7HyQXFcbCg=="
+}
