@@ -1,0 +1,10 @@
+{
+  "uuid": "6452c13a-2595-4c78-a9da-c66b23a56561",
+  "issue_uuid": "34a9c6de-ebb2-4ecb-bd43-239dfef4cbac",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** Approach: state machine + file_plain mode end-to-end is the AC-15 binding path; per-mode rotation for passphrase_sealed/os_keychain/cloud_kms deferred to phased follow-up (same algorithm, different persist primitive). Migrations: rotation_state, signing_key_history (point-in-time lookup), revoked_keys (append-only). Atomic swap via tokio::sync::watch wrapping Arc<dyn SigningKey>. AC-15 test: emit-rotate-emit-verify-both under issuance-time keys. Failure-injection test: crash between WriteNewKeyMaterial and PublishServiceRecord, resume cleanly without re-generating the key. Audit log: emit tracing::info! structured event (defer DB persistence to #35 when that lands).",
+  "created_at": "2026-05-14T19:08:51.177268672Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAimaIyWGVW/xQ4d+/Ggtfr82Z/qkgvEpskM3rjVb6z98a+gajhyFwmKg6mkvSbncmUYDCAoS3bHdP1o5tIIpBBw=="
+}
