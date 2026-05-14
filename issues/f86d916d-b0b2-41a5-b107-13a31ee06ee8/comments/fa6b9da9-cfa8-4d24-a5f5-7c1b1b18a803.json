@@ -1,0 +1,10 @@
+{
+  "uuid": "fa6b9da9-cfa8-4d24-a5f5-7c1b1b18a803",
+  "issue_uuid": "f86d916d-b0b2-41a5-b107-13a31ee06ee8",
+  "author": "TeIq",
+  "content": "Delivered: second_opinion_threads + second_opinion_messages migration with GENERATED ALWAYS body_tsv tsvector + GIN index + BEFORE UPDATE trigger raising P0001. SecondOpinionRepo trait + PgImpl. 4 API routes: POST /api/incidents/:id/second-opinion (open thread), POST /api/threads/:id/messages (append; replaces_message_id for edits-via-new-row), GET /api/threads/:id, GET /api/threads/search?q= (plainto_tsquery + ts_rank_cd). 4-scenario integration test: thread round-trip, FTS rank, SQL injection safety, append-only invariant proven via raw UPDATE rejection. .sqlx cache grew from 69 to 74 entries.",
+  "created_at": "2026-05-14T17:37:53.358275139Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA99nZHxvAc7mSl4S1bFMP2/BvXERCCCNrX7EP/V7JiBIzS/Ux9xX2g7WSWIOZAobCJVDzr08zUhQFW/2X8zMCBA=="
+}
