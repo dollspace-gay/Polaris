@@ -1,0 +1,10 @@
+{
+  "uuid": "f3a00f51-cf2e-4f4c-b9bc-785b903aa409",
+  "issue_uuid": "4466df44-3c96-40ab-944a-9b758f4e63f5",
+  "author": "TeIq",
+  "content": "APPROVE-WITH-FOLLOW-UPS. Independent evidence floor green: workspace build clean (0 warnings), clippy --workspace --all-targets -D warnings clean, fmt exit 0, 25 signer tests pass + 1 ignored (os_keychain, expected), xtask boundary 0 violations. AC-14 binding criteria both pass: bluesky_profile_refuses_file_plain_mode + file_plain_warn_is_emitted_at_most_once_across_instantiations. RedactedKeypair newtype resolves K256Keypair: !Debug without leaking key bytes. Follow-up filed: #62 (aes-gcm 0.11 bump when stable).",
+  "created_at": "2026-05-14T18:40:34.382025857Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAp+qWy+mdgzvQp1c4ydMHxZuaS/cT269IlfndDZdMK/uJyGgaxea0kbXyr8A8WXwWccEuIXy9MEZmHDIP/iz9CQ=="
+}
