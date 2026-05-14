@@ -1,0 +1,10 @@
+{
+  "uuid": "376b12b5-a017-4e26-bb69-8c65f23d7d7d",
+  "issue_uuid": "51901241-7873-417e-a50e-50c9d9b2781b",
+  "author": "TeIq",
+  "content": "Delivered: polaris-types::routing module (RoutingCategory closed enum, ExposureBudget newtype, ModeratorSpecialty). polaris-backend::routing::route() pure function. RoutingSnapshot / IncidentForRouting / ModeratorForRouting / RoutingDecision (Assigned | CalibrationShadow | ForwardExternally | NoEligibleModerator) / ForwardReason. RoutingService<I,M> generic over IncidentRepo + ModeratorDirectory trait. AFIT-based ModeratorDirectory trait. ServiceError thiserror. CSAM/CSEM hard specialist-training gate. New-moderator shadow review for easy-mode categories only. Exposure budget filter. 10 scenario unit tests + 1 proptest + 4 service wiring tests. exposure_budget_remaining placeholder u32::MAX until #23 lands real exposure tracking.",
+  "created_at": "2026-05-14T16:38:56.450081705Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABALybbOKIeEQFmJTznlKJXwzP7XTF9cWkxvTClJekf229KjnXKdniLB7j6VpaBkyyFMERY3zb/XtFJGbT/cjdrAA=="
+}
