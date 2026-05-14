@@ -1,0 +1,10 @@
+{
+  "uuid": "96133a60-6a28-481a-8a3f-798748eb5317",
+  "issue_uuid": "4f68286c-4a9e-4fc4-87e5-ba3c86f5d50c",
+  "author": "TeIq",
+  "content": "**Scope.** #14 landed the case API (cases.rs, dto.rs, error.rs, policy.rs, state.rs, mod.rs wiring) and the IncidentRepo::update_status extension cleanly, but truncated before writing tests/case_api.rs. This issue completes the test deliverable.\n\n**Deliverables.**\n- polaris-backend/tests/case_api.rs with testcontainers Postgres 16 and tower::ServiceExt-driven request tests covering:\n  1. GET /api/cases/:id without auth cookie → 401 'unauthorized'.\n  2. GET /api/cases/:id with valid session + existing subject → 200 with case view.\n  3. GET /api/cases/:id with valid session + nonexistent subject → 404.\n  4. POST /api/cases/:id/actions without auth → 401.\n  5. POST /api/cases/:id/actions with reasoning < 10 chars → 400 'bad_request'.\n  6. POST /api/cases/:id/actions with unknown policy_ref → 400.\n  7. POST /api/cases/:id/actions happy path → 201 + row in Postgres.\n  8. POST /api/cases/:incident_id/escalate happy path → 200 with status = Escalated.\n- Header: #![allow(clippy::unwrap_used, clippy::expect_used)] per test-file convention.\n- testcontainers Postgres 16 with full migration cascade.\n- Sessions inserted directly via raw sqlx for test moderators (same pattern as repo_roundtrip).\n\n**Done when.** Test binary compiles + runs live against Postgres 16; all 8 cases pass; AC-7 (auth-gate) has runtime proof in addition to xtask's static enforcement (from #11).\n\n**Origin.** #14 subagent truncated at tool_uses=97 mid-decision about adding tower as a dev-dep for ServiceExt. Implementation is solid; only the test file is the gap.",
+  "created_at": "2026-05-14T14:29:20.339421445Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAc790pGYNSlXQ+ulFmf7eM25lt+Wpo65PFkZsXQR1CysqAols0k2S5NctfO7vE72pt3U2tPgEX151YZGJzBTxBg=="
+}
