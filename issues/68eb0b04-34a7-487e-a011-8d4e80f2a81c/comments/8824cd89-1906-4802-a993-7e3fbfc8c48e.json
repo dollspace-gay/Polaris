@@ -1,0 +1,10 @@
+{
+  "uuid": "8824cd89-1906-4802-a993-7e3fbfc8c48e",
+  "issue_uuid": "68eb0b04-34a7-487e-a011-8d4e80f2a81c",
+  "author": "TeIq",
+  "content": "Delivered: ModeratorAuth trait + ModeratorAuthCtx + Role enum. OidcAuthVerifier with openidconnect 4 (PAR + PKCE + token exchange + user-info). SessionStore with Polaris-issued opaque 256-bit-entropy session IDs + AES-256-GCM-sealed refresh tokens + monotonic-nonce-free seal/open primitives. Tower middleware extracts cookie + attaches Extension<ModeratorAuthCtx>; healthz + OIDC callback exempted. Cookies HttpOnly + Secure + SameSite=Lax. Postgres-backed sessions survive restart. Mock-OIDC integration test exercises the full code-exchange flow. Session-expiry test covers expired-lookup + refresh-rotates + revoke-returns-not-found. SQL-injection test fires 9 hostile payloads through SessionStore::lookup, asserts InvalidToken every time, asserts the malicious bytes do not leak to tracing. Migration adds moderators / moderator_roles / sessions / auth_oidc_login_states with pgcrypto extension for cross-version portability. .sqlx/ cache populated with 10 entries; SQLX_OFFLINE build verified.",
+  "created_at": "2026-05-14T13:09:16.062561618Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAYhvGbQHhLDmVGg37vA+MYP16qdYakCPUqUeaOj3hz04NhIopDFdsQ9uYyvcKeyFTaAxT711DyiPBH16OXvmqCQ=="
+}
