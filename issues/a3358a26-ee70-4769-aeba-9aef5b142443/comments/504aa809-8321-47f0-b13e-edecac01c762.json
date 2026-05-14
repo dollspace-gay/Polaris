@@ -1,0 +1,10 @@
+{
+  "uuid": "504aa809-8321-47f0-b13e-edecac01c762",
+  "issue_uuid": "a3358a26-ee70-4769-aeba-9aef5b142443",
+  "author": "TeIq",
+  "content": "**Scope.** design.md §10 federation question. When a community labeler escalates an incident to Bluesky (or peer-to-peer), the second-opinion conversation flows across instances with explicit handoff. Builds on Polaris NSIDs.\n\n**v1 connection points.**\n- Second-opinion conversations land in v1 (#25 under M3) but are single-instance.\n- This issue extends that with cross-instance flow.\n\n**Blocked by**: M5_NSIDS (cross-instance wire format depends on NSIDs).\n\n**Scope sketch (refine in design doc).**\n- `polaris.escalation` record published to the originating labeler's repo and referenced from the recipient labeler.\n- Conversation messages signed by each participant's labeler key; recipient verifies.\n- Optional federated thread fetched on demand vs. pre-replicated.\n- Privacy: appellant identity protections across instances.\n\n**References.**\n- design.md §10 federation question.\n- design.md §5.6 (second opinion as searchable training material — federation extends this).\n\n**Pre-implementation.**\n- `/design polaris-federation-mod-conversations` doc.\n\n**Rust-quality.**\n- Cross-instance fetches use the same `proto-blue-xrpc` client as for upstream labels; signed-content verification mandatory.\n- Federation state machine documented; no implicit fallthrough behavior.\n\n**Testing.**\n- Round-trip escalation between two Polaris instances on a fixture network.\n- Signature verification across the handoff.",
+  "created_at": "2026-05-14T06:46:17.418835407Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA133HnZP4JNN77n6TsWhpL/cd/uEbU1B2BHtGUVXBnk+EGwLv+Wu2sbgIG1cBCNnpHAzG9xvZmjZE+w5nWO+qCw=="
+}
