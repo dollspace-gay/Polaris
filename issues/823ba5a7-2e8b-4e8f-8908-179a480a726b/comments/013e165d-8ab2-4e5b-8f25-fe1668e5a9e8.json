@@ -1,0 +1,10 @@
+{
+  "uuid": "013e165d-8ab2-4e5b-8f25-fe1668e5a9e8",
+  "issue_uuid": "823ba5a7-2e8b-4e8f-8908-179a480a726b",
+  "author": "TeIq",
+  "content": "Phase 2 decomposition complete. Added 14 new issues covering v1 gaps + everything previously deferred:\n\nv1 gap-fills (5):\n- #36 (under M1): Action reversal workflow with 24h window + senior override\n- #37 (under M2): Reporter reputation scoring + false-report weighting\n- #38 (under M4): docker-compose / Helm deployment + backup runbook\n- #39 (under M4): Threat-model coverage test suite (T1-T6)\n- #40 (under M4): Hardware-key (WebAuthn) requirement config flag\n\nM5 epic + 8 children (post-v1 expansion):\n- #41 (M5 epic): Expand Polaris beyond v1, blocked by M4 #6\n- #42: Polaris-owned NSIDs (federation foundation)\n- #43: Live federation of mod conversations  (blocked by #42)\n- #44: Mobile / on-call surface\n- #45: ML classifier integration via gRPC\n- #46: Ozone-to-Polaris migration tooling\n- #47: Richer cross-labeler trust model\n- #48: TPM-sealed signing key SigningKey impl\n- #49: Hardware-token / FIDO2 HSM SigningKey impl\n\nEach new issue has a --kind plan comment with scope, deliverables (or scope-sketch + pre-implementation /design step for v2 items), references, Rust-quality checklist, testing approach, done-when criteria.\n\nBlock chain: M0 (#2) ← M1 (#3) ← M2 (#4) ← M3 (#5) ← M4 (#6) ← M5 (#41).\n\nTotal tree: 1 tracking + 6 epics + 42 children = 49 issues, full greenfield-to-final-version decomposition.",
+  "created_at": "2026-05-14T06:46:55.373336551Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAsVYjiXzLtWm3kX2CEzpYqxY8f1btLL3Joe0kLFdflWGeqFckqIH48kzIMP3r+Xhy7VKmb+67IQivMLndeKJkAA=="
+}
