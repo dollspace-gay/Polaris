@@ -1,0 +1,10 @@
+{
+  "uuid": "611d49e6-07a6-43c1-98c7-d219a080f60b",
+  "issue_uuid": "12bedfb4-6a6c-4c88-bb14-b46209165701",
+  "author": "TeIq",
+  "content": "**Scope.** The xtask check-frontend-boundary rule 'hardcoded_mutating_route' currently fires inside polaris-frontend/src/api_client/{native,wasm}.rs — exactly the LEGITIMATE gateway where these URLs are supposed to live. The rule needs path-aware allowing.\n\n**Current violations** (8 hits, all in api_client/):\n- native.rs:105, :112, :121, :130 — format!(\"/api/cases/...\") for the 4 endpoints\n- wasm.rs:94, :99, :108, :117 — same pattern in the wasm impl\n\n**Two fixes possible:**\nA. Refine the xtask rule: skip the regex match when the file path is under polaris-frontend/src/api_client/. Cleanest. Requires a small code change to xtask/src/check_frontend_boundary.rs.\nB. Add // xtask-allow: hardcoded_mutating_route markers on each of the 8 call sites. Per-line, leaves the audit trail (xtask logs every allow in run summary).\n\n**Recommendation: A** — the rule's intent is 'no frontend code bypasses PolarisApiClient', and the gateway IS PolarisApiClient. A path-aware skip captures the intent precisely; per-site allows leak intent.\n\n**Done when.** cargo xtask check-frontend-boundary exits 0 on the current tree without removing the rule's actual protective coverage (test: add a violating use in pages/case_view.rs and verify the rule still fires there).\n\n**Origin.** #15's PolarisApiClient impl extension surfaced the rule's over-broadness.",
+  "created_at": "2026-05-14T14:45:06.742581909Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAKMUM2Gw8oX1IJcGQGCWEiuftLxtxYCkzTuG/vDRh6zK/5IkutYJzN4KPGVgzW1uysT7IsLB0v/deyfdzOWHOCQ=="
+}
