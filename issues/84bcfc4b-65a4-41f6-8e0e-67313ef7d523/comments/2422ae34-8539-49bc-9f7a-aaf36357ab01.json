@@ -1,0 +1,10 @@
+{
+  "uuid": "2422ae34-8539-49bc-9f7a-aaf36357ab01",
+  "issue_uuid": "84bcfc4b-65a4-41f6-8e0e-67313ef7d523",
+  "author": "TeIq",
+  "content": "Origin: #30 dispatch was explicitly scoped to file-plain only. The three other custody modes' rotation paths (passphrase_sealed write_sealed-via-rotation, os_keychain entry replace, cloud_kms_oracle key-id alias swap) need their own dispatch. Shape: extend RotationContext::write_new_key_material with mode-specific implementations; unit-test each in isolation; integrate with the existing state machine without changing its surface.",
+  "created_at": "2026-05-14T19:29:24.806738364Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAP5EEqr83v+NeA0spbnUGBRIcvABqYK3O8ScrhCyoMOHLctCzplcKQMHPaHoV8PoaafkHEizsMzrnljAZi3xnCQ=="
+}
