@@ -1,0 +1,10 @@
+{
+  "uuid": "5b8ebfca-6366-48dc-a8a4-8a47bfbff582",
+  "issue_uuid": "28ef35c7-1984-41d4-a9b2-3d5cd8c91bfa",
+  "author": "TeIq",
+  "content": "Delivered: SimhashIndex trait + MemorySimhashIndex with rolling-window VecDeque-based eviction. NonZeroU8/Duration/NonZeroUsize typed config (compile-time invariants for thresholds). hamming_distance via native count_ones() popcount. ClusterObservation typed value carrying hash + members + max_pairwise_distance + confidence (f32, clamped). Per-entry cluster_emitted flag prevents re-emission as the brigade grows. Same-subject contributions ignored for distinct-member count. 5 scenario tests + 2 hamming sanity + 2 proptest properties (hamming_bounded, identical_always_cluster) all pass. polaris-backend/src/pattern/{mod,simhash}.rs + proptest workspace dep + lib.rs module wiring. Redis-backed impl deferred (parallels #56 pattern); ObservationRepo persistence is pattern-engine driver concern, not detector.",
+  "created_at": "2026-05-14T15:34:20.482068195Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAIyWDN/K41jScPlpV9Pf3L1bJzyCY2YnQfztPSkCVpb2FFl5RgAoN5UrPylqPpyYFwmRrTHsA1ODpTr4y/fWvCw=="
+}
