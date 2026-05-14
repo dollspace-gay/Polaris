@@ -1,0 +1,10 @@
+{
+  "uuid": "7fb2918b-37a8-4f80-b0e7-7e36c74967cd",
+  "issue_uuid": "da463e7e-ff0c-410b-b7bd-ebed79ace948",
+  "author": "TeIq",
+  "content": "Delivered: typed AppConfig + DbConfig + HttpConfig (serde-derived, env-driven via AppConfig::from_env). Db handle wraps PgPool directly. db::connect runs sqlx::migrate!() on success, fail-closed. /healthz endpoint returns 200/503 JSON based on Db::ping. Hash-chained polaris-schema-version sentinel migration. .sqlx/ offline cache directory primed with .gitkeep + documentation for #13's first sqlx::query!. testcontainers-backed integration test in tests/db_smoke.rs (skips gracefully without Docker). .env.example documents DATABASE_URL + POLARIS_HTTP_BIND. Zero unwrap, zero string SQL, zero Arc<PgPool>, zero anyhow in library surface, zero unsafe.",
+  "created_at": "2026-05-14T12:34:16.153668749Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPjBkA4OM8x3FBloyYBolXisvHOK7UXu+xI+pvfRYqiSE3bNVr+Wp9g4ifPP2LUGjQZ7nsrhwvnNgAYT6CvWCAw=="
+}
