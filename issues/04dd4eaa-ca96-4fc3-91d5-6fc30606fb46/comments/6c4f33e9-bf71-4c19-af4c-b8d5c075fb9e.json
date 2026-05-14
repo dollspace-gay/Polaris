@@ -1,0 +1,10 @@
+{
+  "uuid": "6c4f33e9-bf71-4c19-af4c-b8d5c075fb9e",
+  "issue_uuid": "04dd4eaa-ca96-4fc3-91d5-6fc30606fb46",
+  "author": "TeIq",
+  "content": "Origin: #28 audit. polaris-backend/src/config.rs line 709 declares `pub enum LabelerSigningKeyConfig` with `#[serde(tag = \"mode\", rename_all = \"kebab-case\")]`. Variant `CloudKms { ... }` renders as kebab `cloud-kms`, but the deserializer-supplementary code (line 639) and the test JSON (line 823) both use `cloud-kms-oracle` as the tag. Test `labeler_signing_key_config_deserialises_each_mode` is currently failing on this. Fix: `#[serde(rename = \"cloud-kms-oracle\")]` directly on the `CloudKms` variant, OR rename the variant to `CloudKmsOracle` (the latter matches the design doc's mode name and is cleaner). Single-line fix.",
+  "created_at": "2026-05-14T19:06:37.894614265Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAEHbi9rBb860/pckLNl6693jsafSnZwoyny1Ilgu2hBltaQmxGdTrwJ9EvDglO/XXPomx1N6J8LslEZ9OWQ6VCA=="
+}
