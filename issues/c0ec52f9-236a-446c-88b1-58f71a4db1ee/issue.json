@@ -1,0 +1,12 @@
+{
+  "uuid": "c0ec52f9-236a-446c-88b1-58f71a4db1ee",
+  "display_id": 74,
+  "title": "Add reporter-reputation weighting (T3 mitigation)",
+  "description": "Threat-model T3 mitigation surface (design.md §9). The threat-model test suite (#39) ships an #[ignore]'d T3 weighting assertion because no reporter-reputation surface exists yet.\n\n**Scope.** Add reporter-reputation scoring keyed on reporter DID: track historical false-report rate, then weight ObservationKind::ReportVolumeAnomaly by (1 - false_report_rate). Low-reputation reporters must not be able to trigger a high-confidence anomaly against an innocent subject.\n\n**Tests.** The corresponding #[ignore] in tests/threat_t3_weaponized_reports.rs is un-ignored once this lands.",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "1e4ecc01-1928-4b4e-a4d3-958ecc0d3577",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T21:34:16.878448418Z",
+  "updated_at": "2026-05-14T21:34:16.878448418Z"
+}
