@@ -1,0 +1,11 @@
+{
+  "uuid": "51901241-7873-417e-a50e-50c9d9b2781b",
+  "display_id": 22,
+  "title": "Implement category and specialty routing for incident assignment",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "8898435a-8acc-47ef-9c5f-bf9fb8fe5920",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T06:32:13.091207175Z",
+  "updated_at": "2026-05-14T06:32:13.091207175Z"
+}
