@@ -1,0 +1,10 @@
+{
+  "uuid": "ca7f8114-44fe-4c5a-94a0-b8e8447f882d",
+  "issue_uuid": "29b54913-9b67-44a7-8b0d-969bb1aa412e",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE-WITH-FOLLOW-UPS.\n\nIndependent verification:\n- cargo build --workspace: clean.\n- cargo clippy --workspace --all-targets -- -D warnings: clean.\n- cargo fmt --check: exit 0 (after architect-trailing cargo fmt for one tracing-macro-formatting diff at ingest/firehose.rs:277).\n- cargo test -p polaris-backend --no-run --tests: 7 binaries compile (lib, main, db_smoke, oidc_login_flow, session_expiry, sql_injection_auth, firehose_cursor_persistence).\n- SQLX_OFFLINE=true cargo build --workspace: clean — .sqlx/ cache grew from 10 to 12 entries (two new query! macros for the firehose_cursor table).\n- Forbidden-pattern grep across polaris-backend/src/ingest/: zero Arc<Mutex>, zero unbounded channels, zero unwrap/expect in non-test src, zero anyhow in library API (only doc comment references).\n- Reconnect path in worker source verified by code review: firehose.rs:348 Ok(None) arm rebuilds proto_blue::repo::Firehose with the current cursor. Doc comments at lines 12-19, 41, 263-265 document the AC-9 invariant.\n\nTruncation: subagent hit tool_uses=85 mid-decision about tokio-tungstenite version pinning for the reconnect-test fixture. The worker code + cursor persistence test landed cleanly; the reconnect fixture test did not.\n\nFollow-up filed: #51 — Add firehose reconnect test fixture for AC-9 mechanical proof. The reconnect *code* is in place and reviewable; this follow-up adds the fixture-infrastructure test that mechanically proves AC-9 end-to-end.",
+  "created_at": "2026-05-14T13:52:09.769680960Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA83NTpkBz9DLh8fEHbRve8fKSsNBI65/6fdz5UphTs59/zJ6yhGM0hFhcs/nDnn8E7EzEtsRi5VXPZUhwCheRDg=="
+}
