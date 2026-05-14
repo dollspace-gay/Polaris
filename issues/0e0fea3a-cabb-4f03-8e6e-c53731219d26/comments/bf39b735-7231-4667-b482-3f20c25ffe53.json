@@ -1,0 +1,10 @@
+{
+  "uuid": "bf39b735-7231-4667-b482-3f20c25ffe53",
+  "issue_uuid": "0e0fea3a-cabb-4f03-8e6e-c53731219d26",
+  "author": "TeIq",
+  "content": "Origin: #30 audit. polaris-backend/tests/key_rotation.rs needs: (1) AC-15 e2e — emit L1 with K1, rotate, emit L2 with K2, verify both under issuance-time keys (via the verify_label helper that consults signing_key_history). (2) Failure-injection — kill mid-rotation at last_step='key_written', resume from rotation_state, complete cleanly without re-generating the key. (3) Append-only triggers — DELETE / illegal-UPDATE raise P0001, legal active_until-set UPDATE succeeds. testcontainers PG 16-alpine per codebase convention.",
+  "created_at": "2026-05-14T19:29:26.248904354Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA7h7ki3PM/Ke4BI9LbAXrm+xxNEGeNQqOQg2xBwVpJLCzAyaEdRjiDeVsA0WZuYfRpnW/ckiUkeXCqBrN2aPmDg=="
+}
