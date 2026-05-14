@@ -1,0 +1,10 @@
+{
+  "uuid": "5a6e5078-ae47-40f7-a6a2-3be6f057ac74",
+  "issue_uuid": "823ba5a7-2e8b-4e8f-8908-179a480a726b",
+  "author": "TeIq",
+  "content": "Decomposition complete. Created 5 epic issues (#2-#6, M0-M4) and 29 child issues (#7-#35), each with a --kind plan comment carrying:\n- Scope mapping to REQs/ACs from .design/polaris-proto-blue-integration.md and sections from design.md\n- Concrete deliverables (file paths, modules, crates)\n- References (design refs + proto-blue crate paths + Rust API Guidelines pointers)\n- Issue-specific Rust-quality checklist (thiserror, Send+Sync, no unwrap in hot paths, newtype IDs, parameterized SQL, etc.)\n- Testing approach\n- Objective done-when criteria\n\nBlock chain at epic level: M0 (#2) ← M1 (#3) ← M2 (#4) ← M3 (#5) ← M4 (#6).\n\nChildren counts: M0=5, M1=4, M2=6, M3=4, M4=10.\n\nImplementation entry point: start with #7 (workspace setup) — it's the root of the dependency graph and the foundation everything else assumes.",
+  "created_at": "2026-05-14T06:33:29.415657131Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAz6pnZ3k0wH5xe88k8YPfMrymCwkr6ig1Z0SGLU1jWu9+P60T0c6Tw3VZ+7uN6X6xbQq2h7Am98BaZeyxjxGWDg=="
+}
