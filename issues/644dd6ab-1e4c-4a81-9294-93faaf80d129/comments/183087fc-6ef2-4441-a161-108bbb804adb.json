@@ -1,0 +1,10 @@
+{
+  "uuid": "183087fc-6ef2-4441-a161-108bbb804adb",
+  "issue_uuid": "644dd6ab-1e4c-4a81-9294-93faaf80d129",
+  "author": "TeIq",
+  "content": "Implementation complete. Migration 13 extends labels with subject_did/label_cbor/signing_did/signed_at + UNIQUE on action_id + 64-byte sig CHECK. LabelEmitter (Arc<dyn SigningKey>+PgPool+LabelBroadcaster) builds proto-blue Label, canonical-CBOR via lex_json+lex_cbor, signs with K-256, persists. Wired into submit_action handler best-effort. 8 unit tests + 3 testcontainers integration tests pass (including AC-3 proto-blue decode round-trip + sig verification + tamper detection + takedown negation + idempotency + end-to-end HTTP route).",
+  "created_at": "2026-05-14T19:04:42.684034958Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAkLCt+w1NhKsPPFqdtHVQGlQ4r9wxe2KAcE8176TVg76qOX3i2jPvArR3r5IrpRITT+aVDFYTxHZV0LDODOGUBA=="
+}
