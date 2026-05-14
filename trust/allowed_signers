@@ -1,0 +1,4 @@
+# Crosslink trusted signers
+# Format: <principal> <key-type> <base64-key> [comment]
+# self-registered as workspace signing key at 2026-05-14 04:51:09 UTC
+TeIq@crosslink ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKo+flEdaJYO8NPs2cLlm7FqczNhZVbMbKNZfq5/HUnw doll@dollspace
