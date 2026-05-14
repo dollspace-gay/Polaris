@@ -1,0 +1,10 @@
+{
+  "uuid": "52e665af-90ea-428a-a4bc-e0243be08618",
+  "issue_uuid": "da463e7e-ff0c-410b-b7bd-ebed79ace948",
+  "author": "TeIq",
+  "content": "Decision: removed the env-mutating unit test (originally proposed) because env::remove_var became unsafe in Rust 1.84+ and the workspace deny lint forbids unsafe_code. Env override behaviour is reachable in tests/db_smoke.rs (integration). Unit tests now only assert the pure default helpers.",
+  "created_at": "2026-05-14T12:32:17.567563048Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAbI1iZXpVWXKtaG7UDv7blZY5Xi86KQp6jpelR3CMTonxjbMgDLXfs2k/FmcfZ9wpfweHA2diA2yyJip5w6jmDQ=="
+}
