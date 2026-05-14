@@ -1,0 +1,10 @@
+{
+  "uuid": "87fc50cd-b6de-4014-a724-c2975e922166",
+  "issue_uuid": "b9a3a227-c0e4-41dc-ab89-a8de61cfdeb6",
+  "author": "TeIq",
+  "content": "Origin: #37 audit. Light-touch integration shipped at dashboard::build_report_volume only. MemoryAnomalyDetector in polaris-backend/src/pattern/ uses per-event observe_report; rewiring to consume a per-event reputation score requires reshaping the bucket-count state machine (currently u64). PgReputationProvider on ApiState is the building block — future detector swap is a constructor change. (Note: #37 audit comment referenced #79; correct issue number is #77.)",
+  "created_at": "2026-05-14T22:55:45.582403948Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAQLkWHGY+7DmIHPIann5qex6n9fiCQ+WJLuKMKIk3lNqNM/AjSMHTtaN0J4VKDpGnuvptCnbh7PKG2S3vLCxhDQ=="
+}
