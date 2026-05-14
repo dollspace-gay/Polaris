@@ -1,0 +1,10 @@
+{
+  "uuid": "db0a4dfd-5dbe-4f4a-aa4c-fa3669094734",
+  "issue_uuid": "513bdc9b-33f9-4f84-a3c5-07c4473967ab",
+  "author": "TeIq",
+  "content": "APPROVE-WITH-FOLLOW-UPS. Evidence floor green on architect's independent run: workspace build clean, clippy clean, fmt clean, 11/11 tests pass, xtask boundary 0 violations, zero unwrap/expect in non-test src, --help documents exit codes 0/1/2/3, no `password: String` field (stdin/env only). Record built via generated proto_blue::api::app::bsky::labeler::service::Main; validated against proto_blue::lexicon. App-password path functional; --oauth flag wired structurally with typed UserError::OauthNotYetWired pending client-metadata config. Follow-ups filed: #59 url->workspace dep, #60 DID document service-entry helper, #61 OAuth client-metadata loader.",
+  "created_at": "2026-05-14T18:15:02.773711107Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAMJsY4q0eC7KSXf1jrVY339I6AYdKDdxkIcSQFTZ+29k+/hyMqZy0uCuYAATklrurwcEuX8x1vbT7GqPnKmXIAw=="
+}
