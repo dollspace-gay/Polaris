@@ -2,10 +2,11 @@
   "uuid": "68eb0b04-34a7-487e-a011-8d4e80f2a81c",
   "display_id": 9,
   "title": "Scaffold ModeratorAuth trait with OIDC implementation and Polaris session cookies",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "084370df-ad1f-4969-81cc-457ec8f05aac",
   "created_by": "TeIq",
   "created_at": "2026-05-14T06:31:39.741676753Z",
-  "updated_at": "2026-05-14T06:31:39.741676753Z"
+  "updated_at": "2026-05-14T13:09:17.503563898Z",
+  "closed_at": "2026-05-14T13:09:17.503563898Z"
 }
