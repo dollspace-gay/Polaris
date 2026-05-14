@@ -1,0 +1,10 @@
+{
+  "uuid": "fb6ba61e-884a-4875-8fb4-303efb8779d7",
+  "issue_uuid": "12bedfb4-6a6c-4c88-bb14-b46209165701",
+  "author": "TeIq",
+  "content": "Delivered: Pattern struct gained skip_paths_starting_with: Option<&'static [&'static str]> field. Populated for hardcoded_mutating_route with polaris-frontend/src/api_client/ prefix. Scanner pre-filters per-pattern at the top of scan_text_with_allows (path normalized once per file, slash-normalized for cross-platform). Per-line // xtask-allow: <name> mechanism unchanged. Two new fixture tests pin the symmetric contract (gateway path: clean; non-gateway path: still fires). end_to_end.rs current_frontend_tree_has_zero_violations test now passes against the real tree. Doc updated on module + field + pattern call-site explaining the rationale.",
+  "created_at": "2026-05-14T14:50:38.062923879Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAGgTOkh+hJ1yKxm4xdX3M5PhsPcPO7EHA7P05cBMbphKJ0PDnBb/RJ7HY/dmxSzpf9jWnifzCVTVW3KWt3tubBQ=="
+}
