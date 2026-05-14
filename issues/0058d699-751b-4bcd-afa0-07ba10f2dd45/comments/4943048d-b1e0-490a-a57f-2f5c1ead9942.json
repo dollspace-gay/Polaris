@@ -1,0 +1,10 @@
+{
+  "uuid": "4943048d-b1e0-490a-a57f-2f5c1ead9942",
+  "issue_uuid": "0058d699-751b-4bcd-afa0-07ba10f2dd45",
+  "author": "TeIq",
+  "content": "Delivered: EventBus<T> trait + EventEnvelope<T> (with WIRE_VERSION=1 + producer-seq + source) + BusError thiserror. Three backends: memory (always, broadcast-based, 4 unit tests covering round-trip + multi-subscriber + topic isolation + lag-as-typed-error); kafka (bus-kafka feature, rdkafka FutureProducer + StreamConsumer + bincode envelope, compile-test); nats (bus-nats feature, async-nats publish/subscribe + bincode envelope, 2 compile/typed-error tests). Default features include bus-nats. async-trait used for dyn-compat. No anyhow in library surface. No Arc<Mutex<...>> on producer/consumer state. Workspace deps pinned: rdkafka 0.39, async-nats 0.48, bincode 2.",
+  "created_at": "2026-05-14T15:26:17.280759086Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAu4uzwhrU02uaNDNFowItyvv6VxMLYjk3rchBuDDO3NHYYTljAAfDZ6zL3QFPe3jyzEh5Btcib0/G+IIJ+SN1CQ=="
+}
