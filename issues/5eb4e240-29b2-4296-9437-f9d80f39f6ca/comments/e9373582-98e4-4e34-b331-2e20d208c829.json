@@ -1,0 +1,10 @@
+{
+  "uuid": "e9373582-98e4-4e34-b331-2e20d208c829",
+  "issue_uuid": "5eb4e240-29b2-4296-9437-f9d80f39f6ca",
+  "author": "TeIq",
+  "content": "Origin: #31. proto-blue-oauth docs detail DPoP-nonce-rotation: AS returns DPoP-Nonce header on each token call; subsequent refresh must carry that nonce in a fresh DPoP proof JWT. atproto.rs documents the path as TODO. Implementation reads sessions.refresh_token_enc, unseals via Crypto, deserializes DPoP keypair, constructs DPoP proof for /token with grant_type=refresh_token, persists the new sealed token + DPoP keypair (same column rotates). Reference: proto-blue-oauth tests/refresh_flow.rs.",
+  "created_at": "2026-05-14T19:51:33.899937542Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAlzGOw6V7GVAWAmMFcaVjnhbb2T1aBfVpZwnykAXD56V7AgvN/9m1n/vCbDWvx6nVwkX2/AwdWfPwqcXIhl34Cg=="
+}
