@@ -34,6 +34,7 @@ pub mod policy;
 pub mod reversal;
 pub mod second_opinion;
 pub mod state;
+pub mod webauthn;
 pub mod wellness;
 
 use axum::Router;
@@ -94,8 +95,31 @@ fn healthz_router(db: Db) -> Router {
 /// is the per-route mitigation, applied inside
 /// [`appeals::submit_appeal`].
 fn public_api_router(state: ApiState) -> Router {
+    // The four `/api/auth/webauthn/*` endpoints (#40) live on the public
+    // subtree: they operate in the post-OIDC / post-ATProto, pre-session-
+    // cookie window so the auth middleware cannot extract a `ModeratorAuthCtx`.
+    // The moderator id arrives in the request body (echoed from the
+    // hardware-key gate response); the verifier authenticates each ceremony
+    // against the persisted `webauthn_register_states` / `webauthn_assert_states`
+    // row.
     Router::new()
         .route("/api/appeals", post(appeals::submit_appeal))
+        .route(
+            "/api/auth/webauthn/register/start",
+            post(webauthn::register_start),
+        )
+        .route(
+            "/api/auth/webauthn/register/finish",
+            post(webauthn::register_finish),
+        )
+        .route(
+            "/api/auth/webauthn/assert/start",
+            post(webauthn::assert_start),
+        )
+        .route(
+            "/api/auth/webauthn/assert/finish",
+            post(webauthn::assert_finish),
+        )
         .with_state(state)
 }
 

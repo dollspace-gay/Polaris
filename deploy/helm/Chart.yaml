@@ -1,0 +1,40 @@
+apiVersion: v2
+name: polaris
+description: |
+  Polaris labeler + moderation tool — ATProto labeler and moderation
+  dashboard, MIT-licensed, designed for both Bluesky's multi-region
+  deployment and single-VM community labeler operators sharing one
+  codebase.
+
+  See design.md §8 (deployment & ops) and docs/ops/backup.md for the
+  operator runbook.
+
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">= 1.27.0"
+
+home: https://github.com/dollspace-gay/polaris
+sources:
+  - https://github.com/dollspace-gay/polaris
+
+maintainers:
+  - name: Polaris Maintainers
+    url: https://github.com/dollspace-gay/polaris
+
+# Bitnami + nats-io chart deps — pinned majors. Bumping any of these
+# is a chart-version-minor event (semver of the Polaris chart itself,
+# independent of the polaris-backend appVersion).
+dependencies:
+  - name: postgresql
+    version: "16.2.1"
+    repository: oci://registry-1.docker.io/bitnamicharts
+    condition: postgresql.enabled
+  - name: redis
+    version: "20.1.0"
+    repository: oci://registry-1.docker.io/bitnamicharts
+    condition: redis.enabled
+  - name: nats
+    version: "1.2.5"
+    repository: https://nats-io.github.io/k8s/helm/charts/
+    condition: nats.enabled

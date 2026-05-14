@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.polaris.envFromConfigMap }}
+  labels:
+    {{- include "polaris.labels" . | nindent 4 }}
+data:
+  # Non-secret AppConfig env vars. Secrets live in the Secret resource
+  # the operator creates out-of-band (templates/secret.yaml.example).
+  POLARIS_HTTP_BIND: "0.0.0.0:8080"
+  POLARIS_PROFILE: {{ .Values.polaris.profile | quote }}
+  POLARIS_HOSTNAME: {{ .Values.polaris.hostname | quote }}
+
+  # Pattern-actions tunable (issue #21). 100 = workspace default.
+  POLARIS_PATTERN_ACTIONS_COSIGN_THRESHOLD: "100"
+
+  # Evidence worker. The Bluesky profile uses S3; the bucket / region
+  # values are operator-supplied and substituted at install time via
+  # `--set`. Operators on the labeler profile in-cluster should switch
+  # to `local-fs` and add a PersistentVolumeClaim to the Deployment.
+  POLARIS_EVIDENCE_BLOB_STORE: "s3"
+  # POLARIS_EVIDENCE_S3_BUCKET / _S3_REGION come from the secret (they
+  # name the operator's bucket and region; treated as configuration
+  # rather than secret material, but kept alongside AWS_* for ergonomics).
+
+  # Auth backend. Override via --set polaris.authBackend=atproto.
+  POLARIS_AUTH_BACKEND: "oidc"

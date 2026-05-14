@@ -123,6 +123,23 @@ pub enum RepoError {
     /// etc.).
     #[error("database error")]
     Database(#[source] sqlx::Error),
+    /// Audit-log append failure surfaced through a repo path
+    /// (issue #35). Wraps the [`crate::audit::AuditError`] so callers
+    /// see the original chain-break / encoding category.
+    #[error("audit-log append failed")]
+    Audit(#[source] crate::audit::AuditError),
+}
+
+impl From<crate::audit::AuditError> for RepoError {
+    fn from(err: crate::audit::AuditError) -> Self {
+        match err {
+            // Unwrap the inner sqlx::Error so SQLSTATE routing still
+            // works for chain-break (P0001) and other database
+            // failures triggered by the audit insert.
+            crate::audit::AuditError::Db(e) => Self::from(e),
+            other => Self::Audit(other),
+        }
+    }
 }
 
 impl From<sqlx::Error> for RepoError {

@@ -77,6 +77,7 @@ use sqlx::PgPool;
 use tracing::info;
 use uuid::Uuid;
 
+use crate::audit::{AuditEvent, AuditLog};
 use crate::config::LabelerSigningKeyConfig;
 
 /// The set of custody modes the rotation CLI accepts on its `--mode`
@@ -823,6 +824,29 @@ impl RotationContext {
         .await
         .map_err(RotationError::Db)?;
 
+        // 4. Audit-log append in the same TX (issue #35;
+        // design.md §6 + §9). The new key going live is the
+        // audit-relevant boundary; we record it as `key.rotate` with
+        // both the outgoing and incoming dids in the payload so an
+        // auditor can reconstruct the active-key timeline from the
+        // audit log alone.
+        let audit_payload = serde_json::json!({
+            "rotation_id": self.plan.id,
+            "old_did": self.plan.old_did,
+            "new_did": new_did,
+            "custody_mode": self.plan.custody_mode.as_str(),
+        });
+        AuditLog::record(
+            &mut tx,
+            AuditEvent {
+                actor: "system".to_owned(),
+                kind: "key.rotate".to_owned(),
+                payload: audit_payload,
+            },
+        )
+        .await
+        .map_err(audit_to_rotation_err)?;
+
         tx.commit().await.map_err(RotationError::Db)?;
         self.plan.last_step = RotationStep::HistoryRecorded;
 
@@ -902,6 +926,25 @@ impl RotationContext {
             "rotation: persisted state; live server will pick up the new key on its next poll tick"
         );
         Ok(())
+    }
+}
+
+/// Map an audit-log append failure into a [`RotationError`].
+///
+/// `AuditError::Db` unwraps to a [`RotationError::Db`] so SQLSTATE
+/// routing (chain-break P0001, etc.) flows up to the caller without an
+/// extra wrapping layer. Encoding failures are treated as a DB-class
+/// failure with a synthetic message because they indicate a payload
+/// that should never have been built in the first place (the rotation
+/// payload is constructed from typed fields).
+fn audit_to_rotation_err(err: crate::audit::AuditError) -> RotationError {
+    match err {
+        crate::audit::AuditError::Db(e) => RotationError::Db(e),
+        crate::audit::AuditError::Encode { .. } | crate::audit::AuditError::HashMismatch { .. } => {
+            RotationError::Init {
+                reason: "audit-log payload encode or chain integrity check failed during rotation",
+            }
+        }
     }
 }
 

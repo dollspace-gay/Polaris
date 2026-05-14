@@ -23,4 +23,9 @@ doc-valid-idents = [
     "..",
     "Polaris",
     "ATProto",
+    "WebAuthn",
+    "FIDO2",
+    "OsRng",
+    "OneShot",
+    "YubiKey",
 ]

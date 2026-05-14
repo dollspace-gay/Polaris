@@ -1,0 +1,135 @@
+# Polaris Helm values template.
+#
+#   1. cp values.yaml.example values.yaml
+#   2. Edit `polaris.hostname`, image tag, replica count, ingress class.
+#   3. Create the secret holding signing keys + cookie key (see
+#      templates/secret.yaml.example).
+#   4. helm install polaris . -f values.yaml -n polaris --create-namespace
+#
+# The values shape matches the upstream Bitnami postgresql/redis and
+# nats-io NATS chart conventions, so `helm template` produces a self-
+# contained renderable artifact without manual sub-chart wiring.
+
+polaris:
+  # Public DNS hostname Polaris will be reachable on; drives Ingress
+  # TLS SNI + the OAuth client_id / redirect_uri.
+  hostname: polaris.example.com
+
+  # Deployment profile (issue #29 / AC-14): `labeler` or `bluesky`.
+  # The bluesky profile refuses file-plain signing-key custody.
+  profile: bluesky
+
+  image:
+    repository: ghcr.io/dollspace-gay/polaris-backend
+    # Pin a digest in production for reproducibility:
+    #   tag: sha256:<digest>
+    tag: "0.1.0-bluesky"
+    pullPolicy: IfNotPresent
+
+  # Default 2 replicas — single-replica is too few for a rolling
+  # update without a brief downtime window, and the backend is
+  # stateless so horizontal scale is trivial (design.md §8).
+  replicaCount: 2
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # The Deployment reads every env var from the polaris-secrets +
+  # polaris-config resources; populate both before installing. See
+  # templates/secret.yaml.example for the kubectl create commands.
+  envFromSecret: polaris-secrets
+  envFromConfigMap: polaris-config
+
+  service:
+    # ClusterIP because we expose externally via the Ingress below.
+    type: ClusterIP
+    port: 8080
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    tls:
+      enabled: true
+      # cert-manager auto-creates the secret named here from the issuer.
+      secretName: polaris-tls
+
+  # Pod-level securityContext: non-root, read-only root filesystem.
+  # Matches the Dockerfile.bluesky-profile image (USER 1000, FROM scratch).
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+
+  probes:
+    readiness:
+      path: /healthz
+      port: 8080
+      initialDelaySeconds: 5
+      periodSeconds: 5
+    liveness:
+      path: /healthz
+      port: 8080
+      initialDelaySeconds: 30
+      periodSeconds: 15
+
+# ── Bitnami postgresql sub-chart ─────────────────────────────────────
+postgresql:
+  enabled: true
+  auth:
+    username: polaris
+    database: polaris
+    # Operators on managed Postgres (RDS / Cloud SQL) set
+    # `postgresql.enabled: false` here and pass DATABASE_URL via the
+    # polaris-secrets resource directly.
+    existingSecret: polaris-secrets
+    secretKeys:
+      adminPasswordKey: POSTGRES_ADMIN_PASSWORD
+      userPasswordKey: POSTGRES_PASSWORD
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+
+# ── Bitnami redis sub-chart ──────────────────────────────────────────
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: true
+    existingSecret: polaris-secrets
+    existingSecretPasswordKey: REDIS_PASSWORD
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# ── nats-io NATS sub-chart ───────────────────────────────────────────
+nats:
+  enabled: true
+  config:
+    jetstream:
+      enabled: true
+      fileStore:
+        pvc:
+          enabled: true
+          size: 10Gi
+  # Single replica is fine for the labeler profile; bump to 3 with
+  # cluster mode for the bluesky profile if you are not already
+  # consuming a managed event bus.
+  replicaCount: 1

@@ -9,4 +9,6 @@
 //! is a smell — keep the binary's internals private to `main.rs` and only
 //! re-export what the tests need.
 
+pub mod audit_verify;
 pub mod check_frontend_boundary;
+pub mod check_wasm_symbols;

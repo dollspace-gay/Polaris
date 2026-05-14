@@ -1,0 +1,71 @@
+# Polaris labeler-profile container image.
+#
+# Two-stage build:
+#   1. `build`   — rust:alpine cross-toolchain compiles polaris-backend.
+#   2. runtime   — alpine:3.20 with ca-certificates + a non-root user.
+#
+# Why alpine-glibc-runtime (not `FROM scratch`)? The labeler profile
+# prioritises operator debuggability: a self-hosted operator hitting a
+# weird failure benefits from being able to `docker exec -it ... sh`
+# into the running container. The Bluesky-profile image
+# (Dockerfile.bluesky-profile) is the FROM-scratch musl-static variant
+# for production fleets where image size and attack surface dominate.
+#
+# Image size budget (informational): under 80 MB. The bluesky-profile
+# image is the size-constrained one (≤ 50 MB).
+
+# ── Stage 1: build ────────────────────────────────────────────────────
+FROM rust:1.88-alpine3.20 AS build
+
+# musl-dev is the C toolchain; openssl-dev + pkgconfig back any sys-crate
+# in the workspace that links against OpenSSL transitively (proto-blue's
+# rustls posture means this is not strictly required today, but pinning
+# the toolchain layer is cheaper than fighting a missing-symbol error
+# downstream). git is required by some build-script dependencies.
+RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig git
+
+WORKDIR /app
+
+# Copy the workspace manifest + all member manifests first so layer
+# caching on `cargo fetch` survives source-only edits. The lockfile
+# pins every transitive dep; the build is reproducible.
+COPY Cargo.toml Cargo.lock ./
+COPY polaris-types/Cargo.toml polaris-types/Cargo.toml
+COPY polaris-backend/Cargo.toml polaris-backend/Cargo.toml
+COPY polaris-frontend/Cargo.toml polaris-frontend/Cargo.toml
+COPY polaris-publish-labeler-record/Cargo.toml polaris-publish-labeler-record/Cargo.toml
+COPY xtask/Cargo.toml xtask/Cargo.toml
+COPY rust-toolchain.toml ./
+
+# Now the source.
+COPY polaris-types polaris-types
+COPY polaris-backend polaris-backend
+COPY polaris-publish-labeler-record polaris-publish-labeler-record
+
+# Build the backend binary. The release profile is the workspace
+# default; LTO and codegen-units are tuned in the workspace Cargo.toml.
+# We do NOT build polaris-frontend here — the wasm bundle is a separate
+# CI job (cargo + trunk) whose output is copied into the runtime stage
+# below by the operator's CI pipeline (or burned in via a later issue).
+RUN cargo build --release --locked -p polaris-backend --bin polaris-backend
+
+# ── Stage 2: runtime ──────────────────────────────────────────────────
+FROM alpine:3.20
+
+# ca-certificates: required for the rustls TLS stack (OIDC discovery,
+# proto-blue agent calls, S3 SDK). tini: PID-1 signal handler so
+# `docker stop` propagates SIGTERM cleanly to the backend.
+RUN apk add --no-cache ca-certificates tini \
+    && addgroup -S -g 1000 polaris \
+    && adduser -S -u 1000 -G polaris polaris \
+    && mkdir -p /var/lib/polaris/evidence /etc/polaris/keys \
+    && chown -R polaris:polaris /var/lib/polaris /etc/polaris
+
+COPY --from=build /app/target/release/polaris-backend /usr/local/bin/polaris-backend
+
+USER 1000:1000
+WORKDIR /var/lib/polaris
+
+EXPOSE 8080
+
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/polaris-backend"]

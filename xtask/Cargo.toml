@@ -20,6 +20,19 @@ clap.workspace = true
 walkdir.workspace = true
 regex.workspace = true
 anyhow.workspace = true
+# `wasmparser` for `check-wasm-symbols` (issue #34). Reads the released
+# wasm artifact and walks the custom-name section + export/import lists
+# to verify the lexicon validation engine survived dead-code elimination.
+wasmparser.workspace = true
+
+# `audit-verify` (issue #35; design.md §6 + §9): walk the audit-log
+# chain end-to-end against the DB identified by `DATABASE_URL`. The
+# xtask reuses the verification primitive from `polaris-backend::audit`
+# rather than reimplementing the chain walk so the operator-facing
+# diagnostic and the in-process verifier never drift.
+polaris-backend = { path = "../polaris-backend" }
+sqlx.workspace = true
+tokio.workspace = true
 
 [lints]
 workspace = true

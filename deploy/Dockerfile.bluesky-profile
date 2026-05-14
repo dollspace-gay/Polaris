@@ -1,0 +1,79 @@
+# Polaris Bluesky-profile container image.
+#
+# Image size budget: ≤ 50 MB (gzipped layer total). Achieved by:
+#   - musl-static build (single binary, no glibc, no shared libraries)
+#   - FROM scratch runtime (no shell, no package manager, no userland)
+#   - CA certs are the only auxiliary file
+#
+# Verified via `docker image ls polaris-backend:bluesky --format '{{.Size}}'`
+# in CI after the multi-arch build job (issue #38 follow-up wires the
+# matrix into GitHub Actions).
+#
+# Why this is the Bluesky-profile image:
+# - First-party fleet runs across multiple regions × many replicas.
+#   Every MB of image is multiplied by the fleet size.
+# - The static-musl binary has zero dynamic library surface — no glibc
+#   CVE pressure, no apk-tools to manage, no `docker exec sh` to be
+#   compromised by.
+# - The labeler-profile image (Dockerfile.labeler-profile) is the
+#   debuggable alpine-glibc-runtime variant for self-hosted operators
+#   who would rather trade 30 MB of image for the ability to shell in.
+#
+# Production deployments running this image MUST satisfy operator-side
+# requirements documented in docs/ops/backup.md: managed Postgres with
+# PITR, audit-log S3-object-lock target, KMS-backed signing key.
+
+# ── Stage 1: build ────────────────────────────────────────────────────
+FROM rust:1.88-alpine3.20 AS build
+
+RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig git \
+    && rustup target add x86_64-unknown-linux-musl
+
+WORKDIR /app
+
+# Cargo.lock-driven reproducible build (--locked refuses to update the
+# lockfile, so a `cargo build` here matches a developer's local build
+# byte-for-byte modulo target-specific differences).
+COPY Cargo.toml Cargo.lock ./
+COPY rust-toolchain.toml ./
+COPY polaris-types polaris-types
+COPY polaris-backend polaris-backend
+COPY polaris-frontend polaris-frontend
+COPY polaris-publish-labeler-record polaris-publish-labeler-record
+COPY xtask xtask
+
+# Static musl target. The release profile is the workspace default;
+# `--locked` and `--target` together produce a freestanding binary at
+# /app/target/x86_64-unknown-linux-musl/release/polaris-backend.
+ENV OPENSSL_STATIC=1
+ENV OPENSSL_LIB_DIR=/usr/lib
+ENV OPENSSL_INCLUDE_DIR=/usr/include
+ENV PKG_CONFIG_ALL_STATIC=true
+ENV RUSTFLAGS="-C target-feature=+crt-static"
+
+RUN cargo build --release --locked \
+    --target x86_64-unknown-linux-musl \
+    -p polaris-backend --bin polaris-backend
+
+# Sanity check: the resulting binary must not link against any shared
+# objects. `ldd` on a static-musl binary prints "not a dynamic executable".
+# We do not run this assertion at build time (musl's ldd has a slightly
+# different output format and the build host may not ship it); CI runs
+# `file polaris-backend | grep -F "statically linked"` instead.
+
+# ── Stage 2: runtime ──────────────────────────────────────────────────
+FROM scratch
+
+# Only two artifacts cross into the runtime: the static binary, and the
+# CA bundle (rustls reads it at startup to populate its root store).
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=build /app/target/x86_64-unknown-linux-musl/release/polaris-backend /polaris-backend
+
+# Non-root by numeric UID (FROM scratch has no /etc/passwd, so a named
+# user is meaningless). Kubernetes PodSecurityContext enforces this at
+# the orchestrator layer; documenting it here keeps the contract honest.
+USER 1000
+
+EXPOSE 8080
+
+ENTRYPOINT ["/polaris-backend"]

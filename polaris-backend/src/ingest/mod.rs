@@ -20,5 +20,10 @@
 //!    callers never see `anyhow::Error` cross the library boundary.
 
 pub mod firehose;
+pub mod upstream_labels;
 
 pub use firehose::{FirehoseConfig, FirehoseError, FirehoseWorker, NormalizedEvent};
+pub use upstream_labels::{
+    CacheError, HandleError, UpstreamKeyCache, UpstreamKeyFetcher, UpstreamLabelerConfig,
+    UpstreamLabelerConsumer,
+};

@@ -48,6 +48,9 @@ pub struct AppConfig {
     /// selection.
     #[serde(default)]
     pub profile: Profile,
+    /// Evidence-preservation worker settings (#33 / REQ-10 / AC-11).
+    #[serde(default)]
+    pub evidence: EvidenceConfig,
 }
 
 /// Postgres connection and pool configuration.
@@ -151,6 +154,7 @@ impl AppConfig {
         let pattern_actions = PatternActionsConfig::from_env()?;
         let labeler = LabelerConfig::from_env()?;
         let profile = Profile::from_env()?;
+        let evidence = EvidenceConfig::from_env()?;
 
         Ok(Self {
             db,
@@ -160,6 +164,7 @@ impl AppConfig {
             pattern_actions,
             labeler,
             profile,
+            evidence,
         })
     }
 }
@@ -221,27 +226,52 @@ impl PatternActionsConfig {
 /// Moderator-authentication configuration.
 ///
 /// The selected `backend` drives which [`crate::auth::ModeratorAuth`]
-/// implementation is constructed at startup. The trait is the same shape; M4
-/// will add an `atproto` arm to [`AuthBackend`].
+/// implementation is constructed at startup. Both [`OidcConfig`] and
+/// [`AtprotoAuthConfig`] are deserialised regardless of which backend is
+/// active so an operator can swap `backend` without restart-time
+/// validation surprises.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AuthConfig {
     /// Which authentication backend to use.
     #[serde(default)]
     pub backend: AuthBackend,
-    /// OIDC backend settings — populated even when `backend = Atproto` so a
-    /// future operator can swap by config without restart-time validation
-    /// surprises.
+    /// OIDC backend settings — populated even when `backend = Atproto` so
+    /// a future operator can swap by config without restart-time
+    /// validation surprises.
     #[serde(default)]
     pub oidc: OidcConfig,
+    /// ATProto OAuth backend settings — populated even when `backend =
+    /// Oidc` for the same swap-by-config reason.
+    #[serde(default)]
+    pub atproto: AtprotoAuthConfig,
+    /// Hardware-key (WebAuthn / FIDO2) post-login gate (issue #40,
+    /// design.md §6 + §9.1).
+    ///
+    /// `None` means "use the profile default": [`Profile::Bluesky`]
+    /// defaults to `true` (the first-party deployment refuses access
+    /// without a registered hardware key), [`Profile::Labeler`] defaults
+    /// to `false` (the self-hosted labeler is unaffected unless the
+    /// operator opts in). The runtime decision is computed by
+    /// [`AuthConfig::resolve_require_hardware_key`].
+    #[serde(default)]
+    pub require_hardware_key: Option<bool>,
 }
 
 impl AuthConfig {
     /// Build from environment.
     ///
+    /// Recognises `POLARIS_REQUIRE_HARDWARE_KEY` (`true` / `false` /
+    /// `1` / `0` / `yes` / `no`). Anything else is rejected with
+    /// [`ConfigError::InvalidEnumValue`]. Unset leaves the field `None`
+    /// so the profile default applies (see
+    /// [`Self::resolve_require_hardware_key`]).
+    ///
     /// # Errors
     ///
-    /// Returns [`ConfigError::InvalidEnumValue`] if `POLARIS_AUTH_BACKEND` is
-    /// not one of `oidc` / `atproto`.
+    /// - [`ConfigError::InvalidEnumValue`] if `POLARIS_AUTH_BACKEND` is
+    ///   not one of `oidc` / `atproto`, or if
+    ///   `POLARIS_REQUIRE_HARDWARE_KEY` is set to a value outside the
+    ///   accepted truthy / falsy set.
     pub fn from_env() -> Result<Self, ConfigError> {
         let backend = match env::var("POLARIS_AUTH_BACKEND").ok().as_deref() {
             None | Some("oidc") => AuthBackend::Oidc,
@@ -255,7 +285,99 @@ impl AuthConfig {
             }
         };
         let oidc = OidcConfig::from_env();
-        Ok(Self { backend, oidc })
+        let atproto = AtprotoAuthConfig::from_env();
+        let require_hardware_key = parse_optional_bool_env("POLARIS_REQUIRE_HARDWARE_KEY")?;
+        Ok(Self {
+            backend,
+            oidc,
+            atproto,
+            require_hardware_key,
+        })
+    }
+
+    /// Resolve [`Self::require_hardware_key`] against the deployment
+    /// profile.
+    ///
+    /// Precedence: explicit `Some(_)` override wins; otherwise the
+    /// profile default applies — `Profile::Bluesky` → `true`,
+    /// `Profile::Labeler` → `false`. See design.md §6 + §9.1.
+    #[must_use]
+    pub fn resolve_require_hardware_key(&self, profile: Profile) -> bool {
+        self.require_hardware_key
+            .unwrap_or(matches!(profile, Profile::Bluesky))
+    }
+}
+
+/// Parse a tri-state env var (`unset` / `truthy` / `falsy`).
+///
+/// Accepts `true` / `1` / `yes` (case-insensitive) for `Some(true)` and
+/// `false` / `0` / `no` for `Some(false)`. Unset returns `None`. Anything
+/// else surfaces as [`ConfigError::InvalidEnumValue`] so a typo at config
+/// time fails closed at startup rather than silently defaulting the
+/// flag.
+fn parse_optional_bool_env(var: &'static str) -> Result<Option<bool>, ConfigError> {
+    match env::var(var).ok() {
+        None => Ok(None),
+        Some(raw) => {
+            let trimmed = raw.trim();
+            let lower = trimmed.to_ascii_lowercase();
+            match lower.as_str() {
+                "true" | "1" | "yes" => Ok(Some(true)),
+                "false" | "0" | "no" => Ok(Some(false)),
+                _ => Err(ConfigError::InvalidEnumValue {
+                    field: var,
+                    value: raw,
+                    accepted: &["true", "false", "1", "0", "yes", "no"],
+                }),
+            }
+        }
+    }
+}
+
+/// ATProto OAuth backend configuration (issue #31 / REQ-4).
+///
+/// The operator hosts a JSON document describing the OAuth client at
+/// `client_id` (per the atproto OAuth client-id-metadata-document
+/// profile); Polaris reads the same JSON off disk at startup to drive
+/// [`crate::auth::atproto::AtprotoOauthAuthVerifier`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AtprotoAuthConfig {
+    /// Path to the OAuth `client_metadata.json` file. The public
+    /// `client_id` URL inside that document MUST point at the
+    /// `client_uri` the operator serves it from — both proto-blue's
+    /// validation and the AS will reject a mismatch.
+    #[serde(default)]
+    pub client_metadata_path: PathBuf,
+    /// Public `client_id` URL — duplicated here so the binary can
+    /// startup-validate without re-reading the JSON file. Empty when the
+    /// operator hasn't configured the atproto backend; the
+    /// `AtprotoOauthAuthVerifier` constructor refuses to boot against an
+    /// empty path.
+    #[serde(default)]
+    pub client_id: String,
+}
+
+impl AtprotoAuthConfig {
+    /// Build from environment.
+    ///
+    /// Recognises:
+    ///
+    /// | Variable                            | Field                  |
+    /// |-------------------------------------|------------------------|
+    /// | `POLARIS_ATPROTO_CLIENT_METADATA`   | `client_metadata_path` |
+    /// | `POLARIS_ATPROTO_CLIENT_ID`         | `client_id`            |
+    ///
+    /// Both default to empty when unset — the verifier constructor
+    /// refuses to boot against an empty path so a `backend = "atproto"`
+    /// startup without these set fails closed.
+    #[must_use]
+    pub fn from_env() -> Self {
+        Self {
+            client_metadata_path: env::var("POLARIS_ATPROTO_CLIENT_METADATA")
+                .map(PathBuf::from)
+                .unwrap_or_default(),
+            client_id: env::var("POLARIS_ATPROTO_CLIENT_ID").unwrap_or_default(),
+        }
     }
 }
 
@@ -772,6 +894,154 @@ pub enum KmsProvider {
     Gcp,
     /// Azure Key Vault — config-only stub, not yet implemented.
     Azure,
+}
+
+/// Evidence-preservation worker settings (issue #33 / REQ-10 / AC-11).
+///
+/// Drives [`crate::evidence::worker::EvidenceWorker`] at startup: how
+/// many simultaneous CAR fetches to allow, how often to poll for new
+/// `evidence_jobs` rows, and which [`BlobStoreKind`] to instantiate.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EvidenceConfig {
+    /// Which blob-store backend to use. Defaults to
+    /// [`BlobStoreKind::InMemory`] so a stock test build runs without
+    /// touching disk; the labeler-profile binary overrides this to
+    /// `LocalFs` via env, and the Bluesky-profile binary overrides to
+    /// `S3`.
+    #[serde(default)]
+    pub blob_store: BlobStoreKind,
+    /// Worker semaphore size — caps the number of in-flight CAR
+    /// fetches. Default 4.
+    #[serde(default = "default_evidence_concurrency")]
+    pub worker_concurrency: usize,
+    /// Seconds between drain ticks when the queue is empty. Default 5.
+    #[serde(default = "default_evidence_poll_interval_secs")]
+    pub poll_interval_secs: u64,
+}
+
+const fn default_evidence_concurrency() -> usize {
+    4
+}
+
+const fn default_evidence_poll_interval_secs() -> u64 {
+    5
+}
+
+impl Default for EvidenceConfig {
+    fn default() -> Self {
+        Self {
+            blob_store: BlobStoreKind::default(),
+            worker_concurrency: default_evidence_concurrency(),
+            poll_interval_secs: default_evidence_poll_interval_secs(),
+        }
+    }
+}
+
+impl EvidenceConfig {
+    /// Build from environment.
+    ///
+    /// Recognises:
+    ///
+    /// | Variable                              | Field                |
+    /// |---------------------------------------|----------------------|
+    /// | `POLARIS_EVIDENCE_BLOB_STORE`         | `blob_store` discriminant (`in-memory` / `local-fs` / `s3`) |
+    /// | `POLARIS_EVIDENCE_LOCAL_FS_ROOT`      | `BlobStoreKind::LocalFs.root`            |
+    /// | `POLARIS_EVIDENCE_S3_BUCKET`          | `BlobStoreKind::S3.bucket`               |
+    /// | `POLARIS_EVIDENCE_S3_REGION`          | `BlobStoreKind::S3.region`               |
+    /// | `POLARIS_EVIDENCE_WORKER_CONCURRENCY` | `worker_concurrency` (default 4)         |
+    /// | `POLARIS_EVIDENCE_POLL_INTERVAL_SECS` | `poll_interval_secs` (default 5)         |
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidInt`] on a non-numeric concurrency
+    /// or interval, [`ConfigError::InvalidEnumValue`] on an unknown
+    /// `blob_store` discriminant, [`ConfigError::MissingRequired`]
+    /// when the chosen backend's required env var is unset.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let blob_store = match env::var("POLARIS_EVIDENCE_BLOB_STORE").ok().as_deref() {
+            None | Some("in-memory") => BlobStoreKind::InMemory,
+            Some("local-fs") => {
+                let root = env::var("POLARIS_EVIDENCE_LOCAL_FS_ROOT")
+                    .map(PathBuf::from)
+                    .map_err(|_| ConfigError::MissingRequired {
+                        field: "POLARIS_EVIDENCE_LOCAL_FS_ROOT",
+                    })?;
+                BlobStoreKind::LocalFs { root }
+            }
+            Some("s3") => {
+                let bucket = env::var("POLARIS_EVIDENCE_S3_BUCKET").map_err(|_| {
+                    ConfigError::MissingRequired {
+                        field: "POLARIS_EVIDENCE_S3_BUCKET",
+                    }
+                })?;
+                let region = env::var("POLARIS_EVIDENCE_S3_REGION").map_err(|_| {
+                    ConfigError::MissingRequired {
+                        field: "POLARIS_EVIDENCE_S3_REGION",
+                    }
+                })?;
+                BlobStoreKind::S3 { bucket, region }
+            }
+            Some(other) => {
+                return Err(ConfigError::InvalidEnumValue {
+                    field: "POLARIS_EVIDENCE_BLOB_STORE",
+                    value: other.to_owned(),
+                    accepted: &["in-memory", "local-fs", "s3"],
+                });
+            }
+        };
+        let worker_concurrency = match env::var("POLARIS_EVIDENCE_WORKER_CONCURRENCY").ok() {
+            Some(raw) => raw
+                .parse::<usize>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_EVIDENCE_WORKER_CONCURRENCY",
+                    source,
+                })?,
+            None => default_evidence_concurrency(),
+        };
+        let poll_interval_secs = match env::var("POLARIS_EVIDENCE_POLL_INTERVAL_SECS").ok() {
+            Some(raw) => raw
+                .parse::<u64>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_EVIDENCE_POLL_INTERVAL_SECS",
+                    source,
+                })?,
+            None => default_evidence_poll_interval_secs(),
+        };
+        Ok(Self {
+            blob_store,
+            worker_concurrency,
+            poll_interval_secs,
+        })
+    }
+}
+
+/// Blob-store backend selection for the evidence worker (#33).
+///
+/// See [`crate::evidence::blob_store`] for the trait + per-variant
+/// impls.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum BlobStoreKind {
+    /// In-process `HashMap`-backed store. Default for tests.
+    #[default]
+    InMemory,
+    /// Filesystem store rooted at `root`. Default for the labeler
+    /// profile binary.
+    LocalFs {
+        /// Root directory under which CARs are written
+        /// (e.g. `/var/lib/polaris/evidence`).
+        root: PathBuf,
+    },
+    /// S3-compatible bucket. Feature-gated behind `s3-blob-store` at
+    /// the consumer crate; constructing the backend requires the
+    /// AWS SDK default credential chain to be configured in the
+    /// process environment.
+    S3 {
+        /// Bucket name.
+        bucket: String,
+        /// Region (e.g. `us-east-2`).
+        region: String,
+    },
 }
 
 #[cfg(test)]

@@ -40,7 +40,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use polaris_backend::auth::crypto::Crypto;
 use polaris_backend::auth::oidc::OidcAuthVerifier;
 use polaris_backend::auth::session::SessionStore;
-use polaris_backend::auth::{ModeratorAuth, Role};
+use polaris_backend::auth::{LoginHint, ModeratorAuth, Role};
 use polaris_backend::config::{DbConfig, OidcConfig};
 use polaris_backend::db;
 use secrecy::SecretString;
@@ -148,7 +148,7 @@ async fn oidc_login_flow_persists_session_row() {
         .expect("OidcAuthVerifier::new should discover");
 
     // --- 4. start_login ----------------------------------------------
-    let redirect = verifier.start_login().await.unwrap();
+    let redirect = verifier.start_login(LoginHint::None).await.unwrap();
     let url = Url::parse(&redirect.authorize_url).unwrap();
     let mut state_param = None;
     let mut nonce_param = None;

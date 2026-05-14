@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM webauthn_register_states WHERE state = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "20aa37e7a2bd6be42cee01ae5eae28c5f6e527e50a498cf8a3c95952e282dc42"
+}

@@ -1,0 +1,31 @@
+{{- if .Values.polaris.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "polaris.fullname" . }}
+  labels:
+    {{- include "polaris.labels" . | nindent 4 }}
+  {{- with .Values.polaris.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.polaris.ingress.className }}
+  {{- if .Values.polaris.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.polaris.hostname | quote }}
+      secretName: {{ .Values.polaris.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.polaris.hostname | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "polaris.fullname" . }}
+                port:
+                  number: {{ .Values.polaris.service.port }}
+{{- end }}

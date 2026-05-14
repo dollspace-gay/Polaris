@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "polaris.fullname" . }}
+  labels:
+    {{- include "polaris.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.polaris.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Keep at least one replica healthy throughout the update.
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "polaris.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "polaris.selectorLabels" . | nindent 8 }}
+      annotations:
+        # Bounce pods on config / secret changes (operators run
+        # `helm upgrade` after rotating the secret out-of-band).
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.polaris.podSecurityContext | nindent 8 }}
+      containers:
+        - name: polaris-backend
+          image: "{{ .Values.polaris.image.repository }}:{{ .Values.polaris.image.tag }}"
+          imagePullPolicy: {{ .Values.polaris.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.polaris.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: {{ .Values.polaris.envFromSecret }}
+            - configMapRef:
+                name: {{ .Values.polaris.envFromConfigMap }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.polaris.probes.readiness.path }}
+              port: {{ .Values.polaris.probes.readiness.port }}
+            initialDelaySeconds: {{ .Values.polaris.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.polaris.probes.readiness.periodSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.polaris.probes.liveness.path }}
+              port: {{ .Values.polaris.probes.liveness.port }}
+            initialDelaySeconds: {{ .Values.polaris.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.polaris.probes.liveness.periodSeconds }}
+          resources:
+            {{- toYaml .Values.polaris.resources | nindent 12 }}
+          volumeMounts:
+            # readOnlyRootFilesystem requires a writable /tmp for any
+            # intermediate file the rustls or aws-sdk crates might
+            # materialise during cold-start.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

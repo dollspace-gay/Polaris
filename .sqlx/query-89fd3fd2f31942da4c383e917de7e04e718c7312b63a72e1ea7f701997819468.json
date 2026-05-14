@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id, seq, src, uri, val, neg, sig, action_id,\n               subject_did, label_cbor, signing_did\n        FROM labels\n        WHERE action_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "src",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "uri",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "val",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "neg",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "sig",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 7,
+        "name": "action_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "subject_did",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "label_cbor",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 10,
+        "name": "signing_did",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "89fd3fd2f31942da4c383e917de7e04e718c7312b63a72e1ea7f701997819468"
+}

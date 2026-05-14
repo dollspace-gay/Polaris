@@ -137,6 +137,15 @@ pub struct Action {
     /// When the action's label was successfully streamed to ATProto
     /// subscribers (the labeler `subscribeLabels` endpoint).
     pub emitted_to_atproto: Option<DateTime<Utc>>,
+    /// Content hash (hex-encoded SHA-256) of the CAR file the evidence
+    /// worker (issue #33 / REQ-10 / AC-11) wrote to object storage.
+    ///
+    /// Populated only after the worker successfully snapshots the
+    /// upstream record + MST proof path. `None` while the evidence job
+    /// is `pending` / `running`, or when the action targets an account
+    /// (only record-shaped subjects enqueue an evidence job). See
+    /// `.design/polaris-proto-blue-integration.md` §H.
+    pub evidence_car_cid: Option<String>,
 }
 
 /// Caller-supplied fields for inserting a new [`Action`].

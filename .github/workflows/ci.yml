@@ -38,6 +38,25 @@ jobs:
           SQLX_OFFLINE: "true"
 
   test:
+    # Runs every workspace test, including the threat-model suite at
+    # `polaris-backend/tests/threat_t{1..6}_*.rs` (issue #39). The
+    # six tests cover design.md §9's primary threats T1-T6:
+    #
+    #   T1 — compromised moderator              (threat_t1_compromised_moderator.rs)
+    #   T2 — audit-log tampering                 (threat_t2_audit_tamper.rs)
+    #   T3 — weaponized reports                  (threat_t3_weaponized_reports.rs)
+    #   T4 — DoS report flood                    (threat_t4_dos_report_flood.rs)
+    #   T5 — malicious payload render            (threat_t5_malicious_payload_render.rs)
+    #   T6 — moderator-identity leak via labels  (threat_t6_moderator_identity_leak.rs)
+    #
+    # The threats suite is wired into `cargo test --workspace` by
+    # Cargo's standard `tests/*.rs` integration-test discovery — no
+    # separate job is needed. Each test owns its own Postgres 16
+    # testcontainer per the architect's pre-flight (hermetic per
+    # test). #[ignore]'d sub-tests document follow-up issues #73-#76.
+    #
+    # To run only the threat suite locally:
+    #   cargo test -p polaris-backend --test 'threat_*'
     name: cargo test --workspace
     runs-on: ubuntu-latest
     services:
@@ -58,7 +77,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.88
       - uses: Swatinem/rust-cache@v2
-      - name: test (native, postgres service)
+      - name: test (native, postgres service — includes threat suite)
         run: cargo test --workspace
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
@@ -69,6 +88,12 @@ jobs:
     # chain. Failures that root-cause to proto-blue are surfaced upstream
     # by filing an issue against dollspace-gay/proto-blue with a
     # reproduction; failures local to polaris-frontend are fixed here.
+    #
+    # AC-16 (issue #34) extends this job with a release build + the
+    # `check-wasm-symbols` xtask. The xtask reads the release artifact
+    # and asserts the `proto-blue-lexicon` validation engine survived
+    # dead-code elimination; without that, the inline client-side
+    # validation contract silently degrades to a server-side fallback.
     name: cargo build --target wasm32-unknown-unknown -p polaris-frontend
     runs-on: ubuntu-latest
     steps:
@@ -83,6 +108,14 @@ jobs:
           SQLX_OFFLINE: "true"
       - name: clippy (wasm32-unknown-unknown)
         run: cargo clippy --target wasm32-unknown-unknown -p polaris-frontend --lib -- -D warnings
+        env:
+          SQLX_OFFLINE: "true"
+      - name: build release wasm (AC-16)
+        run: cargo build --release --target wasm32-unknown-unknown -p polaris-frontend
+        env:
+          SQLX_OFFLINE: "true"
+      - name: check-wasm-symbols (AC-16)
+        run: cargo xtask check-wasm-symbols
         env:
           SQLX_OFFLINE: "true"
 

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "polaris.fullname" . }}
+  labels:
+    {{- include "polaris.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.polaris.service.type }}
+  ports:
+    - name: http
+      port: {{ .Values.polaris.service.port }}
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "polaris.selectorLabels" . | nindent 4 }}

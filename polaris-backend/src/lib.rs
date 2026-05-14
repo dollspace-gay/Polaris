@@ -34,10 +34,12 @@
 //!   `aggregate_for_manager`, all behind a single [`wellness::exposure::ExposureTracker`].
 
 pub mod api;
+pub mod audit;
 pub mod auth;
 pub mod bus;
 pub mod config;
 pub mod db;
+pub mod evidence;
 pub mod ingest;
 pub mod labeler;
 pub mod middleware;

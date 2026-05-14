@@ -31,6 +31,8 @@ use std::future::Future;
 
 use crate::api_client::ApiError;
 use crate::api_client::dto::SubmitAction;
+use crate::app::LexiconRegistry;
+use crate::validation::validate_label_def;
 
 /// Minimum length of the reasoning field. Mirrors
 /// [`polaris_backend::api::cases::validate_submit_action`]'s `>= 10` check.
@@ -43,6 +45,125 @@ pub const MIN_REASONING_LEN: usize = 10;
 /// single placeholder ref so the composer can drive the end-to-end
 /// submit path without a separate policy fetch.
 const DEFAULT_POLICY_REF: &str = "polaris.spam";
+
+/// Debounce window for client-side lexicon validation (REQ-13 / AC-16).
+///
+/// AC-16's budget is "inline validation error within 100ms of the
+/// input event"; 50ms keeps us comfortably under that while still
+/// coalescing bursts of keystrokes (typical typing cadence is
+/// 80-150ms/char). The constant is exported so the matching
+/// integration test can use the same value rather than guess.
+pub const VALIDATION_DEBOUNCE_MS: u64 = 50;
+
+/// `did:` placeholder used when the composer builds the in-progress
+/// label record for validation. The real `src` (the labeler's DID) is
+/// stamped server-side on `POST /api/actions`; for client-side schema
+/// validation we just need a syntactically-valid placeholder so the
+/// `format: "did"` check on `src` (when reached) does not mask the
+/// real per-field error the moderator is trying to fix.
+const VALIDATION_PLACEHOLDER_DID: &str = "did:plc:polaris-client-placeholder";
+
+/// Subject-URI placeholder used when the composer builds the in-progress
+/// label record for validation. Same rationale as
+/// [`VALIDATION_PLACEHOLDER_DID`]: shape the placeholder so the schema
+/// validator's per-property error points at the field the moderator is
+/// editing, not at one of the wire-stamped fields the server fills in.
+const VALIDATION_PLACEHOLDER_URI: &str = "at://did:plc:placeholder/app.bsky.feed.post/placeholder";
+
+/// Schedule a debounced lexicon-validation pass against `val` and
+/// post the result to `sink`.
+///
+/// On `wasm32-unknown-unknown` we use Leptos's `set_timeout_with_handle`
+/// to fire 50ms after the last keystroke. The pending handle is parked
+/// on a thread-local `StoredValue` so each new call clears the previous
+/// timer before scheduling its own — that is the actual debounce.
+///
+/// On native (test / IDE-check builds) there is no event loop to
+/// schedule against, so we run the validator inline. Native tests
+/// drive the composer through stub-only paths and exercise the
+/// validation surface directly via `validation::tests` rather than
+/// observing the timer.
+#[cfg(target_arch = "wasm32")]
+fn schedule_label_validation(
+    registry: &std::sync::Arc<proto_blue::lexicon::Lexicons>,
+    val: &str,
+    sink: WriteSignal<Option<String>>,
+) {
+    use leptos::leptos_dom::helpers::TimeoutHandle;
+    use std::time::Duration;
+
+    // One-handle slot per effect run lineage; reactively shared via
+    // `StoredValue` so we can park the previous pending timer and
+    // cancel it from the next invocation. The slot persists for the
+    // composer's owning scope; `on_cleanup` will drop it on unmount.
+    let slot = StoredValue::new(None::<TimeoutHandle>);
+
+    // Cancel any pending timer.
+    if let Some(prev) = slot.get_value() {
+        prev.clear();
+    }
+
+    // Take owning copies for the deferred closure. The `Arc` clone is
+    // a single ref-count bump; the `val` clone is unavoidable because
+    // the timer callback fires after the input event's `&str` has gone
+    // out of scope.
+    let registry_for_timer = std::sync::Arc::clone(registry);
+    let val_for_timer = val.to_owned();
+
+    let timeout = leptos::prelude::set_timeout_with_handle(
+        move || {
+            let json = label_record_for_validation(&val_for_timer);
+            let result = validate_label_def(&registry_for_timer, &json);
+            sink.set(result.err().map(|e| e.to_string()));
+        },
+        Duration::from_millis(VALIDATION_DEBOUNCE_MS),
+    );
+
+    // `set_timeout_with_handle` is fallible only when called outside a
+    // window context (e.g. on the server-render path). The frontend is
+    // wasm-only at runtime; surface the failure as "no client-side
+    // validation this round" rather than panicking — server-side
+    // validation still covers the submit path.
+    if let Ok(handle) = timeout {
+        slot.set_value(Some(handle));
+    }
+}
+
+/// Native stub: run the validator synchronously.
+///
+/// The native build path exists for workspace tooling (`cargo check`,
+/// `cargo test --lib`) and never mounts the composer in a real
+/// reactive scope. Running synchronously here keeps the function
+/// signature symmetric with the wasm side without pulling a tokio
+/// runtime into the frontend — `validation::tests` exercises the
+/// per-record contract directly.
+#[cfg(not(target_arch = "wasm32"))]
+fn schedule_label_validation(
+    registry: &std::sync::Arc<proto_blue::lexicon::Lexicons>,
+    val: &str,
+    sink: WriteSignal<Option<String>>,
+) {
+    let json = label_record_for_validation(val);
+    let result = validate_label_def(registry, &json);
+    sink.set(result.err().map(|e| e.to_string()));
+}
+
+/// Build the in-progress `com.atproto.label.defs#label` value the
+/// composer validates on every (debounced) keystroke.
+///
+/// `val` is the only moderator-editable field at the composer level;
+/// `src` / `uri` / `cts` are stamped server-side, but the lexicon
+/// requires them, so we include syntactically-valid placeholders.
+/// This keeps any schema error the validator returns scoped to the
+/// `val` property the moderator is actually editing.
+fn label_record_for_validation(val: &str) -> serde_json::Value {
+    serde_json::json!({
+        "src": VALIDATION_PLACEHOLDER_DID,
+        "uri": VALIDATION_PLACEHOLDER_URI,
+        "val": val,
+        "cts": "2026-01-01T00:00:00.000Z",
+    })
+}
 
 /// Minimal abstraction over "submit an action".
 ///
@@ -88,6 +209,7 @@ impl ActionSubmitter for StubSubmitter {
             reverses_action_id: body.reverses_action_id,
             created_at: chrono::Utc::now(),
             emitted_to_atproto: None,
+            evidence_car_cid: None,
         };
         std::future::ready(Ok(action))
     }
@@ -145,8 +267,65 @@ where
     let (reasoning, set_reasoning) = signal(String::new());
     let (status, set_status) = signal(ComposerStatus::Idle);
 
+    // Lexicon-validation message for the in-progress `label` field
+    // (REQ-13 / AC-16, issue #34). `None` means "no error"; the submit
+    // button is gated on `lex_error.get().is_none()` plus the existing
+    // reasoning-length check.
+    //
+    // We carry the rendered [`Display`] of the typed
+    // [`crate::validation::ValidationError`] (rather than the variant
+    // itself) for two reasons: (1) the upstream
+    // `proto_blue::lexicon::ValidationError` does not implement
+    // `Clone`, so Leptos's `signal::get()` (which needs `Clone`) would
+    // refuse to compile against a `ValidationError`-shaped state; and
+    // (2) the view layer only needs the Display form for inline
+    // rendering — variant discrimination happens at the
+    // `validate_label_def` site, not in the component tree.
+    let (lex_error, set_lex_error) = signal::<Option<String>>(None);
+
     let reasoning_len = move || reasoning.with(String::len);
     let is_valid = move || reasoning_len() >= MIN_REASONING_LEN;
+
+    // Pull the shared `Lexicons` registry off Leptos context. The App
+    // root (`app.rs`) provides this. `None` means the registry failed
+    // to build at startup (the app root renders a degraded banner in
+    // that case); the composer still mounts, but per-keystroke
+    // validation is suppressed and the moderator can submit — the
+    // server-side schema check is the last line.
+    let registry = use_context::<LexiconRegistry>();
+
+    // Debounced effect: 50ms after the most recent `label` change,
+    // build the in-progress label record and run it through the
+    // lexicon validator. The signal-graph subscription is via
+    // `label.get()`; the debounce is implemented with leptos's
+    // `set_timeout_with_handle` (wasm) plus a `StoredValue` to keep
+    // the latest pending handle alive across re-runs so we can clear
+    // the previous timer before scheduling a new one.
+    let label_validation_effect_registry = registry.clone();
+    Effect::new(move |_| {
+        // Subscribe to the label signal.
+        let current = label.get();
+
+        let Some(LexiconRegistry(registry_arc)) = label_validation_effect_registry.clone() else {
+            // No registry → no client-side validation. Server-side
+            // validation still covers the submit path.
+            set_lex_error.set(None);
+            return;
+        };
+
+        // Empty label is a "no error" state — the field is optional at
+        // the composer level and `LabelValue::new` only fires on
+        // non-empty input. A `val` of "" would also schema-fail because
+        // `com.atproto.label.defs#label` requires `val` to be a
+        // non-empty string, but surfacing that error before the
+        // moderator has typed anything would be noise.
+        if current.is_empty() {
+            set_lex_error.set(None);
+            return;
+        }
+
+        schedule_label_validation(&registry_arc, &current, set_lex_error);
+    });
 
     // Counter label: "X / 10 chars ✓" / "X / 10 chars ✗".
     let counter_text = move || {
@@ -185,6 +364,16 @@ where
             set_status.set(ComposerStatus::Error(
                 "Reasoning must be at least 10 characters.".to_owned(),
             ));
+            return;
+        }
+        // AC-16: a non-empty client-side lexicon error blocks submit.
+        // The button is also disabled in that state; this check is the
+        // belt-and-braces for the `Cmd-Enter` path which bypasses the
+        // button's `disabled` attribute.
+        if let Some(err) = lex_error.get() {
+            set_status.set(ComposerStatus::Error(format!(
+                "Label value fails lexicon validation: {err}"
+            )));
             return;
         }
         let body = SubmitAction {
@@ -278,9 +467,25 @@ where
                     id="composer-label"
                     class="composer__label-input"
                     type="text"
+                    aria-describedby="composer-label-lex-error"
                     on:input=on_label_input
                     prop:value=move || label.get()
                 />
+                // REQ-13 / AC-16: inline lexicon-validation error for the
+                // in-progress label value. The `aria-live="polite"` region
+                // means screen readers announce the error as it appears
+                // without interrupting the moderator's typing. The empty
+                // wrapper stays in the DOM (rather than `<Show when>`) so
+                // the `aria-describedby` link is stable across the
+                // valid/invalid transitions.
+                <p
+                    id="composer-label-lex-error"
+                    class="composer__lex-error"
+                    role="alert"
+                    aria-live="polite"
+                >
+                    {move || lex_error.get().unwrap_or_default()}
+                </p>
             </div>
 
             <div class="composer__row">
@@ -308,7 +513,9 @@ where
                 <button
                     type="submit"
                     class="composer__submit"
-                    disabled=move || !is_valid() || matches!(status.get(), ComposerStatus::Submitting)
+                    disabled=move || !is_valid()
+                        || lex_error.get().is_some()
+                        || matches!(status.get(), ComposerStatus::Submitting)
                 >
                     {move || match status.get() {
                         ComposerStatus::Submitting => "Submitting…",

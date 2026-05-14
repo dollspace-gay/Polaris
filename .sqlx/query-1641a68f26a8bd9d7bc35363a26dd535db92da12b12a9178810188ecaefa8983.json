@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE evidence_jobs\n        SET status = 'failed',\n            last_error = $1,\n            attempt_count = attempt_count + 1,\n            completed_at = now()\n        WHERE id = $2\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1641a68f26a8bd9d7bc35363a26dd535db92da12b12a9178810188ecaefa8983"
+}

@@ -11,7 +11,7 @@
 
 use clap::{Parser, Subcommand};
 
-use xtask::check_frontend_boundary;
+use xtask::{audit_verify, check_frontend_boundary, check_wasm_symbols};
 
 /// Polaris workspace automation tasks.
 #[derive(Debug, Parser)]
@@ -32,6 +32,18 @@ enum Command {
     /// endpoints or internal backend modules (AC-7 of
     /// `.design/polaris-proto-blue-integration.md`).
     CheckFrontendBoundary,
+    /// Verify that the released wasm artifact contains the proto-blue-lexicon
+    /// validation engine (AC-16 of
+    /// `.design/polaris-proto-blue-integration.md`, issue #34). Reads the
+    /// release bundle at
+    /// `target/wasm32-unknown-unknown/release/polaris_frontend.wasm` and
+    /// fails if no symbol containing `lexicon` / `Lexicons` / `validate`
+    /// is present.
+    CheckWasmSymbols,
+    /// Walk the hash-chained audit log against the DB identified by
+    /// `DATABASE_URL` and report whether every row's stored hash
+    /// matches its recomputed value (issue #35; design.md §6 + §9).
+    AuditVerify,
 }
 
 fn main() {
@@ -39,6 +51,8 @@ fn main() {
 
     let result = match cli.command {
         Command::CheckFrontendBoundary => check_frontend_boundary::run(),
+        Command::CheckWasmSymbols => check_wasm_symbols::run(),
+        Command::AuditVerify => audit_verify::run(),
     };
 
     if let Err(err) = result {

@@ -33,7 +33,11 @@ path = "src/lib.rs"
 [features]
 default = ["bus-nats"]
 bus-kafka = ["dep:rdkafka"]
-bus-nats = ["dep:async-nats", "dep:bytes"]
+bus-nats = ["dep:async-nats"]
+# Evidence preservation (#33): S3-backed blob store. Off by default
+# (labeler profile uses LocalFsBlobStore). #69 wires the end-to-end
+# minio integration test under this gate.
+s3-blob-store = ["dep:aws-sdk-s3"]
 # Labeler signing-key custody — cloud KMS oracle mode (issue #29).
 #
 # The `cloud-kms-oracle` posture requires the AWS SDK to make a KMS RPC
@@ -103,9 +107,11 @@ bincode.workspace = true
 futures.workspace = true
 rdkafka = { workspace = true, optional = true }
 async-nats = { workspace = true, optional = true }
-# `bytes` is only needed by the NATS backend's publish path; gating it to
-# the `bus-nats` feature keeps the `bus-kafka`-only build graph slim.
-bytes = { workspace = true, optional = true }
+# `bytes` was originally optional under `bus-nats` (NATS publish path),
+# but issue #33's evidence subsystem also takes `Bytes` for blob-store
+# `put` calls. Promoting to an unconditional dep is a one-line change
+# and keeps both consumers honest about owning the dependency.
+bytes.workspace = true
 
 # Auth (issue #9). Each dependency is justified inline in the workspace
 # `Cargo.toml` against a crates.io check on 2026-05-14.
@@ -139,6 +145,25 @@ keyring.workspace = true
 zeroize.workspace = true
 aws-sdk-kms = { workspace = true, optional = true }
 aws-config = { workspace = true, optional = true }
+
+# Evidence preservation (#33). The S3-backed blob store is feature-
+# gated behind `s3-blob-store` so a stock build (labeler profile) does
+# not pull the AWS S3 SDK tree. The actual end-to-end wiring (minio
+# tests, retry policy) is filed as #69 follow-up.
+aws-sdk-s3 = { workspace = true, optional = true }
+
+# Hardware-key gate (#40, design.md §6 + §9.1). The verifier persists the
+# framework's `PasskeyRegistration` / `PasskeyAuthentication` state in
+# `webauthn_register_states` / `webauthn_assert_states` between the
+# start/finish halves of each ceremony — the bincode envelope is the same
+# pattern the event bus uses (#16). Pinned at the workspace level so the
+# `danger-allow-state-serialisation` feature is opted into in one place.
+webauthn-rs.workspace = true
+# `url` 2.x: pinned here (not at the workspace) because the OIDC integration
+# test already drags it into dev-dependencies. Promoting to a runtime dep
+# so the WebAuthn verifier can take a `&url::Url` for `rp_origin` rather
+# than reparsing strings at every call site.
+url = "2"
 
 # Offline-mode note: sqlx 0.8 uses a `.sqlx/` directory (one JSON per query)
 # as the offline query cache. This issue introduces zero `sqlx::query!`
@@ -212,6 +237,15 @@ proptest = { workspace = true }
 # disposable file with mode 0o600 and then load it back through the
 # real `from_path` constructor. Dev-only.
 tempfile = "3"
+
+# Soft-token authenticator harness for the WebAuthn round-trip test
+# (issue #40). `webauthn-authenticator-rs` 0.5.5 (crates.io 2026-05-14):
+# MPL-2.0 — same upstream project as `webauthn-rs`. The `softpasskey`
+# feature exposes `SoftPasskey`, the in-process passkey authenticator that
+# pairs with `WebauthnAuthenticator` to drive the relying party's
+# register/assert ceremonies in tests without real hardware. Dev-only —
+# never enters the production build graph.
+webauthn-authenticator-rs = { version = "0.5", default-features = false, features = ["softpasskey"] }
 
 [lints]
 workspace = true

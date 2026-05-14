@@ -18,6 +18,19 @@ crate-type = ["cdylib", "rlib"]
 name = "polaris-frontend"
 path = "src/main.rs"
 
+# ── Features ────────────────────────────────────────────────────────────
+#
+# `wasm-tests` opts into the headless-browser test scaffolding shipped
+# alongside the validation module (issue #34 / AC-16). The default
+# feature set keeps the test bodies compiled-out so a stock
+# `cargo build --target wasm32-unknown-unknown -p polaris-frontend` does
+# not require `wasm-bindgen-test`'s harness in the production bundle.
+# CI runs the suite as a dedicated `wasm-pack test --headless` job that
+# enables this feature explicitly.
+[features]
+default = []
+wasm-tests = []
+
 [dependencies]
 # Framework
 leptos.workspace = true

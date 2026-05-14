@@ -48,6 +48,7 @@ pub mod components;
 pub mod error;
 pub mod pages;
 pub mod routes;
+pub mod validation;
 
 pub use app::App;
 pub use error::FrontendError;

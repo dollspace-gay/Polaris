@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO upstream_labelers (did, hostname, weights, enabled)\n        VALUES ($1, $2, $3, TRUE)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ebe770cdcc241d99a36a2d7741d69edbca289d6a9299a3d8e84b36a81f5c34fe"
+}

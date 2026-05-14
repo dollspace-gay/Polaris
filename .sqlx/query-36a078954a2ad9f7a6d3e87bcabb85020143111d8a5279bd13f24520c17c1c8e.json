@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE evidence_jobs\n        SET status = 'done',\n            completed_at = now(),\n            last_error = NULL\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "36a078954a2ad9f7a6d3e87bcabb85020143111d8a5279bd13f24520c17c1c8e"
+}

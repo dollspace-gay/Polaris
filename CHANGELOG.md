@@ -19,6 +19,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Resolve proto-blue 0.3.1 MSRV blocker (1.88 features under declared 1.85) (#50)
 
 ### Changed
+- Add hardware-key (WebAuthn) requirement config flag with per-profile enforcement (#40)
+- Add threat-model coverage test suite (T1-T6) (#39)
+- Add docker-compose and Helm deployment artifacts plus backup runbook (#38)
+- Add hash-chained audit log with external attestation of head hash (#35)
+- Add proto-blue-lexicon validation engine and Registry to the wasm bundle (#34)
+- Implement evidence-preservation CAR snapshotter on action commit (#33)
+- Implement inbound third-party labeler consumer with trust weights (#32)
+- Implement AtprotoOauthAuthVerifier as second ModeratorAuth backend (#31)
 - Implement polaris labeler-key rotate CLI (#30)
 - Implement K-256 Label record construction and signing (#28)
 - Implement SigningKey trait with file-plain, passphrase-sealed, os-keychain, cloud-kms-oracle impls (#29)

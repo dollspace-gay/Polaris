@@ -26,6 +26,7 @@ use std::sync::Arc;
 
 use crate::api::appeals::AppealsRateLimiter;
 use crate::auth::session::SessionStore;
+use crate::auth::webauthn::WebauthnVerifier;
 use crate::config::PatternActionsConfig;
 use crate::labeler::emitter::LabelEmitter;
 use crate::labeler::server::{LabelBroadcaster, PgLabelRepo};
@@ -109,6 +110,12 @@ pub struct ApiState {
     /// threshold. Carried on `ApiState` so the propose handler can read
     /// it without re-parsing env at every call.
     pub pattern_actions_cfg: PatternActionsConfig,
+    /// Hardware-key (WebAuthn / FIDO2) verifier (issue #40, design.md
+    /// §6 + §9.1). `None` when the operator did not configure the
+    /// hardware-key gate at startup (e.g. labeler-profile builds that
+    /// did not opt into the gate). When `None`, the four
+    /// `/api/auth/webauthn/*` endpoints are not mounted.
+    pub webauthn: Option<WebauthnVerifier>,
 }
 
 impl ApiState {
@@ -156,7 +163,21 @@ impl ApiState {
             pool,
             sessions,
             pattern_actions_cfg,
+            webauthn: None,
         }
+    }
+
+    /// Install a [`WebauthnVerifier`] onto the state.
+    ///
+    /// Issue #40: the binary entrypoint builds the verifier from the
+    /// `[auth] rp_id` + `[auth] rp_origin` configuration when
+    /// `require_hardware_key` resolves to `true`. Tests that exercise
+    /// the hardware-key gate (in particular the `webauthn_roundtrip`
+    /// integration test) install the verifier the same way.
+    #[must_use]
+    pub fn with_webauthn(mut self, verifier: WebauthnVerifier) -> Self {
+        self.webauthn = Some(verifier);
+        self
     }
 
     /// Build an [`ApiState`] with an explicit [`AppealsRateLimiter`].

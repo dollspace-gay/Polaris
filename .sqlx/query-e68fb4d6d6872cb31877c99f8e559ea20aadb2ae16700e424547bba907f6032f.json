@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT id, incident_id, subject_id, moderator_id, kind, label_value,\n                   reasoning, policy_refs, reversible_until, reverses_action_id,\n                   emitted_to_atproto, created_at\n            FROM actions\n            WHERE id = $1\n            ",
+  "query": "\n            SELECT id, incident_id, subject_id, moderator_id, kind, label_value,\n                   reasoning, policy_refs, reversible_until, reverses_action_id,\n                   emitted_to_atproto, evidence_car_cid, created_at\n            FROM actions\n            WHERE reverses_action_id = $1\n            LIMIT 1\n            ",
   "describe": {
     "columns": [
       {
@@ -60,6 +60,11 @@
       },
       {
         "ordinal": 11,
+        "name": "evidence_car_cid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -81,8 +86,9 @@
       false,
       true,
       true,
+      true,
       false
     ]
   },
-  "hash": "96cfc5678db905a9ae50b8ae4534f72607021aa80cbce6e69c9696f6ec9708f2"
+  "hash": "e68fb4d6d6872cb31877c99f8e559ea20aadb2ae16700e424547bba907f6032f"
 }

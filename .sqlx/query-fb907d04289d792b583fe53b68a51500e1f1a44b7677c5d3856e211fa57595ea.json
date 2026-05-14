@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO upstream_labeler_keys (did, signing_pubkey_did)\n        VALUES ($1, $2)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fb907d04289d792b583fe53b68a51500e1f1a44b7677c5d3856e211fa57595ea"
+}

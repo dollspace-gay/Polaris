@@ -1,0 +1,139 @@
+# Polaris labeler-profile docker-compose stack.
+#
+# Operator path (target: 15 minutes from clone to working stack):
+#   1. cp .env.example .env
+#   2. edit .env: set POLARIS_HOSTNAME, POLARIS_COOKIE_KEY (64 hex chars),
+#      POLARIS_LABELER_SIGNING_KEY_PATH, and the OIDC or ATProto OAuth
+#      client metadata path.
+#   3. docker compose up -d
+#   4. curl -f http://localhost:8080/healthz   (via the polaris-backend
+#      internal port; Caddy fronts 80/443 once DNS is pointed at this host).
+#
+# Only Caddy publishes ports to the host. The backend, Postgres, Redis,
+# and NATS communicate over the internal `polaris-net` network and are
+# unreachable from the public internet. Every image is pinned to a
+# specific patch version — never `:latest` — so a `docker compose pull`
+# is reproducible.
+#
+# References:
+# - design.md §8 (deployment & ops)
+# - docs/ops/quick-start.md  (15-minute getting-started runbook)
+# - docs/ops/backup.md       (PITR + S3-object-lock audit log + restore drill)
+
+name: polaris
+
+networks:
+  polaris-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  nats-data:
+  caddy-data:
+  caddy-config:
+  polaris-evidence:
+  polaris-keys:
+
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    restart: unless-stopped
+    networks: [polaris-net]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-polaris}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-polaris}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-polaris} -d ${POSTGRES_DB:-polaris}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    networks: [polaris-net]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  nats:
+    image: nats:2.10.20-alpine
+    restart: unless-stopped
+    networks: [polaris-net]
+    # JetStream enables durable subscriptions for the event bus
+    # (design.md §3.1, polaris-backend/src/bus/nats.rs).
+    command: ["-js", "-sd", "/data"]
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  polaris-backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.labeler-profile
+    image: polaris-backend:${POLARIS_IMAGE_TAG:-0.1.0}
+    restart: unless-stopped
+    networks: [polaris-net]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      # DATABASE_URL is composed from the .env Postgres credentials so an
+      # operator only edits one place. The compose-internal hostname
+      # `postgres` matches the service name above.
+      DATABASE_URL: postgres://${POSTGRES_USER:-polaris}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-polaris}
+      POLARIS_HTTP_BIND: 0.0.0.0:8080
+    volumes:
+      # Signing-key custody (file-plain / passphrase-sealed) reads from
+      # this directory. Mode 0o600 on the host file is enforced by the
+      # operator; the container runs as UID 1000 and only needs read.
+      - polaris-keys:/etc/polaris/keys:ro
+      # Evidence-CAR localfs blob store (POLARIS_EVIDENCE_BLOB_STORE=local-fs).
+      - polaris-evidence:/var/lib/polaris/evidence
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    networks: [polaris-net]
+    depends_on:
+      polaris-backend:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file: .env
+    volumes:
+      - ./Caddyfile.example:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 3s
+      retries: 6

@@ -13,14 +13,33 @@
 //! [`RepoError::AppendOnlyViolation`]. Tests in
 //! `tests/actions_append_only.rs` PROVE the invariant by attempting an
 //! UPDATE through a raw `sqlx::query` and asserting it fails.
+//!
+//! # Evidence-job enqueue (issue #33 / REQ-10 / AC-11)
+//!
+//! [`PgActionRepo::insert`] runs inside a `BEGIN … COMMIT` transaction so
+//! the action row and its `evidence_jobs` row commit together. After the
+//! INSERT into `actions`, the repo reads the parent `subjects` row to
+//! learn the subject's kind + uri; when the subject is record-shaped
+//! (anything other than [`polaris_types::SubjectKind::Account`]) and has
+//! a non-NULL `uri`, the repo `INSERT … ON CONFLICT (action_id) DO
+//! NOTHING`s into `evidence_jobs`. Account-shaped subjects (or record
+//! subjects without an AT-URI) are skipped — no job is enqueued.
+//!
+//! Atomicity matters: if the action commits but the job enqueue is
+//! dropped (e.g. a crash between the two statements), the worker can
+//! never recover the evidence — the action is committed but no job
+//! row exists to drive a snapshot. The transaction makes both
+//! statements visible together or neither.
 
 use chrono::{DateTime, Utc};
 use polaris_types::{
     Action, ActionId, ActionKind, IncidentId, LabelValue, ModeratorId, PolicyId, SubjectId,
+    SubjectKind,
 };
 use sqlx::PgPool;
 
 use super::RepoError;
+use crate::audit::{AuditEvent, AuditLog};
 
 /// Caller-supplied fields for inserting a new [`Action`].
 ///
@@ -131,6 +150,12 @@ impl ActionRepo for PgActionRepo {
             .iter()
             .map(|p| p.as_str().to_owned())
             .collect();
+
+        // Wrap the INSERT INTO actions + the evidence-job enqueue in a
+        // single transaction so the row and its job materialise (or
+        // don't) together. See module-level rustdoc.
+        let mut tx = self.pool.begin().await?;
+
         let row = sqlx::query!(
             r#"
             INSERT INTO actions (
@@ -140,7 +165,7 @@ impl ActionRepo for PgActionRepo {
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             RETURNING id, incident_id, subject_id, moderator_id, kind, label_value,
                       reasoning, policy_refs, reversible_until, reverses_action_id,
-                      emitted_to_atproto, created_at
+                      emitted_to_atproto, evidence_car_cid, created_at
             "#,
             new.incident_id.0,
             new.subject_id.0,
@@ -152,8 +177,71 @@ impl ActionRepo for PgActionRepo {
             new.reversible_until,
             new.reverses_action_id.map(|a| a.0),
         )
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *tx)
         .await?;
+
+        // Look up the parent subject's kind + uri to decide whether to
+        // enqueue an evidence job. Account-shaped subjects never carry
+        // an AT-URI worth snapshotting; record-shaped subjects with a
+        // populated `uri` enqueue one job per action.
+        let subject_row = sqlx::query!(
+            r#"
+            SELECT kind, uri
+            FROM subjects
+            WHERE id = $1
+            "#,
+            row.subject_id,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if let Some(uri) = subject_row.uri
+            && let Some(kind) = SubjectKind::from_wire(&subject_row.kind)
+            && !matches!(kind, SubjectKind::Account)
+        {
+            sqlx::query!(
+                r#"
+                INSERT INTO evidence_jobs (action_id, subject_uri)
+                VALUES ($1, $2)
+                ON CONFLICT (action_id) DO NOTHING
+                "#,
+                row.id,
+                uri,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        // Audit-log append in the same transaction (issue #35;
+        // design.md §6 + §9). The action row, its evidence-job row,
+        // and the audit row commit atomically — or none of them do.
+        // The `kind` flips between `action.commit` and
+        // `action.reverse` so dashboards can filter on it without
+        // re-parsing the payload.
+        let audit_kind = if matches!(new.kind, ActionKind::Reverse) {
+            "action.reverse"
+        } else {
+            "action.commit"
+        };
+        let audit_payload = serde_json::json!({
+            "action_id": row.id,
+            "subject_id": row.subject_id,
+            "incident_id": row.incident_id,
+            "moderator_id": row.moderator_id,
+            "kind": row.kind,
+            "reverses_action_id": row.reverses_action_id,
+        });
+        AuditLog::record(
+            &mut tx,
+            AuditEvent {
+                actor: ModeratorId(row.moderator_id).0.to_string(),
+                kind: audit_kind.to_owned(),
+                payload: audit_payload,
+            },
+        )
+        .await?;
+
+        tx.commit().await?;
 
         row_to_action(
             row.id,
@@ -167,6 +255,7 @@ impl ActionRepo for PgActionRepo {
             row.reversible_until,
             row.reverses_action_id,
             row.emitted_to_atproto,
+            row.evidence_car_cid,
             row.created_at,
         )
     }
@@ -176,7 +265,7 @@ impl ActionRepo for PgActionRepo {
             r#"
             SELECT id, incident_id, subject_id, moderator_id, kind, label_value,
                    reasoning, policy_refs, reversible_until, reverses_action_id,
-                   emitted_to_atproto, created_at
+                   emitted_to_atproto, evidence_car_cid, created_at
             FROM actions
             WHERE id = $1
             "#,
@@ -198,6 +287,7 @@ impl ActionRepo for PgActionRepo {
             row.reversible_until,
             row.reverses_action_id,
             row.emitted_to_atproto,
+            row.evidence_car_cid,
             row.created_at,
         )
         .map(Some)
@@ -212,7 +302,7 @@ impl ActionRepo for PgActionRepo {
             r#"
             SELECT id, incident_id, subject_id, moderator_id, kind, label_value,
                    reasoning, policy_refs, reversible_until, reverses_action_id,
-                   emitted_to_atproto, created_at
+                   emitted_to_atproto, evidence_car_cid, created_at
             FROM actions
             WHERE incident_id = $1
             ORDER BY created_at ASC
@@ -238,6 +328,7 @@ impl ActionRepo for PgActionRepo {
                 row.reversible_until,
                 row.reverses_action_id,
                 row.emitted_to_atproto,
+                row.evidence_car_cid,
                 row.created_at,
             )?);
         }
@@ -249,7 +340,7 @@ impl ActionRepo for PgActionRepo {
             r#"
             SELECT id, incident_id, subject_id, moderator_id, kind, label_value,
                    reasoning, policy_refs, reversible_until, reverses_action_id,
-                   emitted_to_atproto, created_at
+                   emitted_to_atproto, evidence_car_cid, created_at
             FROM actions
             WHERE reverses_action_id = $1
             LIMIT 1
@@ -272,6 +363,7 @@ impl ActionRepo for PgActionRepo {
             row.reversible_until,
             row.reverses_action_id,
             row.emitted_to_atproto,
+            row.evidence_car_cid,
             row.created_at,
         )
         .map(Some)
@@ -297,6 +389,7 @@ fn row_to_action(
     reversible_until: DateTime<Utc>,
     reverses_action_id: Option<uuid::Uuid>,
     emitted_to_atproto: Option<DateTime<Utc>>,
+    evidence_car_cid: Option<String>,
     created_at: DateTime<Utc>,
 ) -> Result<Action, RepoError> {
     let kind = decode_kind(kind)?;
@@ -313,6 +406,7 @@ fn row_to_action(
         reverses_action_id: reverses_action_id.map(ActionId),
         created_at,
         emitted_to_atproto,
+        evidence_car_cid,
     })
 }
 

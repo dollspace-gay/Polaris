@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO auth_atproto_login_states\n              (state, pkce_verifier, dpop_keypair_enc, handle, par_request_uri, issuer)\n              VALUES ($1, $2, $3, $4, $5, $6)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bytea",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ddc8b6810f7813f5e57c1c8c064336876fffe74eaa98b60db94dde668359c331"
+}

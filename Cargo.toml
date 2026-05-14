@@ -172,6 +172,19 @@ walkdir = "2"
 # lockfile via proto-blue, so we add zero net deps.
 regex = "1"
 
+# xtask: parse the released wasm artifact to verify the lexicon validation
+# engine survived dead-code elimination (issue #34 / REQ-13 / AC-16). The
+# `check-wasm-symbols` xtask walks the wasm module's custom-name section
+# plus export/import lists and asserts that at least one symbol matches a
+# lexicon-related pattern; without that, the validation engine has been
+# tree-shaken out and AC-16's "zero HTTP roundtrip" promise can't hold.
+# `wasmparser` 0.244.0 (crates.io 2026-05-14, already in the lockfile via
+# the wasm-bindgen-cli toolchain): Apache-2.0 WITH LLVM-exception. The
+# 0.244 line is API-stable for the `Parser` + `Payload::CustomSection`
+# surface we use; bumping is a one-line edit when the underlying parsers
+# evolve.
+wasmparser = "0.244"
+
 # Auth: OIDC client.
 # openidconnect 4.0.1 (crates.io 2026-05-14): MIT, rust-version 1.65,
 # `reqwest` feature pulls in the reqwest-driven HTTP transport that proto-blue
@@ -344,6 +357,28 @@ aws-config = { version = "1", default-features = false, features = [
     "rt-tokio",
     "behavior-version-latest",
 ] }
+# `aws-sdk-s3` (issue #33 / REQ-10 / AC-11): Apache-2.0. Drives the
+# Bluesky-profile evidence-CAR blob store. Same rustls-/tokio-runtime
+# posture as the KMS pin so a single TLS stack covers both AWS
+# integrations. Feature-gated at the consumer crate; #69 is the
+# follow-up that wires end-to-end S3 plumbing + minio integration
+# tests.
+aws-sdk-s3 = { version = "1", default-features = false, features = [
+    "rustls",
+    "rt-tokio",
+    "behavior-version-latest",
+] }
+
+# Hardware-key (WebAuthn / FIDO2) gate (issue #40, design.md §6 + §9.1).
+# `webauthn-rs` 0.5.5 (crates.io 2026-05-14): MPL-2.0. 0.5 is the stable
+# line; 0.6.1-dev exists but is a pre-release. The `danger-allow-state-
+# serialisation` feature is REQUIRED to bincode-persist `PasskeyRegistration`
+# / `PasskeyAuthentication` between the start/finish halves of each ceremony
+# — the alternative (cookie-shipped state) is exactly what design.md §6
+# forbids ("never in cookies"). The `attestation` default feature is left
+# on so a hardware-attestation policy could be layered on later, but
+# Polaris does not require attestation today.
+webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

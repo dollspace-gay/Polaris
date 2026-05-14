@@ -1,0 +1,89 @@
+# Polaris labeler systemd unit — the bare-VM deploy posture (no Docker).
+#
+# Operator install path:
+#   1. Build the binary: cargo build --release -p polaris-backend
+#   2. install -m 0755 target/release/polaris-backend /opt/polaris/polaris-backend
+#   3. install -m 0640 deploy/.env.example /etc/polaris/polaris.env
+#      and edit /etc/polaris/polaris.env in place (set ownership to
+#      root:polaris, mode 0640, so polaris can read but nobody else can).
+#   4. install -m 0644 deploy/systemd/polaris.service /etc/systemd/system/
+#   5. systemctl daemon-reload && systemctl enable --now polaris
+#
+# Required preconditions (operator-side):
+#   - useradd --system --home /var/lib/polaris --shell /usr/sbin/nologin polaris
+#   - mkdir -p /var/lib/polaris/evidence /etc/polaris/keys
+#     chown -R polaris:polaris /var/lib/polaris /etc/polaris/keys
+#     chmod 0700 /etc/polaris/keys
+#   - Postgres + Redis (and optional NATS) reachable per /etc/polaris/polaris.env.
+
+[Unit]
+Description=Polaris labeler service
+Documentation=https://github.com/dollspace-gay/polaris
+After=network-online.target postgresql.service redis.service
+Wants=network-online.target postgresql.service redis.service
+
+[Service]
+# Type=notify requires polaris-backend to call sd_notify("READY=1"). The
+# current binary does not (yet — filed as a follow-up); using `exec`
+# means systemd considers the service started once exec() returns and
+# the HTTP listener bound. Switch to `notify` once the binary integrates
+# with libsystemd.
+Type=exec
+
+User=polaris
+Group=polaris
+WorkingDirectory=/var/lib/polaris
+
+EnvironmentFile=/etc/polaris/polaris.env
+ExecStart=/opt/polaris/polaris-backend
+
+Restart=on-failure
+RestartSec=5s
+# Avoid restart storms during a misconfiguration episode.
+StartLimitInterval=60s
+StartLimitBurst=5
+
+# Logging — journald is the right default; operators with a remote log
+# pipeline can override via a drop-in.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=polaris
+
+# ── Hardening (systemd.exec(5)) ──────────────────────────────────────
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectClock=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# Capabilities — the backend binds 8080 (>1024) so it needs no
+# CAP_NET_BIND_SERVICE; drop everything.
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# Filesystem ACL — only these paths are writable.
+ReadWritePaths=/var/lib/polaris
+
+# Network families. AF_UNIX is for journald + sd_notify; AF_INET[6]
+# for the HTTP listener + Postgres/Redis/NATS clients.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Resource bounds — operators on small VMs may need to relax these.
+LimitNOFILE=65536
+TasksMax=4096
+
+[Install]
+WantedBy=multi-user.target

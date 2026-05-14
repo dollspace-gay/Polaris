@@ -30,14 +30,25 @@
 //! - [`oidc`] — `OidcAuthVerifier`: OIDC discovery, login redirect,
 //!   code-exchange, session minting.
 
+pub mod atproto;
 pub mod crypto;
+pub mod login_gate;
 pub mod oidc;
 pub mod session;
+pub mod webauthn;
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use uuid::Uuid;
+
+use crate::auth::atproto::AtprotoOauthAuthVerifier;
+use crate::auth::crypto::Crypto;
+use crate::auth::oidc::OidcAuthVerifier;
+use crate::auth::session::SessionStore;
+use crate::config::{AuthBackend, AuthConfig};
 
 use crate::auth::crypto::CryptoError;
 use crate::auth::session::SessionError;
@@ -182,10 +193,29 @@ pub struct LoginResult {
     pub expires_at: chrono::DateTime<chrono::Utc>,
 }
 
-/// Authentication trait: the abstraction M4 will plug ATProto OAuth into.
+/// Login hint passed to [`ModeratorAuth::start_login`].
 ///
-/// Both halves of the OIDC login dance (the redirect-out and the callback-in)
-/// live on this trait so a future ATProto-OAuth implementor lays down the
+/// The OIDC backend doesn't need any per-login input (the `IdP` discovery
+/// URL is fixed at startup), but the ATProto backend MUST be told which
+/// handle to resolve before it can fetch the per-account authorization-server
+/// metadata. The `enum`-shaped hint keeps the trait surface uniform; OIDC
+/// matches [`LoginHint::None`] and proceeds, anything else returns
+/// [`AuthError::Config`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoginHint {
+    /// No hint. The verifier already knows everything it needs (OIDC has
+    /// a single discovery URL configured at startup).
+    None,
+    /// The moderator's ATProto handle, e.g. `alice.example.com`. The
+    /// ATProto backend resolves this to a DID + PDS + authorization
+    /// server before starting the OAuth dance.
+    AtprotoHandle(String),
+}
+
+/// Authentication trait: the abstraction the ATProto OAuth backend plugs into.
+///
+/// Both halves of the login dance (the redirect-out and the callback-in)
+/// live on this trait so the OIDC and ATProto implementations lay down the
 /// same shape. AFIT (`async fn` in trait) is used directly — no
 /// `async_trait` macro, MSRV 1.88 permits it.
 #[allow(clippy::missing_errors_doc)] // Trait-level documentation already covers errors.
@@ -195,8 +225,13 @@ pub trait ModeratorAuth: Send + Sync {
     /// Returns the URL the client should redirect to. The caller is expected
     /// to set a `Location` header to `LoginRedirect::authorize_url` and a
     /// 302/303 status.
+    ///
+    /// `hint` carries any per-login input the verifier needs:
+    /// [`LoginHint::AtprotoHandle`] for the ATProto backend (moderator's
+    /// handle, e.g. `alice.example.com`), [`LoginHint::None`] for OIDC.
     fn start_login(
         &self,
+        hint: LoginHint,
     ) -> impl std::future::Future<Output = Result<LoginRedirect, AuthError>> + Send;
 
     /// Complete a login flow.
@@ -295,6 +330,55 @@ pub enum AuthError {
         /// Operator-facing description of what's wrong.
         message: String,
     },
+
+    /// The ATProto OAuth PAR (Pushed Authorization Request) failed.
+    ///
+    /// Issue #31 / AC-4 — the operator's authorization server rejected
+    /// the PAR call. The underlying error from `proto-blue-oauth` is
+    /// captured via `#[source]` for structured logs; the `Display` text
+    /// is deliberately generic so it cannot be probed.
+    #[error("OAuth PAR request failed")]
+    OauthPar {
+        /// Underlying error from `proto-blue-oauth`.
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    /// The ATProto OAuth code-exchange call failed.
+    ///
+    /// Either the AS rejected the code/verifier pair (replay, expired,
+    /// wrong client) or the response was malformed. The `Display` text
+    /// is generic by design.
+    #[error("OAuth code exchange failed")]
+    OauthExchange {
+        /// Underlying error from `proto-blue-oauth`.
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    /// The DPoP keypair could not be reconstructed or used to bind a
+    /// proof to the request. Indicates either tampered ciphertext on the
+    /// stored keypair row or a JWK-shape mismatch.
+    #[error("DPoP binding failed")]
+    DpopBindingFailed {
+        /// Underlying error from `proto-blue-oauth`.
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    /// Resolving the moderator's handle to a DID / PDS / authorization
+    /// server failed. The handle string is included in the error so an
+    /// operator can correlate logs against the user input; the underlying
+    /// resolver error is captured via `#[source]`.
+    #[error("handle resolution failed: {handle}")]
+    HandleResolutionFailed {
+        /// The handle the moderator entered.
+        handle: String,
+        /// Underlying error from `proto-blue-identity` /
+        /// `proto-blue-oauth::resolve_input`.
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 }
 
 impl From<SessionError> for AuthError {
@@ -306,6 +390,88 @@ impl From<SessionError> for AuthError {
 impl From<CryptoError> for AuthError {
     fn from(source: CryptoError) -> Self {
         Self::Crypto { source }
+    }
+}
+
+/// A type-erased handle to either authentication backend.
+///
+/// The [`ModeratorAuth`] trait uses AFIT (`async fn` in trait), which is
+/// not `dyn`-compatible. To avoid forcing every consumer of the trait
+/// onto a generic parameter, this enum wraps the two concrete verifiers
+/// in a `Send + Sync + 'static` shape that can live behind an `Arc` and
+/// be threaded through API handler state.
+///
+/// The enum stays `pub` so a future third backend lands here without an
+/// API churn at every call site; the `match` against [`AuthBackend`] in
+/// [`build_moderator_auth`] is the single switch.
+#[derive(Debug)]
+pub enum AnyModeratorAuth {
+    /// OIDC backend (issue #9).
+    Oidc(OidcAuthVerifier),
+    /// ATProto OAuth backend (issue #31).
+    Atproto(AtprotoOauthAuthVerifier),
+}
+
+impl ModeratorAuth for AnyModeratorAuth {
+    async fn start_login(&self, hint: LoginHint) -> Result<LoginRedirect, AuthError> {
+        match self {
+            Self::Oidc(v) => v.start_login(hint).await,
+            Self::Atproto(v) => v.start_login(hint).await,
+        }
+    }
+
+    async fn complete_login(&self, state: &str, code: &str) -> Result<LoginResult, AuthError> {
+        match self {
+            Self::Oidc(v) => v.complete_login(state, code).await,
+            Self::Atproto(v) => v.complete_login(state, code).await,
+        }
+    }
+}
+
+/// Construct the active [`ModeratorAuth`] implementation from configuration.
+///
+/// Both OIDC and ATProto backends compile into every binary; the
+/// `[auth] backend` toggle drives the runtime selection. The returned
+/// `Arc<AnyModeratorAuth>` lets `main.rs` thread a single trait object
+/// through the API layer without monomorphising on the concrete verifier
+/// type — the enum wraps the two AFIT-typed verifiers in a shape that
+/// can live behind an `Arc` despite the trait itself being non-`dyn`-
+/// compatible.
+///
+/// # Errors
+///
+/// - [`AuthError::Config`] when the selected backend's required
+///   configuration is missing or invalid (empty
+///   `atproto.client_metadata_path`, unreadable `client_metadata.json`,
+///   etc.).
+/// - [`AuthError::OidcDiscoveryFailed`] when the OIDC backend cannot
+///   reach the configured issuer's discovery endpoint at startup.
+pub async fn build_moderator_auth(
+    auth_cfg: &AuthConfig,
+    sessions: SessionStore,
+    crypto: Crypto,
+    pool: PgPool,
+) -> Result<Arc<AnyModeratorAuth>, AuthError> {
+    match auth_cfg.backend {
+        AuthBackend::Oidc => {
+            let verifier = OidcAuthVerifier::new(&auth_cfg.oidc, sessions, pool).await?;
+            Ok(Arc::new(AnyModeratorAuth::Oidc(verifier)))
+        }
+        AuthBackend::Atproto => {
+            if auth_cfg.atproto.client_metadata_path.as_os_str().is_empty() {
+                return Err(AuthError::Config {
+                    message: "POLARIS_ATPROTO_CLIENT_METADATA must be set when backend=atproto"
+                        .to_owned(),
+                });
+            }
+            let verifier = AtprotoOauthAuthVerifier::from_paths(
+                &auth_cfg.atproto.client_metadata_path,
+                sessions,
+                crypto,
+                pool,
+            )?;
+            Ok(Arc::new(AnyModeratorAuth::Atproto(verifier)))
+        }
     }
 }
 

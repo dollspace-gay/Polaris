@@ -668,6 +668,7 @@ mod tests {
             reverses_action_id: None,
             created_at: Utc::now(),
             emitted_to_atproto: None,
+            evidence_car_cid: None,
         }
     }
 

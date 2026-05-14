@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO webauthn_assert_states (state, moderator_id, challenge_state)\n              VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "efd42ec0c662aace31fc82b7c431c5e484ce71b5867a0b0b40b42c07913438f5"
+}

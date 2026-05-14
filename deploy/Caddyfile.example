@@ -1,0 +1,53 @@
+# Caddyfile — operator template for the Polaris labeler profile.
+#
+# 1. Copy to ./Caddyfile and rewrite ${POLARIS_HOSTNAME} to your real
+#    domain (or, equivalently, set POLARIS_HOSTNAME in .env and Caddy
+#    will substitute it from the environment at startup).
+# 2. Point your DNS A/AAAA record at this host.
+# 3. Caddy obtains a Let's Encrypt cert automatically on first boot
+#    (HTTP-01 challenge on :80). The cert is stored in the caddy-data
+#    named volume so a `docker compose down && up` does not re-issue.
+#
+# Reverse proxy:
+# - /xrpc/*  — atproto XRPC labeler surface (subscribeLabels, queryLabels,
+#              getServices), polaris-backend on :8080.
+# - /api/*   — moderator REST API, polaris-backend on :8080.
+# - /auth/*  — OIDC / atproto OAuth login + callback, polaris-backend.
+# - /healthz — liveness probe (polaris-backend/src/api/healthz.rs).
+# - /        — static frontend bundle (Leptos wasm + index.html), served
+#              from the same backend (the backend mounts the dist/ tree
+#              at root). The frontend-served-by-backend choice keeps the
+#              compose topology to a single application service; see the
+#              "Decisions" section in the issue #38 dispatch report.
+
+{$POLARIS_HOSTNAME} {
+	encode zstd gzip
+
+	# Security headers (OWASP baseline). HSTS is opt-in via the
+	# `enable_hsts` snippet below — leave it commented until you have
+	# verified DNS + certs are stable, because HSTS is sticky.
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		# Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		-Server
+	}
+
+	# atproto labeler XRPC surface — the public Bluesky labeler contract.
+	# Long polls + WebSocket upgrades for subscribeLabels need flush_interval=-1.
+	reverse_proxy /xrpc/* polaris-backend:8080 {
+		flush_interval -1
+	}
+
+	# Moderator REST API + auth flows.
+	reverse_proxy /api/* polaris-backend:8080
+	reverse_proxy /auth/* polaris-backend:8080
+	reverse_proxy /healthz polaris-backend:8080
+
+	# Everything else (the SPA root + /assets/*) is the frontend; the
+	# backend serves the static bundle directly. If you prefer Caddy to
+	# serve static files itself, swap this block for `file_server` and
+	# mount the wasm `dist/` directory into the caddy container.
+	reverse_proxy /* polaris-backend:8080
+}

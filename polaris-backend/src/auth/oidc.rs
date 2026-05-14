@@ -37,7 +37,8 @@ use uuid::Uuid;
 
 use crate::auth::session::SessionStore;
 use crate::auth::{
-    AuthError, LoginRedirect, LoginResult, ModeratorAuth, ModeratorAuthCtx, ModeratorId, Role,
+    AuthError, LoginHint, LoginRedirect, LoginResult, ModeratorAuth, ModeratorAuthCtx, ModeratorId,
+    Role,
 };
 use crate::config::OidcConfig;
 
@@ -292,8 +293,18 @@ impl OidcAuthVerifier {
 }
 
 impl ModeratorAuth for OidcAuthVerifier {
-    async fn start_login(&self) -> Result<LoginRedirect, AuthError> {
-        self.start_login_impl().await
+    async fn start_login(&self, hint: LoginHint) -> Result<LoginRedirect, AuthError> {
+        // The OIDC backend's discovery URL is fixed at startup; per-login
+        // hints are an ATProto-specific concept. Reject anything except
+        // `LoginHint::None` rather than silently ignore — an
+        // `AtprotoHandle` hint reaching this code path indicates the
+        // caller routed to the wrong verifier.
+        match hint {
+            LoginHint::None => self.start_login_impl().await,
+            LoginHint::AtprotoHandle(_) => Err(AuthError::Config {
+                message: "OIDC verifier does not accept atproto hints".to_owned(),
+            }),
+        }
     }
 
     async fn complete_login(&self, state: &str, code: &str) -> Result<LoginResult, AuthError> {
@@ -307,7 +318,7 @@ impl ModeratorAuth for OidcAuthVerifier {
 pub struct NullAuthVerifier;
 
 impl ModeratorAuth for NullAuthVerifier {
-    async fn start_login(&self) -> Result<LoginRedirect, AuthError> {
+    async fn start_login(&self, _hint: LoginHint) -> Result<LoginRedirect, AuthError> {
         Err(AuthError::Config {
             message: "NullAuthVerifier cannot start a login".to_owned(),
         })
@@ -383,7 +394,7 @@ mod tests {
     #[tokio::test]
     async fn null_verifier_refuses_start_login() {
         let v = NullAuthVerifier;
-        let err = v.start_login().await.unwrap_err();
+        let err = v.start_login(LoginHint::None).await.unwrap_err();
         assert!(matches!(err, AuthError::Config { .. }));
     }
 
@@ -391,6 +402,20 @@ mod tests {
     async fn null_verifier_refuses_complete_login() {
         let v = NullAuthVerifier;
         let err = v.complete_login("s", "c").await.unwrap_err();
+        assert!(matches!(err, AuthError::Config { .. }));
+    }
+
+    #[tokio::test]
+    async fn null_verifier_rejects_atproto_hint() {
+        // Even the always-failing null verifier carries the same hint
+        // semantics — passing an ATProto hint surfaces a Config error
+        // rather than the default "cannot start a login" message, so
+        // confused callers see a clear "wrong backend" signal.
+        let v = NullAuthVerifier;
+        let err = v
+            .start_login(LoginHint::AtprotoHandle("alice.example.com".to_owned()))
+            .await
+            .unwrap_err();
         assert!(matches!(err, AuthError::Config { .. }));
     }
 }
