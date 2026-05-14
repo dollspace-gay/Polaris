@@ -2,10 +2,11 @@
   "uuid": "31e52834-8d2a-4a05-8505-e3ad3f8c3488",
   "display_id": 36,
   "title": "Implement action reversal workflow with 24h moderator window and indefinite senior override",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "9c437988-8f71-407f-8077-00e015daab8e",
   "created_by": "TeIq",
   "created_at": "2026-05-14T06:45:54.831008004Z",
-  "updated_at": "2026-05-14T06:45:54.831008004Z"
+  "updated_at": "2026-05-14T15:06:15.286345239Z",
+  "closed_at": "2026-05-14T15:06:15.286345239Z"
 }
