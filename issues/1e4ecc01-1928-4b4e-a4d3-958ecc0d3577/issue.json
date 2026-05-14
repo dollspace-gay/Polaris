@@ -1,0 +1,11 @@
+{
+  "uuid": "1e4ecc01-1928-4b4e-a4d3-958ecc0d3577",
+  "display_id": 39,
+  "title": "Add threat-model coverage test suite (T1-T6)",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "a8e9b027-6310-40f8-bfce-5a92fca5e06f",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T06:46:03.183091691Z",
+  "updated_at": "2026-05-14T06:46:03.183091691Z"
+}
