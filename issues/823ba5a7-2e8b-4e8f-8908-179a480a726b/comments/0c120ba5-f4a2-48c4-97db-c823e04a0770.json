@@ -1,0 +1,10 @@
+{
+  "uuid": "0c120ba5-f4a2-48c4-97db-c823e04a0770",
+  "issue_uuid": "823ba5a7-2e8b-4e8f-8908-179a480a726b",
+  "author": "TeIq",
+  "content": "Doc updated to reflect verified state of proto-blue's wasm support.\n\nChanges:\n- REQ-5 rewritten — no 'wasm-in-progress' language; building for wasm32 auto-selects fetch-web / gloo-ws via target-conditional Cargo deps.\n- Section A crate map: identity row + post-table paragraph rewritten; added caveat that proto-blue has no upstream CI.\n- Section C: dropped wasm-readiness aside on identity resolution.\n- Section D: dropped proxy-fallback story; PublicAtprotoClient is now a standard cross-target abstraction.\n- AC-6: rewritten without conditional-on-upstream-shipping language.\n- AC-12 added: Polaris CI runs 'cargo build --target wasm32-unknown-unknown -p polaris-frontend' and is the first wasm-build verifier on the chain.\n- Q1 marked RESOLVED inline (no longer an open question).\n- Out of Scope updated: proto-blue is on crates.io (verified proto-blue = 0.3.1, MIT OR Apache-2.0, dollspace-gay/proto-blue).\n\nStale rustdoc that misled the original draft filed upstream as proto-blue issue #32.\n\nPipeline hash: sha256:b01b67de09dd2dbac466674bce7ab5461a1d0376ed4c38768bbcbb89d9f6d302",
+  "created_at": "2026-05-14T05:20:10.405798277Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAkze/F4mQxeGi4kkfCgBLn8WBMPfymZ/2y3tyvllhv2DVa/0/Hy8vhZZfs4MB66Waj7nBxnNvy+0O5OMe7nngDA=="
+}
