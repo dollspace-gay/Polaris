@@ -2,12 +2,13 @@
   "uuid": "d5ae648c-78ee-4f1e-8796-af02dacce51f",
   "display_id": 10,
   "title": "Scaffold polaris-frontend Leptos app with wasm32 CI verification",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "084370df-ad1f-4969-81cc-457ec8f05aac",
   "created_by": "TeIq",
   "created_at": "2026-05-14T06:31:42.181474145Z",
-  "updated_at": "2026-05-14T07:13:49.230952817Z",
+  "updated_at": "2026-05-14T13:30:48.429294314Z",
+  "closed_at": "2026-05-14T13:30:48.429294314Z",
   "blockers": [
     "85821e48-2f69-4f95-bad5-8b77f799c603"
   ]
