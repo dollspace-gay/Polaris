@@ -1,0 +1,10 @@
+{
+  "uuid": "047466b2-d278-4b83-a4fb-26143fdc4da9",
+  "issue_uuid": "efbb6e57-721e-404c-b69c-7e9c1cf07690",
+  "author": "TeIq",
+  "content": "APPROVE-WITH-FOLLOW-UPS. Independent evidence floor green: workspace build clean, clippy clean, fmt exit 0, 9/9 ingest::upstream_labels lib tests pass, 3/3 upstream_labelers integration tests pass against testcontainers PG16-alpine (AC-10 binding verified_label_lands_as_external_observation lands ExternalLabel observation within ~2s well under 5s threshold; tampered_signature_is_dropped proves verify-or-drop; cursor_persists_across_consumer_reinstantiation proves reconnect cursor durability). Trust weight map + default + jittered backoff parameters + per-frame handler seam all clean. Wire-level WebSocket loop deferred to #51 (existing follow-up); the verify-or-drop semantics and observation persistence are unit/integration-tested at the handle_frame seam.",
+  "created_at": "2026-05-14T20:12:34.153553539Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABApxrEO2W6KuAC7k5WJS1hdoX6ePMQActQoFExuCq5xFRdixd3v+GDjpFkIkQ9BC4BGiVmrYdUkar2DRRV9bLeBg=="
+}
