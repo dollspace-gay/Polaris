@@ -1,0 +1,10 @@
+{
+  "uuid": "c4fd97ce-977e-47da-8e09-1a334e719728",
+  "display_id": 69,
+  "title": "Retry-with-backoff for failed evidence jobs",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T20:41:44.033572980Z",
+  "updated_at": "2026-05-14T20:41:44.033572980Z"
+}
