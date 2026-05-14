@@ -1,0 +1,10 @@
+{
+  "uuid": "0ec5d4b2-7fd6-4b24-87d6-7581f7c4a856",
+  "issue_uuid": "fbbd7bce-154c-4263-9d52-e783c8a94424",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE (mechanical fix, architect-direct per skill's 'mechanical follow-up' exception).\n\nVerification:\n- cargo build -p polaris-backend: clean.\n- cargo test -p polaris-backend --lib api::error: 6/6 pass including bad_request_carries_static_message.\n- cargo clippy --workspace --all-targets -- -D warnings: clean.\n- cargo fmt --check: exit 0 (after cargo fmt).\n\nFix: IntoResponse for ApiError::BadRequest now renders self.to_string() (using the thiserror Display impl with 'invalid request: ' prefix) into the JSON body. Same path applied to ApiError::Conflict ('conflict: ' prefix). Matches the public Display contract.",
+  "created_at": "2026-05-14T15:08:37.558092679Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA/+q+HyHUdZcLvi2p9bcN/7qfEcEy1UZoNPJvNYw+o4BYMGi836Y/P+1iHwE7s6ym96hHCK4FXaf1Yu8POwEQCA=="
+}
