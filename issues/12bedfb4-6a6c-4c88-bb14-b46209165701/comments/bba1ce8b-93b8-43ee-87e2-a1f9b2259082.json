@@ -1,0 +1,10 @@
+{
+  "uuid": "bba1ce8b-93b8-43ee-87e2-a1f9b2259082",
+  "issue_uuid": "12bedfb4-6a6c-4c88-bb14-b46209165701",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE.\n\nIndependent verification:\n- cargo build --workspace: clean.\n- cargo clippy --workspace --all-targets -- -D warnings: clean.\n- cargo fmt --check: exit 0.\n- cargo xtask check-frontend-boundary: 0 violations in 21 file(s) scanned (was 8 before).\n- cargo test -p xtask: 11 fixture + 1 end-to-end (now passes) + 6 unit tests, all green.\n- All 8 route literals preserved in polaris-frontend/src/api_client/{native,wasm}.rs (4+4).\n\nPath-aware skip is the right shape: hardcoded_mutating_route no longer fires inside polaris-frontend/src/api_client/, but the rule still protects non-gateway code (symmetric test confirms). Other patterns (polaris_backend_import, unsafe_keyword, tokio_runtime) intact in the gateway directory.\n\nSubagent landed cleanly in 23 tool calls — first dispatch this series without truncation. Smaller-scope dispatches are reliable; the lesson accretes for the next pre-flight.",
+  "created_at": "2026-05-14T14:50:36.566649758Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAI8Q7hyJqNV/w1NWYAod8P59CfyBrUb1Gz2NXMSQUDtthD01tOfpY8qjkl4z4QhRADgm5q34vLo6dudujaaKgAA=="
+}
