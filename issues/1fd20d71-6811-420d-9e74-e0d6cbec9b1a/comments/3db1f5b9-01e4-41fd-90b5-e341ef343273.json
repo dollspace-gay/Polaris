@@ -1,0 +1,10 @@
+{
+  "uuid": "3db1f5b9-01e4-41fd-90b5-e341ef343273",
+  "issue_uuid": "1fd20d71-6811-420d-9e74-e0d6cbec9b1a",
+  "author": "TeIq",
+  "content": "Delivered: pages/case_view.rs with leptos_router /cases/:subject_id route mounted in app.rs. 5 components — subject_header, history_timeline (with j/k keyboard nav + ARIA active-descendant), report_list, action_composer (reasoning >=10 gate + live counter + aria-live error), network_panel (placeholder for M2). PolarisApiClient extended with get_case, list_incidents, submit_action, escalate — both native and wasm impls. DTOs duplicated in api_client/dto.rs matching backend serde-compatible (decision: duplication over polaris-api-types workspace crate split until drift becomes real). Resource per fetch, ErrorBoundary at boundaries, Suspense fallbacks for loading states.",
+  "created_at": "2026-05-14T14:45:13.278125731Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAB8rj3rUDxzh//cEH08Gjp4WUvXRr7JhhTlGdQrVBvzQm2bFO+reZdJD3Tv1xfPX6w0ZZE3LURbTZAGYOYFXaAw=="
+}
