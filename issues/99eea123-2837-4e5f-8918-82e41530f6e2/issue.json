@@ -1,0 +1,11 @@
+{
+  "uuid": "99eea123-2837-4e5f-8918-82e41530f6e2",
+  "display_id": 44,
+  "title": "Add mobile / on-call surface for escalation response",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "e96a82a4-68bd-42b3-b0a0-7d253355e370",
+  "created_by": "TeIq",
+  "created_at": "2026-05-14T06:46:18.614915746Z",
+  "updated_at": "2026-05-14T06:46:18.614915746Z"
+}
