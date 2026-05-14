@@ -1,0 +1,10 @@
+{
+  "uuid": "00b0d7b2-9fed-437e-aea4-7c62807733c0",
+  "issue_uuid": "33cff5d4-bcd0-4846-b6b4-7e8c4a2a5f19",
+  "author": "TeIq",
+  "content": "Delivered: api/cases.rs with 4 handlers (subject view, incident list, submit action, escalate) all ≤ 25 lines orchestrating validation + repo + response. api/error.rs ApiError thiserror enum with IntoResponse impl producing {error, code} JSON for 401/404/400/409/500. api/dto.rs slim CaseView + IncidentSummary + SubmitAction types. api/policy.rs with KNOWN_POLICY_REFS allow-list. api/state.rs ApiState carrying Arc<PgFooRepo> for the 5 aggregates. IncidentRepo gained update_status() narrow mutation method (incidents are stateful; actions stay append-only). Auth middleware mounted via .route_layer on /api/cases/* subtree only — healthz + OIDC routes exempt. 1 new .sqlx cache entry for the update_status macro. moderator_id sourced from Extension<ModeratorAuthCtx>, never request body.",
+  "created_at": "2026-05-14T14:29:23.140204003Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAc//+kG8OUhN9GeIe1HwZYgHKuLQq1zWUFxGFl9jU0ADgyOI+87QxYA/0bJV15nz8Nn74h8JHgzy+KgwBP1jkCg=="
+}
