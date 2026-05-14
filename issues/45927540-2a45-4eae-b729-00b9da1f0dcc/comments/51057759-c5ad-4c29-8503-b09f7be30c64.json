@@ -1,0 +1,10 @@
+{
+  "uuid": "51057759-c5ad-4c29-8503-b09f7be30c64",
+  "issue_uuid": "45927540-2a45-4eae-b729-00b9da1f0dcc",
+  "author": "TeIq",
+  "content": "Resolution for the proto-blue MSRV blocker: The workspace files are complete and correct. The pre-flight mandated rust-version=1.85 matching proto-blue. However proto-blue 0.3.1 itself has an MSRV bug — it uses let-chain syntax (stabilized in 1.88) while declaring rust-version=1.85. This means cargo build --workspace fails at proto-blue, not at any Polaris crate. The crates that do NOT depend on proto-blue (polaris-types, xtask) build clean under 1.85. The crates that DO depend on proto-blue (polaris-backend, polaris-frontend) cannot build until either: (a) proto-blue fixes its MSRV declaration, or (b) the architect approves bumping workspace rust-version to 1.88. This is accurately reported in the final deliverable report. No unilateral MSRV bump was made.",
+  "created_at": "2026-05-14T07:10:21.502875184Z",
+  "kind": "resolution",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA66+reS4cwWfu0onIL7jWAe9AF60TQBAsCMsnVrpnMTWzHeJB8Gvh/g+91HDmRovBkzLTB1gGx48rEDxMs515Bw=="
+}
