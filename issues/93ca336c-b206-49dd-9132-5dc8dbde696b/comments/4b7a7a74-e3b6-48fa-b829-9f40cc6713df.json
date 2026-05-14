@@ -1,0 +1,10 @@
+{
+  "uuid": "4b7a7a74-e3b6-48fa-b829-9f40cc6713df",
+  "issue_uuid": "93ca336c-b206-49dd-9132-5dc8dbde696b",
+  "author": "TeIq",
+  "content": "Origin: #29 audit. polaris-backend/src/labeler/signer/passphrase_sealed.rs carries 6× `#[allow(deprecated, reason = \"aes-gcm 0.10 internal generic-array 0.x; bump with aes-gcm 0.11 stable\")]` at GenericArray::from_slice call sites. As of 2026-05-14 crates.io shows only aes-gcm 0.11.0-rc.3. When 0.11.0 ships stable: bump in [workspace.dependencies], remove the 6 allow blocks. Coordinates with proto-blue, secrecy, k256 because they share generic-array via the AEAD ecosystem — workspace-coordination event.",
+  "created_at": "2026-05-14T18:40:28.034358662Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOuZaPJBVV0Ez2qHCGX2DoUewFxIUskDvrHYFuEprqRpOgrNmu8vqw8NTDNYjg/WkudjQzVVzLV9GGMQ8vwYJAQ=="
+}
