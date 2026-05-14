@@ -1,0 +1,10 @@
+{
+  "uuid": "525221f1-aebd-4915-b2b0-34ff9daa6b6f",
+  "issue_uuid": "04dd4eaa-ca96-4fc3-91d5-6fc30606fb46",
+  "author": "TeIq",
+  "content": "Fixed via single-line `#[serde(rename = \"cloud-kms-oracle\")]` on the `CloudKms` variant in polaris-backend/src/config.rs:738. Both config tests now pass: labeler_signing_key_config_serde_tags_on_mode and labeler_signing_key_config_deserialises_each_mode. Clippy clean, fmt clean. Architect-trailing under the mechanical-fix exception (single-line; no architectural choice).",
+  "created_at": "2026-05-14T19:07:45.870057849Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAMDJgSZC1TFYw8yRQTzZP5lx44nNZ3ywCAMbKIuoc35y32rWCZFrlDIVklVtuqiMjTXnb/Z+RecCbxhv8QjT7DA=="
+}
