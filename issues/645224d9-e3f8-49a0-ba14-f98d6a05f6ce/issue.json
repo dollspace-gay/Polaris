@@ -6,5 +6,8 @@
   "priority": "low",
   "created_by": "TeIq",
   "created_at": "2026-05-14T20:59:41.839226377Z",
-  "updated_at": "2026-05-14T20:59:41.839226377Z"
+  "updated_at": "2026-05-14T20:59:43.226352498Z",
+  "labels": [
+    "chore"
+  ]
 }
