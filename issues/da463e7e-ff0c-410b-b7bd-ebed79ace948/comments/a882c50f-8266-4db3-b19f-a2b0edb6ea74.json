@@ -1,0 +1,10 @@
+{
+  "uuid": "a882c50f-8266-4db3-b19f-a2b0edb6ea74",
+  "issue_uuid": "da463e7e-ff0c-410b-b7bd-ebed79ace948",
+  "author": "TeIq",
+  "content": "Approach: Per architect's pre-flight, implementing minimum scaffold: DbConfig, PgPool constructor with sqlx::migrate runner, /healthz that pool.acquire().await's without SQL. NO sqlx::query! macros this issue (zero queries — that's #13). Storing PgPool directly in Db struct (PgPool is internally Arc'd; no extra wrapping). DbError via thiserror; AppConfig as central config; testcontainers integration smoke test that skips gracefully when docker absent.",
+  "created_at": "2026-05-14T12:26:24.681251660Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASouibnTIpkPqUFMjeZDU4CVeJix8u6Gl83RdOtuvgtyQJn/t8z6lQshippPUd7CtLtMLCzvAt69vp4LcC2MUAg=="
+}
