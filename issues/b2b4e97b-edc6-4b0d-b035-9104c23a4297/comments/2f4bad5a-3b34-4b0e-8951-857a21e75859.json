@@ -1,0 +1,10 @@
+{
+  "uuid": "2f4bad5a-3b34-4b0e-8951-857a21e75859",
+  "issue_uuid": "b2b4e97b-edc6-4b0d-b035-9104c23a4297",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** Ship deploy/{docker-compose.yaml, Caddyfile.example, .env.example, helm/{Chart.yaml,values.yaml.example,templates/...}, systemd/polaris.service, Dockerfile.bluesky-profile} + docs/ops/backup.md. Verification gates: docker compose config (always); docker build (if context available); helm lint (if installed). Specific version pins, no :latest. .env.example consolidates every AppConfig env var. Backup runbook covers managed PITR (RDS/Cloud SQL) + self-hosted (pgBackRest/wal-g) + audit-log S3-object-lock + quarterly restore drill. cross-musl-static actual build deferred to CI; Dockerfile shipped + documented.",
+  "created_at": "2026-05-14T21:20:06.758560998Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAdaEPjTZcktLbnnJgVtv3O3FPmLOkzfUF+OpM6idzhOxQqQVWqRUl6B/D6Hb8FhimT9LKNasnGnJWz4UJ/7XjAQ=="
+}
