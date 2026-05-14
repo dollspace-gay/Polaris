@@ -1,0 +1,10 @@
+{
+  "uuid": "6d0412be-10e6-49c2-b0ed-1864d297222f",
+  "issue_uuid": "7694041b-fa6f-4105-9f12-7e9a9cd6929b",
+  "author": "TeIq",
+  "content": "Session auto-ended (stale after 1131 minutes). No handoff notes provided.",
+  "created_at": "2026-05-14T23:43:08.632020972Z",
+  "kind": "handoff",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA2hMn4SEEquE9pMpg5E5DUlBxM83Id0O7DIB2C+OgSBuqKu6jGEmryjk+4w0CAxsQbFBEo2j6ut4ss62ry4SVDg=="
+}
