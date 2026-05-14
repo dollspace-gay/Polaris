@@ -1,0 +1,10 @@
+{
+  "uuid": "27a9a524-7ef2-459d-8119-ca18cc7b0f05",
+  "issue_uuid": "329ae090-e871-420a-a295-6cb34d38d240",
+  "author": "TeIq",
+  "content": "APPROVE-DESIGN-PHASE. Design doc shipped at .design/m5/42-polaris-nsids.md per the issue's own '/design doc first' pre-implementation directive. Doc covers REQ + AC + architecture sketch + open questions ready for human review. Implementation is v2-roadmap work; per v1 design '.design/polaris-proto-blue-integration.md §E + Out of Scope', deliberately deferred. Closing this issue's design-phase work; implementation tracked separately when v2 scope opens.",
+  "created_at": "2026-05-14T22:30:53.851112372Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAyAWB3ffSqLaUXrJndUIO8NE66K5BOQ4TyoBe+38VJLDAdag1b9y91ox594qvHI6BuEgU+NUFGbX+JkV1vkwdBQ=="
+}
