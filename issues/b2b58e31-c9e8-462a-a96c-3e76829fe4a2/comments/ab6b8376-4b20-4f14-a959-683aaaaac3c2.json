@@ -1,0 +1,10 @@
+{
+  "uuid": "ab6b8376-4b20-4f14-a959-683aaaaac3c2",
+  "issue_uuid": "b2b58e31-c9e8-462a-a96c-3e76829fe4a2",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** Migration 18: audit_log (seq BIGSERIAL, ts, actor, kind, payload JSONB, prev_hash BYTEA, this_hash BYTEA). BEFORE INSERT trigger computes this_hash = SHA-256(prev_hash || canonical_cbor(payload) || ts || actor || kind). polaris-backend/src/audit/{log,attestation}.rs. AuditLog::record(event) takes a transaction so audit row commits atomically with the event being audited. Attestation worker reuses BlobStore from #33 (in-memory for tests). xtask audit-verify walks chain from seq=1. Long-chain test: 1k events (100k deferred to #72 perf follow-up). Byte-offset tamper diagnostic deferred — row-level detection ships.",
+  "created_at": "2026-05-14T21:00:23.433798309Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABADOBqe/OdPBbTyIz4vZsb4sRa8x14QJTVpPAY3BdGyfa0sSWazsfnbPfLO36Z7mRT2s0gsqZhym5fbfl8ft1tBA=="
+}
