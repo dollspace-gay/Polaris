@@ -1,0 +1,10 @@
+{
+  "uuid": "c4aac3cf-f50c-405b-acdc-26158fcb6b74",
+  "issue_uuid": "055c547a-b390-4a3e-a698-f6ef8cce1d38",
+  "author": "TeIq",
+  "content": "Architect verdict: APPROVE.\n\nIndependent verification:\n- cargo build --workspace: clean.\n- cargo clippy --workspace --all-targets -- -D warnings: clean.\n- cargo fmt --check: exit 0.\n- SQLX_OFFLINE=true cargo build --workspace: clean.\n- cargo xtask check-frontend-boundary: 0 violations.\n- cargo test -p polaris-backend --lib wellness: 13/13 pass.\n\nPrivacy-by-construction enforced: aggregate_for_manager short-circuits to empty BEFORE any DB I/O when consent=false (test 3 asserts no queries fire). Routing service updated with PgModeratorDirectory consulting ExposureTracker::remaining_budget — replaces #22's u32::MAX placeholder. Schema version row 10 (migration 00000000000008 already claimed 9).",
+  "created_at": "2026-05-14T16:52:01.434976736Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA/0EaUzNSkpR/Fq97luJlaUTA4Yn7ZpViNiIbdEEGuxkdznHrzF9LeYWzDpvDGPDqTN5bMpf6y0upN/hFb4rgDg=="
+}
