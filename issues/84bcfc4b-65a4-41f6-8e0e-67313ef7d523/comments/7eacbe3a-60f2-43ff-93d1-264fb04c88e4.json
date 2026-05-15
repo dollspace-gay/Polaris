@@ -1,0 +1,10 @@
+{
+  "uuid": "7eacbe3a-60f2-43ff-93d1-264fb04c88e4",
+  "issue_uuid": "84bcfc4b-65a4-41f6-8e0e-67313ef7d523",
+  "author": "TeIq",
+  "content": "Implemented per architect pre-flight. step_write_new_key_material now dispatches on CustodyMode to four mode-specific helper fns: write_passphrase_sealed_key, write_os_keychain_key, write_cloud_kms_key. RotationContext gained a RotationCustodyParams sum-type carrying the per-mode runtime inputs (passphrase / account / KMS region+alias). CLI binary extended with --account / --kms-region / --kms-alias flags; passphrase comes from POLARIS_SIGNING_PASSPHRASE env (consistent with read path). KMS primitive chosen: CreateKey(KeyUsage=SignVerify, KeySpec=ECC_SECG_P256K1) + UpdateAlias, deviating from the literal 'generate_data_key_pair' in the pre-flight because data-key-pair returns plaintext-encrypted-by-CMK keys which AwsKmsSigner cannot sign with. Per-mode tests: passphrase-sealed in-process roundtrip; os-keychain #[ignore]'d (real OS keychain daemon required); cloud-kms gated by 'kms-integration' feature with localstack-style env gate. All 6 evidence-floor items green: build/clippy/fmt clean, 11 rotation tests pass (1 ignored), 0 Unsupported-passphrase/os_keychain hits, 0 frontend-boundary violations.",
+  "created_at": "2026-05-15T04:44:30.839797818Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAQu2OB7VKNWKjknNtRNa/ER7WCgtBLayy8aGoy3LvaLwCvtQUNwHcKc/rm0iOl7ThbC1lmYAXLeSE+itddC5tBw=="
+}
