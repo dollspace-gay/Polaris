@@ -1,0 +1,10 @@
+{
+  "uuid": "48639345-5585-4ef4-9ccd-c3a0c925f13c",
+  "issue_uuid": "c0ec52f9-236a-446c-88b1-58f71a4db1ee",
+  "author": "TeIq",
+  "content": "Closed as duplicate. #37 (Add reporter reputation scoring and false-report weighting in pattern engine) shipped this work end-to-end: PgReputationProvider hooks into Report + Action insert in shared tx; threat_t3 test uses the existing every_report_records_reporter_did invariant; the deeper anomaly-detector rewiring is tracked under #77.",
+  "created_at": "2026-05-15T02:11:48.536463254Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAjOOJQaO699Rh/WrpdQa2TDiRk+9yHbRTG0UmcNAJIyojCo0xSNPjBeDNj0YKQmoR2KAeyWNM+Zs8FR+uP4DRAg=="
+}
