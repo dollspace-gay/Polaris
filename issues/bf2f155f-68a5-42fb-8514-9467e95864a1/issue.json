@@ -1,0 +1,10 @@
+{
+  "uuid": "bf2f155f-68a5-42fb-8514-9467e95864a1",
+  "display_id": 82,
+  "title": "Frontend: login page that wires to /auth/atproto/login",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-15T12:36:18.424793693Z",
+  "updated_at": "2026-05-15T12:36:18.424793693Z"
+}
