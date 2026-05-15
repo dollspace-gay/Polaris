@@ -1,0 +1,10 @@
+{
+  "uuid": "e4841804-282c-4bdf-9022-c158968a2435",
+  "issue_uuid": "a575525a-cb51-45c7-8903-469afb064990",
+  "author": "TeIq",
+  "content": "Smoke-test #79 discovery against polarislabeler.bsky.social. polaris-publish-did-service authenticates via create_session(app_password) → calls request_plc_operation_signature → bsky.social PDS returns 'Bad token scope'. App-password-issued sessions do not carry the scope PLC operations require; PDSes restrict PLC ops to OAuth sessions or main-password (which would need 2FA handling). Fix: add --oauth path mirroring polaris-publish-labeler-record's recent #61 wiring. Same client-metadata + paste-back URL UX. Until this lands, did:plc identities cannot be smoke-tested end-to-end via the CLI.",
+  "created_at": "2026-05-15T11:23:46.198436908Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABApXedJwLXb7vrRD091HMtGbgdn7pZIQG5vXvQjSV0fQvlKoYo4QTiLryQkCvzCGK6WxjObyfDlK9b5KsQUjtmAA=="
+}
