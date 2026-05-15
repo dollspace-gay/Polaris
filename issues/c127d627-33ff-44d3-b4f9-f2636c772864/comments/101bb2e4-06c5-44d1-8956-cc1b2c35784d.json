@@ -1,0 +1,10 @@
+{
+  "uuid": "101bb2e4-06c5-44d1-8956-cc1b2c35784d",
+  "issue_uuid": "c127d627-33ff-44d3-b4f9-f2636c772864",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** Inside AtprotoOauthAuthVerifier::complete_login_impl, after the moderators upsert, run inside the same tx: SELECT count(*) FROM moderator_roles. If 0 (first moderator system-wide), INSERT (moderator_id, 'admin', granted_at, NULL) ON CONFLICT DO NOTHING. Audit-log entry via AuditLog::record with kind='first_user_admin_grant' payload={moderator_id, handle}. New /api/whoami endpoint (GET, authed) returns {moderator_id, roles, first_run, handle}. Frontend wire pending #84.",
+  "created_at": "2026-05-15T12:47:26.267798762Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABATNh9iiHd4hpVuo1MMASe3qbwQsZ+hT5Mxj+O1E5JA+bJ1kgCSq4qHLKFwBQ669L1RklByCP6om+dg6dxumOOAg=="
+}
