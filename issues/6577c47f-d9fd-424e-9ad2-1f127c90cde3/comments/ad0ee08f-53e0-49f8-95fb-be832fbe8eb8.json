@@ -1,0 +1,10 @@
+{
+  "uuid": "ad0ee08f-53e0-49f8-95fb-be832fbe8eb8",
+  "issue_uuid": "6577c47f-d9fd-424e-9ad2-1f127c90cde3",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence: 5/5 incident_aggregator + 3/3 threat_t4 pass (csam_priority_bypasses_general_queue_under_report_flood no longer #[ignore]'d). ReportAggregator drains reports.incident_id IS NULL via SELECT FOR UPDATE SKIP LOCKED — parallel-replica-safe. Migration 23 adds report_count column + AFTER INSERT/UPDATE-OF-incident_id trigger keeping count synced inside same tx. CSAM detection promotes incidents.severity to Critical, threading through existing routing cascade — no parallel category column. 24h window default for re-attaching to open ('open' or 'in_review') incident. Build + clippy + fmt clean. T4 mitigation surface complete.",
+  "created_at": "2026-05-15T05:35:32.757714398Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABADq16YFgxP66TlQRl911ckLRvZ2P0uVux1MJIEwSeenjQ1+rxM29O19FnK2Q5ZujqVWg5aKfrDflAdI6E6qzxDg=="
+}
