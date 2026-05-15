@@ -1,0 +1,10 @@
+{
+  "uuid": "95b940d2-27bd-4c01-a757-ef603b20ba44",
+  "issue_uuid": "464d4aa5-eca7-4f45-816b-aa46ff0b6ba3",
+  "author": "TeIq",
+  "content": "Smoke test surface landed end-to-end as part of `.design/polaris-operationally-complete.md` (REQ-E1 / AC-E1).\n\n`polaris-backend/tests/smoke_e2e.rs` walks the entire producer slice hermetically under a MockFetcher: OAuth login → wizard step 1 (generate-key) → step 2 (publish-labeler-record) → step 3 (request-plc-signature) → step 4 (submit-plc-operation) → action submission → WebSocket subscribeLabels → verify_label → /metrics scrape. Wall-clock 2.23s. Runs every PR via the existing test job (.github/workflows/ci.yml).\n\nOperator-facing entry point: `cargo xtask smoke-local` runs the same test locally.\n\nLexicon-drift watchdog (REQ-E2/E3): `cargo xtask lexicon-contract` against pinned upstream commit cb1387899f0b296759ebdf5b8985b6b573091a9a; 6 lexicons PASS. Weekly cron in .github/workflows/lexicon-contract.yml opens a new GitHub issue per drift event.\n\nThe manual smoke session against polarislabeler.bsky.social that originally motivated this issue surfaced seven discrete production bugs (leptos csr feature missing, signer chicken-and-egg boot, OAuth scope drift, DPoP nonce retry, PLC services/verificationMethods merge, bincode envelope drift, no CSS). All seven are closed in the working tree; the smoke_e2e test pins the wire-shape contracts so regression is mechanical-failure.",
+  "created_at": "2026-05-15T21:15:25.621060688Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAp1Pg5knCi4nfQx7s0pKTnBxe+WnnwmSi/ZBSl/FjYshV51p7ptWJusM3I1owc6TPIA7UXOrBlGJxawFWkN1RDg=="
+}
