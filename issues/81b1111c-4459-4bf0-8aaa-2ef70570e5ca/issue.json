@@ -2,11 +2,12 @@
   "uuid": "81b1111c-4459-4bf0-8aaa-2ef70570e5ca",
   "display_id": 87,
   "title": "Serve polaris-frontend static bundle from polaris-backend",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-15T14:04:55.747646581Z",
-  "updated_at": "2026-05-15T14:04:57.417718133Z",
+  "updated_at": "2026-05-15T14:17:29.005881586Z",
+  "closed_at": "2026-05-15T14:17:29.005881586Z",
   "labels": [
     "feature"
   ]
