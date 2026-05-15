@@ -1,0 +1,10 @@
+{
+  "uuid": "3d5a10ec-c9c9-4ab8-ae1d-8a644d9b235c",
+  "issue_uuid": "4f68286c-4a9e-4fc4-87e5-ba3c86f5d50c",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence floor green: 8/8 case_api tests pass in 2.45s (well under 30s budget). AC-7 runtime proof established — every test routes through api::router_with_state which includes the auth middleware. Test coverage: 401 on missing cookie (auth-gate fires), 200 with valid session (full Crypto::seal session path exercised), 404 unknown subject, 400 bad reasoning, 400 unknown policy_ref, 201 happy path with persisted row, 200 escalate updates incident.status. No production-code changes. Tower + http-body-util already in dev-deps. Per-test isolation via fresh testcontainers PG16-alpine boot.",
+  "created_at": "2026-05-15T01:10:53.656411412Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA3Pc9LaL433q9aWppZApJMTHl8N/akEgjr+TFwFCWwqnrpgBElyEbq53XgXsj0M4KWbMEoQFYer3bW1Xia3KZDw=="
+}
