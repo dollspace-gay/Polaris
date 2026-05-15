@@ -1,0 +1,10 @@
+{
+  "uuid": "aa79ff81-e96e-4727-a800-bdd2d837b45c",
+  "issue_uuid": "84bcfc4b-65a4-41f6-8e0e-67313ef7d523",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** Extend rotation.rs::step_write_new_key_material with CustodyMode dispatch. (1) passphrase_sealed: reuse PassphraseSealedSigner::write_sealed helper to write the new keypair sealed at the configured path. (2) os_keychain: keyring::Entry::new + set_password with hex-encoded new secret. (3) cloud_kms_oracle: AWS KMS generate_data_key_pair → create alias pointing at new key ID → atomic-swap config to new key_id (alias swap is the rotation primitive). Each mode adds a unit test for its write path. State machine unchanged. CustodyMode enum gets per-variant write impl.",
+  "created_at": "2026-05-15T04:27:38.607193735Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA4W/SOtJvMdGIgByEqMFdMBt0e+/iYSA6j6TRgADk8/iLvwtmujXvDL0z8Iy2ZKEm4HJXlwWZECjOu1dqrGZPBg=="
+}
