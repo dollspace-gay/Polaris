@@ -1,0 +1,10 @@
+{
+  "uuid": "64f25067-5fc6-42b5-8cb4-585acfc6f170",
+  "issue_uuid": "0e0fea3a-cabb-4f03-8e6e-c53731219d26",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence: 3/3 key_rotation integration tests pass in 2.97s. AC-15 binding test (emit_rotate_emit_verify_both_under_issuance_time_keys) proves cross-key verification — L1 verified under K1 via signing_key_history.active_key_at lookup, L2 under K2. Failure-injection seeds rotation_state at last_step='key_written' + pre-writes K2 hex file, resume via RotationContext::resume completes without regenerating (sha256 byte-identical). Append-only triggers proven: DELETE/illegal-UPDATE/un-retire all raise P0001 on signing_key_history; revoked_keys DELETE/UPDATE both raise P0001. clippy + fmt clean. AC-15 closes.",
+  "created_at": "2026-05-15T02:49:19.318758439Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAtBufbJnarDLLW9EQusWgSON1ET70kw9hIGOZw14RYgY8N76BfPKG49ezkmRAyz+Wo1F3/c55+NEry94VfRn8Bw=="
+}
