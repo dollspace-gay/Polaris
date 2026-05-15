@@ -1,0 +1,10 @@
+{
+  "uuid": "45a59a2a-e6dc-4474-976d-6cb707fbaa80",
+  "issue_uuid": "93ca336c-b206-49dd-9132-5dc8dbde696b",
+  "author": "TeIq",
+  "content": "Holding open — upstream aes-gcm is still 0.11.0-rc.3 (verified via cargo search 2026-05-14). The issue's own plan-comment defines the condition: 'When 0.11.0 ships stable: bump in [workspace.dependencies], remove the 6 allow blocks.' Honest report: not actionable today. Leaving open with this re-grounded note; next check on 0.11 stable should be cargo search aes-gcm again. The 6× #[allow(deprecated)] stopgap in polaris-backend/src/labeler/signer/passphrase_sealed.rs remains correct.",
+  "created_at": "2026-05-15T02:41:12.134317897Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA9UWuJGnoGXC42iFqygu3lMH43R5gqAZvV/XIAqB0a4PUY6aezx6bHwGO0j5vWRsWedc4MJzLvSe9Y/pTzfTnCQ=="
+}
