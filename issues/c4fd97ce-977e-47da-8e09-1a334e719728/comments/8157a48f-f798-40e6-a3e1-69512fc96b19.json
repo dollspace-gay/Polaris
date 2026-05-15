@@ -1,0 +1,10 @@
+{
+  "uuid": "8157a48f-f798-40e6-a3e1-69512fc96b19",
+  "issue_uuid": "c4fd97ce-977e-47da-8e09-1a334e719728",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence: 3/3 evidence_retry tests pass in 3.55s (failed_job_schedules_retry_in_the_future, retry_succeeds_when_due_and_increments_attempt_count, max_attempts_leaves_row_permanently_failed). Build + clippy + fmt clean. Migration 21 adds last_attempt_at + next_attempt_at + partial index. Permanence via 'next_attempt_at IS NOT NULL' guard in the drain WHERE clause. Backoff: 2^min(attempt,11) * retry_base_secs, capped 24h, ±25% jitter via integer math. DEFAULT_MAX_ATTEMPTS=8 spans ~5h. retry_delay is pure (5 unit tests under evidence::worker::retry).",
+  "created_at": "2026-05-15T04:15:55.944391332Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAp2NdUgmyu58DwKS6iYhdxdfCVZXjHKEcxkn1ug0XRRg1/tUkQO98mXZrXYNA1GcDHMm6L0Kr0bDEB+CAfaqICg=="
+}
