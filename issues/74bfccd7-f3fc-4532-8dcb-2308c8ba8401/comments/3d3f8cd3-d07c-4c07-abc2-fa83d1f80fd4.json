@@ -1,0 +1,10 @@
+{
+  "uuid": "3d3f8cd3-d07c-4c07-abc2-fa83d1f80fd4",
+  "issue_uuid": "74bfccd7-f3fc-4532-8dcb-2308c8ba8401",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** Replace NotWiredEvidenceFetcher in main.rs with a real impl using proto_blue_api::com::atproto::sync::{describeRepo, getRecord, getBlocks} query bindings. The fetcher: from a record AT-URI like at://did:plc:abc/app.bsky.feed.post/k1, calls describeRepo on the PDS to discover the commit root, then getRecord to fetch the record CID + its MST proof path. Returns BlockMap suitable for proto_blue_repo::blocks_to_car. New EvidenceFetcher trait already exists — implement it. Optional PLC-directory lookup for handle→PDS resolution (use proto_blue_identity::IdResolver which we already use elsewhere).",
+  "created_at": "2026-05-15T04:16:31.526243419Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAW8iZkQ/8HfA6ukRToXWzfG/y6cTkXnKvYSGEx1HmnoQat7bDxE/2VCtFdqCXy73489hdA3uzvIxcOUP8yvMxBg=="
+}
