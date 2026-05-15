@@ -37,6 +37,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use hmac::{Hmac, Mac};
 use polaris_backend::auth::crypto::Crypto;
 use polaris_backend::auth::oidc::OidcAuthVerifier;
 use polaris_backend::auth::session::SessionStore;
@@ -61,19 +62,28 @@ fn docker_available() -> bool {
         .unwrap_or(false)
 }
 
-/// Build a minimal JWT-like id_token. The mock IdP advertises itself as
-/// using `alg: "none"` JWTs which `openidconnect` accepts when configured
-/// via `IdTokenVerifier::insecure_disable_signature_check`. We do not call
-/// that disable-fn — we tell the discovery to advertise `["none"]` as the
-/// allowed `id_token_signing_alg_values_supported`, then encode the same
-/// way.
-fn make_unsigned_jwt(payload: &serde_json::Value) -> String {
-    let header = serde_json::json!({ "alg": "none", "typ": "JWT" });
+/// Empty JWKS — for HS256 the symmetric key is the OIDC `client_secret`
+/// per OIDC Core §10.1, not a JWK at /jwks. We still serve a valid
+/// (empty) JWKS so the discovery probe doesn't 404.
+fn jwks_body() -> serde_json::Value {
+    serde_json::json!({ "keys": [] })
+}
+
+/// Build an HS256-signed id_token using the OIDC `client_secret` as the
+/// HMAC key. Per RFC 7518 + OIDC Core §10.1, HS256 id_tokens are signed
+/// with the (UTF-8 bytes of the) client_secret rather than a JWKS-resolved
+/// key. `openidconnect` 4.x enforces this convention; signing with any
+/// other key produces a "bad HMAC" verification error.
+fn make_signed_jwt(payload: &serde_json::Value, client_secret: &str) -> String {
+    let header = serde_json::json!({ "alg": "HS256", "typ": "JWT" });
     let h = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&header).unwrap());
     let p = URL_SAFE_NO_PAD.encode(serde_json::to_vec(payload).unwrap());
-    // alg=none → empty signature segment, but the segment marker (the
-    // trailing `.`) must be present.
-    format!("{h}.{p}.")
+    let signing_input = format!("{h}.{p}");
+    let mut mac = Hmac::<sha2::Sha256>::new_from_slice(client_secret.as_bytes())
+        .expect("HMAC accepts any key length");
+    mac.update(signing_input.as_bytes());
+    let sig = URL_SAFE_NO_PAD.encode(mac.finalize().into_bytes());
+    format!("{signing_input}.{sig}")
 }
 
 #[tokio::test]
@@ -114,7 +124,7 @@ async fn oidc_login_flow_persists_session_row() {
         "jwks_uri": format!("{issuer_url}/jwks"),
         "response_types_supported": ["code"],
         "subject_types_supported": ["public"],
-        "id_token_signing_alg_values_supported": ["none"],
+        "id_token_signing_alg_values_supported": ["HS256"],
         "scopes_supported": ["openid", "email", "profile"],
         "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
         "claims_supported": ["sub", "name", "preferred_username", "email"],
@@ -124,10 +134,10 @@ async fn oidc_login_flow_persists_session_row() {
         .respond_with(ResponseTemplate::new(200).set_body_json(&discovery))
         .mount(&server)
         .await;
-    // JWKS — empty key set is fine because we use alg=none.
+    // JWKS — publishes the symmetric HS256 key the mock IdP signs id_tokens with.
     Mock::given(method("GET"))
         .and(path("/jwks"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "keys": [] })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(jwks_body()))
         .mount(&server)
         .await;
 
@@ -182,7 +192,7 @@ async fn oidc_login_flow_persists_session_row() {
         "nonce": nonce,
         "name": "Test Moderator",
     });
-    let id_token = make_unsigned_jwt(&id_token_claims);
+    let id_token = make_signed_jwt(&id_token_claims, "test-secret");
     let token_response = serde_json::json!({
         "access_token": "mock-access-token",
         "token_type": "Bearer",

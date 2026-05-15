@@ -199,8 +199,14 @@ wasmparser = "0.244"
 openidconnect = { version = "4", default-features = false, features = ["reqwest", "rustls-tls"] }
 
 # Auth: AES-256-GCM AEAD for refresh-token-at-rest encryption.
-# aes-gcm 0.10.3 (crates.io 2026-05-14), RustCrypto, MIT/Apache-2.0.
-aes-gcm = "0.10"
+# aes-gcm 0.11.0-rc.3 (crates.io 2026-05-15), RustCrypto, MIT/Apache-2.0.
+# 0.11 pulls generic-array 1.x which drops the deprecation warnings the
+# 0.10 line emits (#62). RC chosen because 0.11.0 final has not yet
+# shipped; the API surface this crate exercises (`KeyInit::new_from_slice`,
+# `Aead::encrypt` / `decrypt`) is stable across the RC series. Pin back
+# to 0.10 if the RC introduces a regression — the call sites are
+# narrow.
+aes-gcm = "0.11.0-rc.3"
 
 # Issue #24: SHA-256 of the appellant's source IP for the appeals
 # rate-limit accounting path. RustCrypto family, already in the

@@ -53,8 +53,8 @@
 
 use std::path::Path;
 
-use aes_gcm::aead::{Aead as _, KeyInit as _};
-use aes_gcm::{Aes256Gcm, Key, Nonce};
+use aes_gcm::Aes256Gcm;
+use aes_gcm::aead::{Aead as _, KeyInit as _, Nonce};
 use proto_blue::crypto::{K256Keypair, Keypair as _, Signer as _};
 use scrypt::{Params, scrypt};
 use zeroize::Zeroize as _;
@@ -128,28 +128,16 @@ impl PassphraseSealedSigner {
         // Passphrase is no longer needed.
         drop(passphrase);
 
-        // `Key::from_slice` / `Nonce::from_slice` are deprecated only
-        // because aes-gcm 0.10 carries an older `generic-array` 0.x
-        // internally; aes-gcm 0.11 (which uses generic-array 1.x) is
-        // available only as `0.11.0-rc.3` on crates.io as of
-        // 2026-05-14, so bumping is a workspace-coordination event
-        // (proto-blue, secrecy, k256 all share the array dep). The
-        // deprecation is upstream-only — runtime behaviour is unchanged.
-        #[allow(
-            deprecated,
-            reason = "aes-gcm 0.10 internal generic-array 0.x; bump with aes-gcm 0.11 stable"
-        )]
-        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&kek));
+        let cipher = Aes256Gcm::new_from_slice(&kek).map_err(|_| SigningError::KeyDecrypt)?;
         // Zeroise the derived KEK *after* AEAD init — the cipher
         // internally clones the key material into its expanded form.
         kek.zeroize();
 
-        #[allow(
-            deprecated,
-            reason = "aes-gcm 0.10 internal generic-array 0.x; bump with aes-gcm 0.11 stable"
-        )]
-        let nonce = Nonce::from_slice(nonce_bytes);
-        let secret_bytes = cipher.decrypt(nonce, ciphertext).map_err(|_| {
+        let nonce_arr: [u8; 12] = nonce_bytes
+            .try_into()
+            .map_err(|_| SigningError::KeyDecrypt)?;
+        let nonce = Nonce::<Aes256Gcm>::from(nonce_arr);
+        let secret_bytes = cipher.decrypt(&nonce, ciphertext).map_err(|_| {
             // GCM authentication failure: do NOT echo any cause text
             // because aes-gcm intentionally returns an opaque error to
             // prevent padding-oracle-style probing. Mapping to
@@ -197,19 +185,14 @@ impl PassphraseSealedSigner {
     ) -> Result<Self, SigningError> {
         let (salt, nonce_bytes, ciphertext) = split_sealed_blob(blob)?;
         let mut kek = derive_kek(passphrase, salt)?;
-        #[allow(
-            deprecated,
-            reason = "aes-gcm 0.10 internal generic-array 0.x; bump with aes-gcm 0.11 stable"
-        )]
-        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&kek));
+        let cipher = Aes256Gcm::new_from_slice(&kek).map_err(|_| SigningError::KeyDecrypt)?;
         kek.zeroize();
-        #[allow(
-            deprecated,
-            reason = "aes-gcm 0.10 internal generic-array 0.x; bump with aes-gcm 0.11 stable"
-        )]
-        let nonce = Nonce::from_slice(nonce_bytes);
+        let nonce_arr: [u8; 12] = nonce_bytes
+            .try_into()
+            .map_err(|_| SigningError::KeyDecrypt)?;
+        let nonce = Nonce::<Aes256Gcm>::from(nonce_arr);
         let secret_bytes = cipher
-            .decrypt(nonce, ciphertext)
+            .decrypt(&nonce, ciphertext)
             .map_err(|_| SigningError::KeyDecrypt)?;
         if secret_bytes.len() != SECRET_KEY_LEN {
             return Err(SigningError::KeyLoad {
@@ -261,20 +244,12 @@ impl PassphraseSealedSigner {
         rand::rngs::OsRng.fill_bytes(&mut nonce_bytes);
 
         let mut kek = derive_kek(passphrase, &salt)?;
-        #[allow(
-            deprecated,
-            reason = "aes-gcm 0.10 internal generic-array 0.x; bump with aes-gcm 0.11 stable"
-        )]
-        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&kek));
+        let cipher = Aes256Gcm::new_from_slice(&kek).map_err(|_| SigningError::KeyDecrypt)?;
         kek.zeroize();
 
-        #[allow(
-            deprecated,
-            reason = "aes-gcm 0.10 internal generic-array 0.x; bump with aes-gcm 0.11 stable"
-        )]
-        let nonce = Nonce::from_slice(&nonce_bytes);
+        let nonce = Nonce::<Aes256Gcm>::from(nonce_bytes);
         let ciphertext = cipher
-            .encrypt(nonce, secret_bytes.as_slice())
+            .encrypt(&nonce, secret_bytes.as_slice())
             .map_err(|_| SigningError::KeyLoad {
                 reason: "AES-GCM encryption failed during sealed-key write",
             })?;
@@ -426,19 +401,14 @@ mod tests {
         // not `Debug`.
         let (salt, nonce_bytes, ciphertext) = split_sealed_blob(blob)?;
         let mut kek = derive_kek(passphrase, salt)?;
-        #[allow(
-            deprecated,
-            reason = "aes-gcm 0.10 internal generic-array 0.x; bump with aes-gcm 0.11 stable"
-        )]
-        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&kek));
+        let cipher = Aes256Gcm::new_from_slice(&kek).map_err(|_| SigningError::KeyDecrypt)?;
         kek.zeroize();
-        #[allow(
-            deprecated,
-            reason = "aes-gcm 0.10 internal generic-array 0.x; bump with aes-gcm 0.11 stable"
-        )]
-        let nonce = Nonce::from_slice(nonce_bytes);
+        let nonce_arr: [u8; 12] = nonce_bytes
+            .try_into()
+            .map_err(|_| SigningError::KeyDecrypt)?;
+        let nonce = Nonce::<Aes256Gcm>::from(nonce_arr);
         let pt = cipher
-            .decrypt(nonce, ciphertext)
+            .decrypt(&nonce, ciphertext)
             .map_err(|_| SigningError::KeyDecrypt)?;
         K256Keypair::from_private_key(&pt)
             .map(RedactedKeypair)

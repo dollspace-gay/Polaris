@@ -221,6 +221,14 @@ reqwest = { workspace = true }
 # OIDC integration test can parse the authorize_url query params.
 url = "2"
 
+# `hmac` for HS256 id_token signing in the OIDC integration test fixture.
+# openidconnect 4.x stopped accepting `alg=none` JWTs even when discovery
+# advertises them — the mock IdP now serves HS256-signed tokens and
+# publishes the symmetric key via the JWKS endpoint. `hmac` is already in
+# the lockfile transitively via openidconnect itself; promoting to a
+# direct dev-dep adds zero compile cost.
+hmac = "0.12"
+
 # `tracing-test` 0.2.6 (crates.io 2026-05-14) — installs a per-test
 # `tracing` subscriber and captures emitted events into a `logs_contain` /
 # `logs_assert` API. Used by `tests/sql_injection_auth.rs` to verify that

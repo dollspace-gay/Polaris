@@ -43,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Resolve proto-blue 0.3.1 MSRV blocker (1.88 features under declared 1.85) (#50)
 
 ### Changed
+- Bump aes-gcm 0.10 -> 0.11 when stable (remove deprecated GenericArray allows) (#62)
 - Consolidate duplicate canonical-CBOR encoders (emitter.rs + upstream_labels.rs) (#78)
 - Wasm bundle-size budget gate in CI (#71)
 - AC-15 binding integration test: emit-rotate-emit-verify-both (#65)
