@@ -1,0 +1,10 @@
+{
+  "uuid": "1e00874a-2524-4830-868f-671377014120",
+  "issue_uuid": "6ab76739-8903-474c-a65d-a5d3e23574b9",
+  "author": "TeIq",
+  "content": "Closed. docs/ops/quick-start.md rewritten: from 8-step CLI-driven path to a 6-step browser-driven path. Browser wizard (login → /setup with 3 steps) is the default. CLIs preserved as escape hatches for CI/IaC + recovery. New section documents OAuth client-metadata file setup; first-user-admin behavior; troubleshooting for OAuth-bounce, PLC-token-email-delay.",
+  "created_at": "2026-05-15T14:01:17.928849908Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAVu52YY3Xg9Yl3IbW7c/ZDlsRZGpUQxsVS7Z58/6Lab4aSy5enGr/XrsXEdPf4NnS92uiYfATFqaophRX1es0DQ=="
+}
