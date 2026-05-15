@@ -1,0 +1,10 @@
+{
+  "uuid": "3b5d0c20-3cf6-4031-b276-4859db3eb9c7",
+  "issue_uuid": "0e0fea3a-cabb-4f03-8e6e-c53731219d26",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** New polaris-backend/tests/key_rotation.rs. 3 tests: (1) AC-15 e2e — emit L1 with K1, rotate, emit L2 with K2, verify both via signing_key_history lookup; (2) Failure-injection — kill mid-rotation at last_step='key_written', resume via --resume id, complete cleanly; (3) Append-only triggers — DELETE / illegal-UPDATE raise P0001, legal active_until-set UPDATE succeeds. testcontainers PG 16-alpine. Module-level test allows.",
+  "created_at": "2026-05-15T02:41:37.743533070Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAcbolJ72tlbLeztQ1nZDwcZt/b//mBtSw3jhyq/kYCEDZ2TifE2SSk1YvFzTtSq4ESsf4KnWQ00nGrmsR3AsaDA=="
+}
