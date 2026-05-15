@@ -1,0 +1,10 @@
+{
+  "uuid": "9c269ba7-2d2e-4b2a-98fe-233cfcecabb4",
+  "issue_uuid": "91ba5fa3-3f30-4b92-801e-0160272c7b0e",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** New polaris-backend/tests/labels_xrpc_live.rs. Spawn labeler server on 127.0.0.1:0. Use proto_blue_ws::frame::MessageFrame::decode + matching header op codes. Three test cases: (1) backfill — seed N labels, connect with cursor=0, assert N frames received in seq order; (2) live fan-out — connect with cursor=current_max, emit one label via LabelEmitter, assert frame arrives within 1s; (3) lagged-consumer — connect, slow-consume, assert server drops the slow connection (or whatever the production design says). Proto-blue check applied: this IS ATProto subscription wire format, so MessageFrame is the right primitive (NOT raw tokio-tungstenite + manual CBOR like #51's original fixture).",
+  "created_at": "2026-05-15T01:52:22.537471405Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABADNoYrMXrnp93RH3iE3IqQWby2yOfiFQlzB2bJv6k/4DCP2acIERMD8HZ1y5JlqLBv8OIXVmFhI8syxGw8u3wDQ=="
+}
