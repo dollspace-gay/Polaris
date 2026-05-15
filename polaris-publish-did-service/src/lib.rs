@@ -332,6 +332,37 @@ pub fn validate_did_document(
     Ok(())
 }
 
+/// Extract the `service` array from a built DID document for use in
+/// `sign_plc_operation::Input.services`.
+///
+/// The atproto `com.atproto.identity.signPlcOperation` lexicon types its
+/// `services` field as `unknown` JSON; the wire shape is therefore the
+/// same array we already place under the `service` key of the built
+/// DID document. Exposed at the library boundary (issue #85) so the
+/// in-process backend caller (`polaris-backend/src/api/setup.rs`) can
+/// re-use the same shape the CLI assembles without re-deriving the
+/// payload by hand.
+///
+/// Returns `None` when `doc` has no top-level `service` field; callers
+/// surface that as an internal error (the DID document this crate
+/// builds always carries a `service` array).
+#[must_use]
+pub fn build_plc_services_payload(doc: &Value) -> Option<Value> {
+    doc.get("service").cloned()
+}
+
+/// Extract the `verificationMethod` array from a built DID document for
+/// use in `sign_plc_operation::Input.verification_methods`.
+///
+/// Mirror of [`build_plc_services_payload`] for the verification-methods
+/// half of the PLC sign call. Same `unknown`-typed `verificationMethods`
+/// field on the lexicon, same opaque-JSON wire shape, same `None`
+/// semantics on a missing top-level key.
+#[must_use]
+pub fn build_plc_verification_methods_payload(doc: &Value) -> Option<Value> {
+    doc.get("verificationMethod").cloned()
+}
+
 /// Compare two service-entry ids, treating absolute and relative
 /// fragments as equivalent.
 ///

@@ -32,7 +32,12 @@ use serde::{Deserialize, Serialize};
 
 pub mod dto;
 
-use dto::{CaseView, DashboardSnapshot, Escalate, IncidentList, ReverseBody, SubmitAction};
+use dto::{
+    CaseView, DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList,
+    PublishLabelerRecordRequest, PublishLabelerRecordResponse, RequestPlcSignatureResponse,
+    ReverseBody, SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse,
+    WhoamiResponse,
+};
 
 // The `#![cfg(...)]` inner attribute at the top of each impl file is the
 // authoritative gate — declaring the modules unconditionally here lets
@@ -124,6 +129,59 @@ pub trait PolarisApiClient {
         action_id: ActionId,
         body: ReverseBody,
     ) -> Result<Action, ApiError>;
+
+    /// `GET /api/whoami` — the authenticated moderator's own context.
+    ///
+    /// Returns the moderator's id, external identifier, auth backend,
+    /// role set, and a `first_run` flag the frontend uses to decide
+    /// whether the root route renders the dashboard or redirects to
+    /// `/setup` (issue #84).
+    async fn whoami(&self) -> Result<WhoamiResponse, ApiError>;
+
+    /// `POST /api/setup/generate-key` — mint a fresh K-256 signing key.
+    ///
+    /// First step of the first-run setup wizard (#84). The backend (#85)
+    /// generates the key, persists the private half, and returns the
+    /// public half as a `did:key:z…` multikey. The wizard surfaces the
+    /// returned `did_key` to the operator for cross-checking against
+    /// the labeler service record / DID document.
+    async fn setup_generate_key(&self) -> Result<GenerateKeyResponse, ApiError>;
+
+    /// `POST /api/setup/publish-labeler-record` — publish the
+    /// `app.bsky.labeler.service` record on the operator's PDS.
+    ///
+    /// Second step of the first-run setup wizard. The backend pairs
+    /// the operator-supplied `service_url` + `label_values` with the
+    /// signing key minted by [`setup_generate_key`](Self::setup_generate_key)
+    /// and writes the record. The returned AT-URI + CID confirm the
+    /// commit landed.
+    async fn setup_publish_labeler_record(
+        &self,
+        req: PublishLabelerRecordRequest,
+    ) -> Result<PublishLabelerRecordResponse, ApiError>;
+
+    /// `POST /api/setup/request-plc-signature` — ask the PDS to email
+    /// the operator a PLC operation token.
+    ///
+    /// First half of the third step of the first-run setup wizard.
+    /// The operator copy-pastes the emailed token into the wizard's
+    /// follow-up form and the wizard calls
+    /// [`setup_submit_plc_operation`](Self::setup_submit_plc_operation)
+    /// to commit the DID document update.
+    async fn setup_request_plc_signature(&self) -> Result<RequestPlcSignatureResponse, ApiError>;
+
+    /// `POST /api/setup/submit-plc-operation` — submit the signed PLC
+    /// operation to the PLC directory.
+    ///
+    /// Second half of the third step of the first-run setup wizard.
+    /// The backend builds the PLC operation that adds the
+    /// `#atproto_labeler` service entry pointing at `service_url`,
+    /// signs it with the emailed token, and submits to the PLC
+    /// directory. The returned DID confirms the operation landed.
+    async fn setup_submit_plc_operation(
+        &self,
+        req: SubmitPlcOperationRequest,
+    ) -> Result<SubmitPlcOperationResponse, ApiError>;
 
     /// `GET /api/dashboard` — composite snapshot for the pattern dashboard.
     ///

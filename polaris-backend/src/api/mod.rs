@@ -31,13 +31,16 @@ pub mod dashboard_ws;
 pub mod dto;
 pub mod error;
 pub mod healthz;
+pub mod oauth_metadata;
 pub mod pattern_actions;
 pub mod policy;
 pub mod reversal;
 pub mod second_opinion;
+pub mod setup;
 pub mod state;
 pub mod webauthn;
 pub mod wellness;
+pub mod whoami;
 
 use axum::Router;
 use axum::middleware;
@@ -136,6 +139,12 @@ fn public_api_router(state: ApiState) -> Router {
         // browser back to `/`.
         .route("/auth/atproto/login", post(auth_atproto::login))
         .route("/auth/atproto/callback", get(auth_atproto::callback))
+        // Issue #81: serve the operator's OAuth client_metadata.json so
+        // Polaris itself can be the URL declared as `client_id` in
+        // atproto OAuth flows. Returns 404 when the operator did not
+        // install a payload (e.g., labeler-profile builds with OIDC
+        // auth that have no atproto client metadata).
+        .route("/oauth/client-metadata.json", get(oauth_metadata::serve))
         .with_state(state)
 }
 
@@ -181,6 +190,28 @@ fn authed_router(state: ApiState) -> Router {
         .route("/api/threads/{thread_id}", get(second_opinion::get_thread))
         .route("/api/dashboard", get(dashboard::handler))
         .route("/api/dashboard/live", get(dashboard_ws::live_handler))
+        // Issue #83b: authenticated moderator-context endpoint plus
+        // first-run signal for the future setup wizard (#84).
+        .route("/api/whoami", get(whoami::whoami))
+        // Issue #85: setup-wizard endpoints. All admin-gated (the
+        // handlers verify `Role::Admin` themselves; the auth
+        // middleware runs first so an unauthenticated request never
+        // reaches them). The order matches the wizard's natural
+        // sequence: generate-key → publish-labeler-record →
+        // request-plc-signature → submit-plc-operation.
+        .route("/api/setup/generate-key", post(setup::generate_key))
+        .route(
+            "/api/setup/publish-labeler-record",
+            post(setup::publish_labeler_record),
+        )
+        .route(
+            "/api/setup/request-plc-signature",
+            post(setup::request_plc_signature),
+        )
+        .route(
+            "/api/setup/submit-plc-operation",
+            post(setup::submit_plc_operation),
+        )
         .route("/api/wellness/exposure/me", get(wellness::get_my_exposure))
         .route(
             "/api/wellness/exposure/me/cap",

@@ -35,22 +35,47 @@
 //! - `sign_plc_operation` produces the signed operation; the operator's
 //!   email-verified token authorises the PDS to sign.
 //! - `submit_plc_operation` submits the result to the PLC directory.
+//!
+//! # Auth modes
+//!
+//! Two PDS authentication modes are supported (mutually exclusive):
+//!
+//! - **App password** (the historical default): authenticate via
+//!   `com.atproto.server.createSession` and attach the resulting JWT
+//!   to every XRPC call. Works on private/self-hosted PDSes that
+//!   accept app-password sessions for PLC operations.
+//! - **OAuth** (`--oauth`, issue #80): authenticate via the ATProto
+//!   OAuth client (PAR + PKCE + DPoP) and POST every PLC operation
+//!   through an `OAuthSession`. Required for `bsky.social`, which
+//!   refuses PLC operations from app-password sessions with
+//!   "Bad token scope". Mirrors the `--oauth` wiring in
+//!   `polaris-publish-labeler-record` (#61).
 
 #![doc(html_no_source)]
 
-use std::io::{self, Read, Write};
+use std::io::{self, BufRead, Read, Write};
+use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Arc;
 
 use anyhow::{Context, anyhow};
-use clap::{Parser, ValueEnum};
+use clap::{ArgGroup, Parser, ValueEnum};
 use polaris_publish_did_service::{
-    BuildError, ValidationError, build_did_web_document, validate_did_document,
+    BuildError, ValidationError, build_did_web_document, build_plc_services_payload,
+    build_plc_verification_methods_payload, validate_did_document,
 };
 use proto_blue::api::com::atproto::identity::{
     request_plc_operation_signature, sign_plc_operation, submit_plc_operation,
 };
 use proto_blue::api::com::atproto::server::create_session;
+use proto_blue::identity::{IdResolver, IdentityResolverOpts};
+use proto_blue::oauth::client::dpop_key_from_jwk;
+use proto_blue::oauth::{
+    DpopNonceCache, OAuthClient, OAuthSession, ResolvedInput, resolve_input,
+    validate_client_metadata,
+};
 use proto_blue::xrpc::XrpcClient;
+use secrecy::{ExposeSecret, SecretString};
 use tracing::{info, warn};
 
 /// Documented exit-code constants.
@@ -86,12 +111,34 @@ const STDIN_TRIM_CHARS: [char; 2] = ['\n', '\r'];
         For did:plc identities: requests an email challenge from the operator's PDS, \
         accepts the operator's pasted token, then signs and submits a PLC operation \
         that adds the `#atproto_labeler` entry.\n\n\
+        Auth for did:plc defaults to the POLARIS_APP_PASSWORD app-password path. \
+        Pass --oauth (with --client-metadata pointing at the operator-supplied OAuth \
+        client metadata JSON) to drive the proto-blue OAuth flow instead — required \
+        for bsky.social, which refuses PLC operations from app-password sessions \
+        with `Bad token scope` (#80). The OAuth path prints an authorize URL for the \
+        operator to open in a browser, then reads the redirected URL back from stdin \
+        to complete the code exchange.\n\n\
         Both paths validate the resulting DID document has the expected service \
         entry before printing the success summary.\n\n\
         Exit codes:\n  \
         0 — success\n  \
-        1 — user error (bad flags, malformed inputs)\n  \
-        2 — PDS / PLC directory error (auth, signing, submission, or post-check failed)"
+        1 — user error (bad flags, malformed inputs, missing OAuth client metadata)\n  \
+        2 — PDS / PLC directory error (auth, signing, submission, or post-check failed)",
+    group(
+        ArgGroup::new("plc_auth")
+            .args(["app_password_stdin", "oauth"])
+            .multiple(false),
+    ),
+)]
+// Five orthogonal boolean flags reflect five independent operator
+// switches (auth mode, validate-only, skip-challenge, app-password
+// source, OAuth). Collapsing them into an enum would couple unrelated
+// choices and lose `clap`'s long-option ergonomics; the lint flags a
+// real concern (too many bools is a code smell) but does not apply to
+// a flat CLI surface where each bool is a distinct user-facing toggle.
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "flat CLI surface — each bool is an independent operator flag"
 )]
 struct Cli {
     /// Operator's handle (e.g. `polaris.example.com`) or DID.
@@ -145,6 +192,42 @@ struct Cli {
     /// Default: false (always send a fresh challenge).
     #[arg(long, default_value_t = false)]
     skip_request_token: bool,
+
+    /// Read the app password from stdin (one line, no trailing newline).
+    /// Mutually exclusive with `--oauth`.
+    ///
+    /// Only consulted when `--did-method=plc` is selected. Falls back
+    /// to the [`POLARIS_APP_PASSWORD`] environment variable when this
+    /// flag is absent and `--oauth` is not set.
+    #[arg(long)]
+    app_password_stdin: bool,
+
+    /// Authenticate against the operator's PDS via ATProto OAuth
+    /// (`proto_blue::oauth::OAuthClient`). Mutually exclusive with
+    /// `--app-password-stdin`. Required for `bsky.social`, which
+    /// rejects PLC operations from app-password sessions (#80).
+    ///
+    /// Drives the authorization-code flow with PAR + PKCE + DPoP. The
+    /// CLI prints the AS-issued authorize URL to stderr, the operator
+    /// completes the in-browser consent, and the CLI reads the
+    /// redirected URL back from stdin to extract the `code` parameter.
+    /// Requires `--client-metadata` pointing at the operator-supplied
+    /// OAuth client metadata JSON.
+    #[arg(long)]
+    oauth: bool,
+
+    /// Path to the OAuth client-metadata JSON. Required when `--oauth`
+    /// is set; ignored otherwise.
+    ///
+    /// The file is the `client-metadata.json` document the operator
+    /// hosts at `client_id` (or, for loopback testing, a local file
+    /// that mirrors what would otherwise be hosted). The same loader
+    /// (`polaris_types::oauth_config::load_client_metadata`) is shared
+    /// with `polaris-publish-labeler-record`'s `--oauth` flow and the
+    /// `polaris-backend` ATProto OAuth verifier so the wire shape is
+    /// enforced from one place.
+    #[arg(long, value_name = "PATH", requires = "oauth")]
+    client_metadata: Option<PathBuf>,
 
     /// Validate the operator's existing DID document and exit without
     /// making any changes.
@@ -230,12 +313,19 @@ enum UserError {
     #[error(transparent)]
     Build(#[from] BuildError),
 
-    /// `--did-method=plc` selected but no app password is available.
+    /// `--did-method=plc` selected, `--oauth` not set, and no app
+    /// password is available via `--app-password-stdin` or
+    /// [`POLARIS_APP_PASSWORD`].
     #[error(
-        "did:plc requires the operator's PDS app password — \
-        set POLARIS_APP_PASSWORD or pipe it on stdin"
+        "did:plc requires either --oauth or the operator's PDS app password — \
+        set POLARIS_APP_PASSWORD, pass --app-password-stdin and pipe it on stdin, \
+        or pass --oauth (with --client-metadata)"
     )]
     NoAppPassword,
+
+    /// `--app-password-stdin` was set but stdin was empty.
+    #[error("--app-password-stdin set but stdin was empty")]
+    EmptyAppPassword,
 
     /// `--did-method=plc` selected but no PLC token is available.
     #[error(
@@ -247,6 +337,24 @@ enum UserError {
     /// Reading from stdin failed.
     #[error("failed to read from stdin: {0}")]
     StdinRead(#[source] io::Error),
+
+    /// `--oauth` was supplied without `--client-metadata`.
+    ///
+    /// Clap's `requires = "oauth"` on the `--client-metadata` flag
+    /// enforces the dependency in one direction; this error covers
+    /// the other direction (`--oauth` without `--client-metadata`),
+    /// surfaced from [`select_auth_mode`] as a user error (exit 1)
+    /// rather than a remote/PDS error (exit 2).
+    #[error("--oauth requires --client-metadata pointing at the operator's client-metadata JSON")]
+    OauthMissingClientMetadata,
+
+    /// `polaris_types::oauth_config::load_client_metadata` failed.
+    ///
+    /// The error is preserved via `#[source]` so the chain renders
+    /// the underlying read / parse failure under the user-facing
+    /// "OAuth client metadata could not be loaded" headline.
+    #[error("OAuth client metadata could not be loaded")]
+    OauthClientMetadata(#[from] polaris_types::oauth_config::OauthConfigError),
 }
 
 /// Map an [`AppError`] to its documented exit code.
@@ -368,11 +476,83 @@ fn run_did_web(cli: &Cli) -> Result<(), UserError> {
     Ok(())
 }
 
-/// did:plc path: request a signature challenge, accept the operator's
-/// pasted token, sign the PLC operation, and submit it.
+/// Resolved authentication mode for the did:plc path.
 ///
-/// Uses the proto-blue generated types end-to-end; no PLC operation
-/// JSON is hand-rolled.
+/// Selected by [`select_auth_mode`] from the CLI flags and environment.
+/// The `Oauth` variant carries the pre-loaded client metadata so any
+/// load / parse failure surfaces as a [`UserError`] (exit 1) at
+/// `select_auth_mode` time rather than getting classified as a remote
+/// error (exit 2) inside [`run_did_plc`].
+///
+/// The variant for OAuth boxes its payload so the
+/// `clippy::large_enum_variant` lint stays quiet — the
+/// `AppPassword(String)` variant is one pointer-sized payload, while
+/// the metadata struct carries every nullable `client_*` field.
+#[derive(Debug)]
+enum AuthMode {
+    /// App-password session. Wrapped in `SecretString` so the value is
+    /// redacted from `Debug` output and zeroised on drop. Mirrors the
+    /// `polaris-publish-labeler-record` `AuthMode::AppPassword` carrier
+    /// so the two CLIs share the same secret-handling discipline.
+    AppPassword(SecretString),
+    Oauth {
+        /// Validated client metadata. The atproto-profile check via
+        /// `proto_blue::oauth::validate_client_metadata` runs inside
+        /// [`run_did_plc_oauth`] (it's a wire-shape assertion, not a
+        /// user-input check).
+        metadata: Box<polaris_types::oauth_config::ClientMetadata>,
+    },
+}
+
+/// Resolve the auth mode from the CLI / environment.
+///
+/// Order of precedence:
+///
+/// 1. `--oauth` → `AuthMode::Oauth`. Requires `--client-metadata`.
+/// 2. `--app-password-stdin` → `AuthMode::AppPassword`, read from stdin.
+/// 3. [`POLARIS_APP_PASSWORD`] env var → `AuthMode::AppPassword`.
+/// 4. No source available → `UserError::NoAppPassword`.
+///
+/// Clap's `ArgGroup` already rejects `--oauth` together with
+/// `--app-password-stdin` before this function is reached.
+fn select_auth_mode(cli: &Cli) -> Result<AuthMode, UserError> {
+    if cli.oauth {
+        let client_metadata_path = cli
+            .client_metadata
+            .as_deref()
+            .ok_or(UserError::OauthMissingClientMetadata)?;
+        let metadata = polaris_types::oauth_config::load_client_metadata(client_metadata_path)?;
+        return Ok(AuthMode::Oauth {
+            metadata: Box::new(metadata),
+        });
+    }
+    if cli.app_password_stdin {
+        let mut buf = String::new();
+        io::stdin()
+            .lock()
+            .read_to_string(&mut buf)
+            .map_err(UserError::StdinRead)?;
+        let trimmed = buf.trim_end_matches(STDIN_TRIM_CHARS).to_owned();
+        if trimmed.is_empty() {
+            return Err(UserError::EmptyAppPassword);
+        }
+        return Ok(AuthMode::AppPassword(SecretString::from(trimmed)));
+    }
+    if let Ok(env_pwd) = std::env::var(ENV_APP_PASSWORD) {
+        if !env_pwd.is_empty() {
+            return Ok(AuthMode::AppPassword(SecretString::from(env_pwd)));
+        }
+    }
+    Err(UserError::NoAppPassword)
+}
+
+/// did:plc orchestration: build the target document, resolve the
+/// auth mode, dispatch to the per-mode driver, then validate the
+/// locally-built document and emit the confirmation envelope.
+///
+/// Uses the proto-blue generated types end-to-end on the XRPC path;
+/// the OAuth path drives the same three procedures via
+/// `OAuthSession::post`. No PLC operation JSON is hand-rolled.
 async fn run_did_plc(cli: &Cli) -> Result<(), AppError> {
     // Build the target document locally first so we can plug its
     // `service` and `verificationMethod` arrays into the PLC operation
@@ -381,9 +561,69 @@ async fn run_did_plc(cli: &Cli) -> Result<(), AppError> {
     let target = build_did_web_document(&cli.account, &cli.pds, &cli.signing_key, &cli.service_url)
         .map_err(UserError::from)?;
 
-    // Authenticate against the operator's PDS.
-    let app_password = load_app_password().map_err(AppError::User)?;
-    let xrpc = authenticate(&cli.pds, &cli.account, &app_password)
+    // Per the lexicon both `services` and `verificationMethods` are
+    // typed `unknown`, so the wire representation is
+    // `serde_json::Value`. We build them from the document we
+    // constructed locally so the two stay in sync.
+    let services_payload = build_plc_services_payload(&target)
+        .ok_or_else(|| AppError::Remote(anyhow!("internal: built doc missing service array")))?;
+    let verification_methods_payload =
+        build_plc_verification_methods_payload(&target).ok_or_else(|| {
+            AppError::Remote(anyhow!(
+                "internal: built doc missing verificationMethod array"
+            ))
+        })?;
+
+    let auth = select_auth_mode(cli).map_err(AppError::User)?;
+
+    match auth {
+        AuthMode::AppPassword(ref password) => {
+            run_did_plc_app_password(
+                cli,
+                password,
+                &services_payload,
+                &verification_methods_payload,
+            )
+            .await?;
+        }
+        AuthMode::Oauth { metadata } => {
+            run_did_plc_oauth(
+                cli,
+                metadata.as_ref(),
+                &services_payload,
+                &verification_methods_payload,
+            )
+            .await?;
+        }
+    }
+
+    // Cross-check: validate our locally-built target document so the
+    // operator sees the expected entries before exit. (We can't
+    // re-fetch the PLC document here without an extra hop; the
+    // in-process validation guarantees we *sent* the right shape.)
+    validate_did_document(&target, &cli.service_url, &cli.signing_key)
+        .map_err(|e| AppError::Remote(anyhow!("post-submit validation failed: {e}")))?;
+
+    emit_plc_confirmation(cli).map_err(AppError::Remote)?;
+    Ok(())
+}
+
+/// App-password branch of [`run_did_plc`].
+///
+/// Authenticates via `com.atproto.server.createSession`, attaches the
+/// resulting JWT to a fresh `XrpcClient`, and drives the
+/// `request → sign → submit` triple via the proto-blue typed XRPC
+/// procedures.
+async fn run_did_plc_app_password(
+    cli: &Cli,
+    app_password: &SecretString,
+    services_payload: &serde_json::Value,
+    verification_methods_payload: &serde_json::Value,
+) -> Result<(), AppError> {
+    // `expose_secret()` is called once at the auth boundary so the
+    // plaintext lifetime is the duration of the `authenticate` call;
+    // the rest of this function only sees the JWT-bearing `XrpcClient`.
+    let xrpc = authenticate(&cli.pds, &cli.account, app_password.expose_secret())
         .await
         .map_err(AppError::Remote)?;
 
@@ -395,43 +635,25 @@ async fn run_did_plc(cli: &Cli) -> Result<(), AppError> {
             .map_err(|e| {
                 AppError::Remote(anyhow!("request_plc_operation_signature failed: {e}"))
             })?;
-        // The PDS sends the token to the operator's email. We block on
-        // operator input — print the prompt now so the wait is obvious.
-        let _ = writeln!(
-            io::stderr(),
-            "Check the email associated with this account for a PLC operation challenge token.\nPaste the token on stdin and press Enter (or use --token / POLARIS_PLC_TOKEN to provide it ahead of time)."
-        );
+        write_plc_token_prompt();
     }
 
     let token = load_plc_token(cli).map_err(AppError::User)?;
 
-    // 2. Build the `services` and `verificationMethods` payloads.
-    //    Per the lexicon both fields are typed `unknown`, so the wire
-    //    representation is `serde_json::Value`. We build them from the
-    //    document we constructed locally so the two stay in sync.
-    let services_payload = build_plc_services_payload(&target)
-        .ok_or_else(|| AppError::Remote(anyhow!("internal: built doc missing service array")))?;
-    let verification_methods_payload =
-        build_plc_verification_methods_payload(&target).ok_or_else(|| {
-            AppError::Remote(anyhow!(
-                "internal: built doc missing verificationMethod array"
-            ))
-        })?;
-
-    // 3. Sign.
+    // 2. Sign.
     info!("submitting sign_plc_operation to PDS");
     let sign_input = sign_plc_operation::Input {
         also_known_as: None,
         rotation_keys: None,
-        services: Some(services_payload),
+        services: Some(services_payload.clone()),
         token: Some(token),
-        verification_methods: Some(verification_methods_payload),
+        verification_methods: Some(verification_methods_payload.clone()),
     };
     let signed = sign_plc_operation::call(&xrpc, &sign_input, None)
         .await
         .map_err(|e| AppError::Remote(anyhow!("sign_plc_operation failed: {e}")))?;
 
-    // 4. Submit.
+    // 3. Submit.
     info!("submitting signed PLC operation to PLC directory via PDS");
     let submit_input = submit_plc_operation::Input {
         operation: signed.operation,
@@ -440,13 +662,242 @@ async fn run_did_plc(cli: &Cli) -> Result<(), AppError> {
         .await
         .map_err(|e| AppError::Remote(anyhow!("submit_plc_operation failed: {e}")))?;
 
-    // 5. Cross-check: validate our locally-built target document so the
-    //    operator sees the expected entries before exit. (We can't
-    //    re-fetch the PLC document here without an extra hop; the
-    //    in-process validation guarantees we *sent* the right shape.)
-    validate_did_document(&target, &cli.service_url, &cli.signing_key)
-        .map_err(|e| AppError::Remote(anyhow!("post-submit validation failed: {e}")))?;
+    Ok(())
+}
 
+/// OAuth branch of [`run_did_plc`].
+///
+/// Drives PAR + PKCE + DPoP via `proto_blue::oauth::OAuthClient`,
+/// then POSTs the three `com.atproto.identity.*` procedures through
+/// an `OAuthSession`. The browser-redirect step uses the
+/// paste-back-URL convention (same as
+/// `polaris-publish-labeler-record`'s `--oauth` flow).
+///
+/// The three PLC procedures are typed `procedure` lexicons with JSON
+/// inputs; we serialise the typed `Input` structs to JSON so the wire
+/// shape stays identical to what `proto_blue::api::...::call` would
+/// emit on the XRPC path. `request_plc_operation_signature` has no
+/// input lexicon — we send `{}` because `OAuthSession::post` always
+/// writes a JSON body, and bsky.social's PDS accepts an empty object
+/// for procedures with no defined input.
+async fn run_did_plc_oauth(
+    cli: &Cli,
+    metadata: &polaris_types::oauth_config::ClientMetadata,
+    services_payload: &serde_json::Value,
+    verification_methods_payload: &serde_json::Value,
+) -> Result<(), AppError> {
+    let session = open_oauth_session(cli, metadata)
+        .await
+        .map_err(AppError::Remote)?;
+
+    // The PDS the OAuth session is bound to. `resolve_input` returned
+    // this as the `aud` of the issued token; every subsequent DPoP
+    // proof is signed against this origin. We re-derive it here rather
+    // than threading it through `open_oauth_session` so the function
+    // stays focused on producing the session.
+    let pds_url = cli.pds.trim_end_matches('/').to_owned();
+
+    // 1. Email challenge (skippable if the operator already has a token).
+    if !cli.skip_request_token {
+        info!("requesting PLC operation signature challenge via PDS (OAuth)");
+        let empty = serde_json::Value::Object(serde_json::Map::new());
+        let response = session
+            .post(
+                &format!("{pds_url}/xrpc/com.atproto.identity.requestPlcOperationSignature"),
+                &empty,
+            )
+            .await
+            .map_err(|e| {
+                AppError::Remote(anyhow!(
+                    "request_plc_operation_signature (OAuth) failed: {e}"
+                ))
+            })?;
+        ensure_success(
+            &response,
+            "com.atproto.identity.requestPlcOperationSignature",
+        )
+        .map_err(AppError::Remote)?;
+        write_plc_token_prompt();
+    }
+
+    let token = load_plc_token(cli).map_err(AppError::User)?;
+
+    // 2. Sign. We serialise the typed `sign_plc_operation::Input` to
+    //    JSON via the proto-blue derive so the wire shape (camelCase
+    //    fields, omitted Nones) matches the XRPC path exactly.
+    info!("submitting sign_plc_operation to PDS (OAuth)");
+    let sign_input = sign_plc_operation::Input {
+        also_known_as: None,
+        rotation_keys: None,
+        services: Some(services_payload.clone()),
+        token: Some(token),
+        verification_methods: Some(verification_methods_payload.clone()),
+    };
+    let sign_body = serde_json::to_value(&sign_input)
+        .context("serializing sign_plc_operation::Input to JSON")
+        .map_err(AppError::Remote)?;
+    let sign_response = session
+        .post(
+            &format!("{pds_url}/xrpc/com.atproto.identity.signPlcOperation"),
+            &sign_body,
+        )
+        .await
+        .map_err(|e| AppError::Remote(anyhow!("sign_plc_operation (OAuth) failed: {e}")))?;
+    ensure_success(&sign_response, "com.atproto.identity.signPlcOperation")
+        .map_err(AppError::Remote)?;
+
+    let signed_value: serde_json::Value = serde_json::from_slice(&sign_response.body)
+        .context("decoding sign_plc_operation response JSON")
+        .map_err(AppError::Remote)?;
+    let operation = signed_value.get("operation").cloned().ok_or_else(|| {
+        AppError::Remote(anyhow!(
+            "sign_plc_operation response missing `operation` field"
+        ))
+    })?;
+
+    // 3. Submit.
+    info!("submitting signed PLC operation to PLC directory via PDS (OAuth)");
+    let submit_input = submit_plc_operation::Input { operation };
+    let submit_body = serde_json::to_value(&submit_input)
+        .context("serializing submit_plc_operation::Input to JSON")
+        .map_err(AppError::Remote)?;
+    let submit_response = session
+        .post(
+            &format!("{pds_url}/xrpc/com.atproto.identity.submitPlcOperation"),
+            &submit_body,
+        )
+        .await
+        .map_err(|e| AppError::Remote(anyhow!("submit_plc_operation (OAuth) failed: {e}")))?;
+    ensure_success(&submit_response, "com.atproto.identity.submitPlcOperation")
+        .map_err(AppError::Remote)?;
+
+    Ok(())
+}
+
+/// Drive the OAuth authorize → callback → token-exchange flow and
+/// return an `OAuthSession` that signs subsequent resource-server
+/// POSTs with the bound DPoP key.
+///
+/// Mirrors `polaris-publish-labeler-record::submit_via_oauth` so the
+/// two CLIs share the same operator-facing prompt and state-match
+/// discipline (we refuse to exchange a code whose callback `state`
+/// does not match the value the CLI issued).
+async fn open_oauth_session(
+    cli: &Cli,
+    metadata: &polaris_types::oauth_config::ClientMetadata,
+) -> anyhow::Result<OAuthSession> {
+    // 1. atproto-profile validation of the loaded metadata. The
+    //    polaris-types loader only reads + JSON-decodes; profile
+    //    validation reuses proto-blue's `validate_client_metadata`
+    //    and lives at the call site so the loader stays free of
+    //    proto-blue dependencies on validation.
+    validate_client_metadata(metadata)
+        .context("OAuth client metadata failed atproto profile validation")?;
+
+    let oauth_client = OAuthClient::new(metadata.clone());
+    let identity_resolver = Arc::new(IdResolver::new(IdentityResolverOpts::default(), None));
+
+    // 2. Resolve the operator's account → (did?, pds_url, AS metadata).
+    let ResolvedInput {
+        did,
+        pds_url,
+        server_metadata,
+    } = resolve_input(&identity_resolver, &oauth_client, &cli.account)
+        .await
+        .with_context(|| format!("resolving --account {} via OAuth identity", &cli.account))?;
+    info!(
+        pds_url = %pds_url,
+        issuer = %server_metadata.issuer,
+        resolved_did = did.as_deref().unwrap_or("(none)"),
+        "OAuth account resolution complete"
+    );
+
+    // 3. Authorize (PAR + PKCE + DPoP).
+    let (authorize_url, auth_state) = oauth_client
+        .authorize(&server_metadata)
+        .await
+        .context("OAuth authorize (PAR) failed")?;
+
+    // 4. Interactive consent — print the URL on stderr (stdout stays
+    //    reserved for the final confirmation JSON) and the
+    //    paste-back prompt next to it.
+    write_oauth_prompt(&authorize_url, &server_metadata.issuer)?;
+
+    // 5. Read the redirected URL back from stdin.
+    let pasted = read_oauth_callback_url()?;
+    let (code, iss_from_url) = parse_oauth_callback(&pasted, &auth_state)?;
+
+    // 6. Exchange the code; bind the token's `aud` to the resolved PDS.
+    let token_set = oauth_client
+        .callback_with_iss_and_aud(
+            &code,
+            iss_from_url.as_deref(),
+            Some(&pds_url),
+            &auth_state,
+            &server_metadata,
+        )
+        .await
+        .context("OAuth code exchange failed")?;
+    info!(
+        sub = %token_set.sub,
+        token_type = %token_set.token_type,
+        "OAuth code exchanged, access token issued"
+    );
+
+    // 7. Rebuild the DpopKey from the JWK that `authorize()` generated.
+    let dpop_key = dpop_key_from_jwk(&auth_state.dpop_key)
+        .context("reconstructing DPoP key from auth_state JWK")?;
+
+    // 8. Open the OAuthSession — every subsequent request is signed
+    //    with `Authorization: DPoP {token}` plus a fresh DPoP proof,
+    //    rotating on server-supplied `DPoP-Nonce` headers.
+    Ok(OAuthSession::new(
+        token_set,
+        dpop_key,
+        DpopNonceCache::new(),
+    ))
+}
+
+/// Bail with an `anyhow::Error` when an `OAuthSession`-issued POST
+/// returned a non-2xx response.
+///
+/// The body is included verbatim in the error message so the operator
+/// can see the PDS's structured error (`{"error":"...","message":"..."}`)
+/// — the most common failure modes (`InvalidToken`, `ExpiredToken`,
+/// `BadTokenScope`) surface there. The procedure name in `endpoint_label`
+/// disambiguates which of the three PLC POSTs failed.
+fn ensure_success(
+    response: &proto_blue::common::fetch::HttpResponse,
+    endpoint_label: &str,
+) -> anyhow::Result<()> {
+    if response.is_success() {
+        return Ok(());
+    }
+    Err(anyhow!(
+        "{endpoint_label} returned HTTP {status}: {body}",
+        status = response.status,
+        body = String::from_utf8_lossy(&response.body)
+    ))
+}
+
+/// Emit the operator-facing prompt that asks for the emailed PLC
+/// challenge token.
+///
+/// Lives on stderr so stdout stays reserved for the final
+/// confirmation JSON (which is parseable by any caller piping into
+/// `jq`).
+fn write_plc_token_prompt() {
+    let _ = writeln!(
+        io::stderr(),
+        "Check the email associated with this account for a PLC operation challenge token.\nPaste the token on stdin and press Enter (or use --token / POLARIS_PLC_TOKEN to provide it ahead of time)."
+    );
+}
+
+/// Emit the success-path confirmation envelope to stdout.
+///
+/// Shared by both auth branches so the success summary surfaces the
+/// same key set regardless of how the PLC operation was authorised.
+fn emit_plc_confirmation(cli: &Cli) -> anyhow::Result<()> {
     let mut stdout = io::stdout().lock();
     let confirmation = serde_json::json!({
         "status": "ok",
@@ -455,33 +906,12 @@ async fn run_did_plc(cli: &Cli) -> Result<(), AppError> {
         "service_url": cli.service_url,
         "signing_key": cli.signing_key,
     });
-    let _ = serde_json::to_writer(&mut stdout, &confirmation);
-    let _ = stdout.write_all(b"\n");
+    serde_json::to_writer(&mut stdout, &confirmation)
+        .context("writing confirmation JSON to stdout")?;
+    stdout
+        .write_all(b"\n")
+        .context("writing trailing newline")?;
     Ok(())
-}
-
-/// Extract the `service` array from a built DID document for use in
-/// `sign_plc_operation::Input.services`.
-fn build_plc_services_payload(doc: &serde_json::Value) -> Option<serde_json::Value> {
-    doc.get("service").cloned()
-}
-
-/// Extract the `verificationMethod` array from a built DID document for
-/// use in `sign_plc_operation::Input.verification_methods`.
-fn build_plc_verification_methods_payload(doc: &serde_json::Value) -> Option<serde_json::Value> {
-    doc.get("verificationMethod").cloned()
-}
-
-/// Load the operator's PDS app password from
-/// [`POLARIS_APP_PASSWORD`].
-///
-/// Secrets are never accepted on argv (see the issue's forbidden
-/// patterns list).
-fn load_app_password() -> Result<String, UserError> {
-    match std::env::var(ENV_APP_PASSWORD) {
-        Ok(s) if !s.is_empty() => Ok(s),
-        _ => Err(UserError::NoAppPassword),
-    }
 }
 
 /// Load the PLC email-challenge token in priority order:
@@ -530,4 +960,237 @@ async fn authenticate(pds: &str, identifier: &str, password: &str) -> anyhow::Re
     let mut authed = XrpcClient::new(pds).context("constructing authed XRPC client")?;
     authed.set_header("authorization", format!("Bearer {}", session.access_jwt));
     Ok(authed)
+}
+
+/// Print the OAuth authorize URL and paste-back instructions to stderr.
+///
+/// Lives on stderr so the success-path stdout (the final
+/// `{status, method, account, ...}` envelope) remains parseable by an
+/// automation caller that pipes stdout into `jq`. Mirrors
+/// `polaris-publish-labeler-record`'s prompt verbatim so the two CLIs
+/// surface identical operator UX.
+fn write_oauth_prompt(authorize_url: &url::Url, issuer: &str) -> anyhow::Result<()> {
+    let mut stderr = io::stderr().lock();
+    writeln!(
+        stderr,
+        "\n=== ATProto OAuth: operator consent required ===\n\
+         Authorization server: {issuer}\n\
+         \n\
+         Open this URL in your browser to authorize:\n  \
+         {authorize_url}\n\
+         \n\
+         After completing consent, your browser will redirect to a\n\
+         localhost URL that probably fails to load — that is expected.\n\
+         Copy the redirected URL from the browser's address bar and\n\
+         paste it back here, then press Enter.\n"
+    )
+    .context("writing OAuth prompt to stderr")?;
+    Ok(())
+}
+
+/// Read one line from stdin and return the trimmed result.
+///
+/// The expected input is a URL (the AS-issued redirect with `code`
+/// in the query string). An empty line is treated as a user-error —
+/// otherwise we'd hand an empty string to the URL parser and surface
+/// a misleading "invalid URL" message.
+fn read_oauth_callback_url() -> anyhow::Result<String> {
+    let mut line = String::new();
+    let mut stdin = io::stdin().lock();
+    stdin
+        .read_line(&mut line)
+        .context("reading the pasted OAuth callback URL from stdin")?;
+    let trimmed = line.trim().to_owned();
+    if trimmed.is_empty() {
+        anyhow::bail!("expected a pasted OAuth callback URL on stdin; got empty input");
+    }
+    Ok(trimmed)
+}
+
+/// Parse the operator-pasted callback URL into `(code, iss?)`.
+///
+/// Enforces the OAuth state-match check before returning the code —
+/// a `state` parameter that doesn't equal the one this CLI generated
+/// in `authorize()` indicates either a stale paste from a previous
+/// flow or a cross-flow attack; either way, we refuse to exchange
+/// the code.
+fn parse_oauth_callback(
+    pasted: &str,
+    auth_state: &proto_blue::oauth::AuthState,
+) -> anyhow::Result<(String, Option<String>)> {
+    let parsed = url::Url::parse(pasted)
+        .with_context(|| format!("pasted callback is not a valid URL: {pasted}"))?;
+
+    let mut code: Option<String> = None;
+    let mut state: Option<String> = None;
+    let mut iss: Option<String> = None;
+    let mut error: Option<String> = None;
+    let mut error_description: Option<String> = None;
+    for (k, v) in parsed.query_pairs() {
+        match k.as_ref() {
+            "code" => code = Some(v.into_owned()),
+            "state" => state = Some(v.into_owned()),
+            "iss" => iss = Some(v.into_owned()),
+            "error" => error = Some(v.into_owned()),
+            "error_description" => error_description = Some(v.into_owned()),
+            _ => {}
+        }
+    }
+
+    if let Some(err) = error {
+        let description = error_description.unwrap_or_default();
+        anyhow::bail!("authorization server returned error={err}: {description}");
+    }
+
+    let expected_state = auth_state
+        .app_state
+        .as_deref()
+        .context("internal: authorize() did not return an app_state token")?;
+    let provided_state =
+        state.context("pasted callback URL is missing the `state` query parameter")?;
+    if provided_state != expected_state {
+        anyhow::bail!(
+            "pasted callback `state` does not match the value this CLI issued — refusing to exchange the code"
+        );
+    }
+
+    let code = code.context("pasted callback URL is missing the `code` query parameter")?;
+    Ok((code, iss))
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for the auth-mode selector. Network-bound paths
+    //! (PLC operations, the OAuth code exchange) are exercised by
+    //! the operator-driven smoke test, not these unit tests.
+
+    // `clippy::unwrap_used`, `clippy::expect_used`, and `clippy::panic`
+    // are allowed in test code per the workspace `rust-quality §7`
+    // convention — assertion macros are the canonical failure surface
+    // here.
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        reason = "test code is allowed to panic — rust-quality §7 convention"
+    )]
+
+    use super::{AuthMode, Cli, UserError, select_auth_mode};
+    use clap::Parser;
+    use secrecy::{ExposeSecret, SecretString};
+
+    /// Parse a `Cli` from a sequence of argv-style strings.
+    ///
+    /// Wraps `Cli::try_parse_from` so each test names its scenario
+    /// without re-writing the required-flag boilerplate (`--account`,
+    /// `--service-url`, `--signing-key`, `--did-method`).
+    fn parse_cli(extra: &[&str]) -> Cli {
+        let mut argv: Vec<String> = vec![
+            "polaris-publish-did-service".to_owned(),
+            "--account".to_owned(),
+            "polaris.example.com".to_owned(),
+            "--service-url".to_owned(),
+            "https://polaris.example.com".to_owned(),
+            "--signing-key".to_owned(),
+            "did:key:zQ3shokFTS3brHcDQrn82RUDfCZESWL1ZdCEJwekUDPQiYBme".to_owned(),
+            "--did-method".to_owned(),
+            "plc".to_owned(),
+        ];
+        argv.extend(extra.iter().map(|s| (*s).to_owned()));
+        Cli::try_parse_from(argv).expect("test argv should parse")
+    }
+
+    /// `Cli::try_parse_from` returns an error (not a panic) when the
+    /// auth-mode `ArgGroup` is violated. This pins the clap-level
+    /// rejection so a refactor that loosens the group fails loudly
+    /// without needing a process-spawn smoke test.
+    #[test]
+    fn cli_rejects_oauth_with_app_password_stdin() {
+        let result = Cli::try_parse_from([
+            "polaris-publish-did-service",
+            "--account",
+            "polaris.example.com",
+            "--service-url",
+            "https://polaris.example.com",
+            "--signing-key",
+            "did:key:zQ3shokFTS3brHcDQrn82RUDfCZESWL1ZdCEJwekUDPQiYBme",
+            "--did-method",
+            "plc",
+            "--oauth",
+            "--app-password-stdin",
+        ]);
+        assert!(
+            result.is_err(),
+            "clap should reject --oauth + --app-password-stdin via the ArgGroup"
+        );
+    }
+
+    /// `--oauth` without `--client-metadata` parses (clap requires
+    /// `--client-metadata` to *imply* `--oauth`, not the reverse) but
+    /// `select_auth_mode` rejects it as a `UserError`.
+    #[test]
+    fn select_auth_mode_oauth_without_client_metadata_errors() {
+        let cli = parse_cli(&["--oauth"]);
+        let err = select_auth_mode(&cli).expect_err("--oauth without --client-metadata must fail");
+        assert!(
+            matches!(err, UserError::OauthMissingClientMetadata),
+            "got {err:?}"
+        );
+    }
+
+    /// `--oauth --client-metadata <missing-path>` surfaces the
+    /// polaris-types loader error via the
+    /// `UserError::OauthClientMetadata` variant — i.e. the error
+    /// chain points at the loader, not at a generic anyhow.
+    #[test]
+    fn select_auth_mode_oauth_missing_metadata_file_surfaces_loader_error() {
+        let cli = parse_cli(&[
+            "--oauth",
+            "--client-metadata",
+            "/nonexistent/path/client-metadata.json",
+        ]);
+        let err = select_auth_mode(&cli)
+            .expect_err("--client-metadata pointing at a missing file must fail");
+        assert!(
+            matches!(err, UserError::OauthClientMetadata(_)),
+            "got {err:?}"
+        );
+    }
+
+    /// Verify that the `--client-metadata` flag is rejected by clap
+    /// when `--oauth` is absent. This pins the clap `requires =
+    /// "oauth"` constraint declared on the flag.
+    #[test]
+    fn cli_client_metadata_requires_oauth() {
+        let result = Cli::try_parse_from([
+            "polaris-publish-did-service",
+            "--account",
+            "polaris.example.com",
+            "--service-url",
+            "https://polaris.example.com",
+            "--signing-key",
+            "did:key:zQ3shokFTS3brHcDQrn82RUDfCZESWL1ZdCEJwekUDPQiYBme",
+            "--did-method",
+            "plc",
+            "--client-metadata",
+            "/tmp/client-metadata.json",
+        ]);
+        assert!(
+            result.is_err(),
+            "clap should reject --client-metadata without --oauth"
+        );
+    }
+
+    /// Pin the `AuthMode::AppPassword` discriminant. Constructing it
+    /// from a string and matching against it keeps the enum surface
+    /// in this test file so a refactor that renames the variant
+    /// fails loudly here.
+    #[test]
+    fn auth_mode_app_password_variant_pattern_matches() {
+        let mode = AuthMode::AppPassword(SecretString::from("test-secret"));
+        match mode {
+            AuthMode::AppPassword(pwd) => assert_eq!(pwd.expose_secret(), "test-secret"),
+            AuthMode::Oauth { .. } => panic!("expected AppPassword variant"),
+        }
+    }
 }

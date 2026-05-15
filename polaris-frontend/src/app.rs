@@ -10,6 +10,38 @@
 //!   (issue #20, the pattern dashboard from `design.md` §5.1).
 //! - `/cases/:subject_id` — [`CaseView`](crate::pages::case_view::CaseView)
 //!   (issue #15, the subject-centric case page from `design.md` §5.2).
+//! - `/login` — [`LoginPage`](crate::pages::login::LoginPage)
+//!   (issue #82, the browser login form that posts to
+//!   `/auth/atproto/login`).
+//! - `/setup` — [`SetupWizard`](crate::pages::setup::SetupWizard)
+//!   (issue #84, the first-run setup wizard: generate key + publish
+//!   labeler record + publish DID document service entry).
+//!
+//! # Session-less landing
+//!
+//! The Polaris session cookie is `HttpOnly` (design.md §6), so the
+//! frontend cannot observe its presence from JS. Instead, the
+//! authenticated landing pages (dashboard, case view) treat a
+//! `401 Unauthorized` from their initial fetch as the signal that the
+//! cookie is missing or expired, and hard-navigate to `/login` via
+//! [`crate::pages::login::redirect_to_login`]. The login page itself
+//! is reachable directly so a deep-link can land there without first
+//! tripping a 401.
+//!
+//! # First-run routing
+//!
+//! The root route `/` mounts the [`RootRoute`] component instead of
+//! [`PatternDashboard`] directly. [`RootRoute`] calls
+//! `GET /api/whoami` and inspects the
+//! [`first_run`](crate::api_client::dto::WhoamiResponse::first_run)
+//! flag:
+//!
+//! - `true` → hard-navigate to [`SETUP_PATH`](crate::pages::setup::SETUP_PATH).
+//! - `false` → render [`PatternDashboard`].
+//! - `401` → hard-navigate to [`LOGIN_PATH`](crate::pages::login::LOGIN_PATH).
+//!
+//! The deep-linked routes (`/cases/:subject_id`, `/login`, `/setup`)
+//! are reachable directly — only the root route gates on `first_run`.
 
 use std::sync::Arc;
 
@@ -19,8 +51,12 @@ use leptos_router::components::{Route, Router, Routes};
 use leptos_router::path;
 use proto_blue::lexicon::Lexicons;
 
+use crate::api_client::dto::WhoamiResponse;
+use crate::api_client::{ApiError, PolarisApiClient, default_client};
 use crate::pages::case_view::CaseView;
 use crate::pages::dashboard::PatternDashboard;
+use crate::pages::login::{LoginPage, is_unauthorized, redirect_to_login};
+use crate::pages::setup::{SETUP_PATH, SetupWizard};
 use crate::validation::build_shared_registry;
 
 /// Leptos context entry: the shared [`Lexicons`] registry, wrapped in
@@ -90,12 +126,101 @@ pub fn App() -> impl IntoView {
                 <Router>
                     <main id="polaris-root">
                         <Routes fallback=|| view! { <p>"Not found."</p> }>
-                            <Route path=path!("") view=PatternDashboard/>
+                            <Route path=path!("") view=RootRoute/>
                             <Route path=path!("/cases/:subject_id") view=CaseView/>
+                            <Route path=path!("/login") view=LoginPage/>
+                            <Route path=path!("/setup") view=SetupWizard/>
                         </Routes>
                     </main>
                 </Router>
             }.into_any(),
         }}
     }
+}
+
+/// Root route component (`/`).
+///
+/// Resolves the right landing surface for the operator by fetching
+/// `GET /api/whoami` (issue #83) and inspecting the
+/// [`WhoamiResponse::first_run`] flag. The function-level redirect
+/// table is documented in the module-level docs under "First-run
+/// routing" — keep both call sites in sync.
+///
+/// Native builds (tests, IDE) skip the fetch and render
+/// [`PatternDashboard`] directly: the redirect helpers are no-ops on
+/// non-wasm targets, so a fetch that bounced to `/setup` would be a
+/// silent no-op that confused diagnostics. The dashboard's own initial
+/// fetch already enforces the 401 → `/login` redirect contract for
+/// authenticated browsing sessions.
+// `clippy::must_use_candidate` is `#[allow]`-ed for the same reason
+// as `App`: `#[component]` discards outer attributes, and Leptos
+// always consumes the return value via `view!`.
+#[allow(clippy::must_use_candidate)]
+#[component]
+pub fn RootRoute() -> impl IntoView {
+    let whoami = LocalResource::new(|| async {
+        let client = default_client("").map_err(|e: ApiError| {
+            if is_unauthorized(&e) {
+                redirect_to_login();
+            }
+            e.to_string()
+        })?;
+        client.whoami().await.map_err(|e: ApiError| {
+            if is_unauthorized(&e) {
+                redirect_to_login();
+            }
+            e.to_string()
+        })
+    });
+
+    view! {
+        <Suspense fallback=move || view! {
+            <p class="root-route__loading" role="status">"Loading…"</p>
+        }>
+            {move || Suspend::new(async move {
+                match whoami.await {
+                    Ok(WhoamiResponse { first_run: true, .. }) => {
+                        redirect_to_setup();
+                        view! {
+                            <p class="root-route__redirect" role="status">
+                                "Redirecting to first-run setup…"
+                            </p>
+                        }.into_any()
+                    }
+                    Ok(WhoamiResponse { first_run: false, .. }) => view! {
+                        <PatternDashboard/>
+                    }.into_any(),
+                    Err(message) => view! {
+                        <p class="root-route__error" role="alert">
+                            "Failed to load session context: "{message}
+                        </p>
+                    }.into_any(),
+                }
+            })}
+        </Suspense>
+    }
+}
+
+/// Hard-navigate to the first-run setup wizard.
+///
+/// Mirrors the dashboard's [`redirect_to_login`] pattern (issue #82):
+/// a full-page navigation rather than a client-side route swap so the
+/// wizard mounts with a fresh component tree. No-op on native targets;
+/// the function exists in both compilation paths so the call site is
+/// target-agnostic.
+#[cfg(target_arch = "wasm32")]
+fn redirect_to_setup() {
+    if let Some(window) = web_sys::window() {
+        let _ = window.location().assign(SETUP_PATH);
+    }
+}
+
+/// Native stub. See the wasm variant for the contract.
+#[cfg(not(target_arch = "wasm32"))]
+fn redirect_to_setup() {
+    // Intentionally empty: the navigation side effect only makes
+    // sense in a browser context. Native callers exercising the
+    // routing contract use the predicate-style tests in
+    // `crate::pages::setup::tests` instead.
+    let _ = SETUP_PATH;
 }

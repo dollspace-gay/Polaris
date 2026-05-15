@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT refresh_token_enc\n              FROM sessions\n              WHERE moderator_id = $1\n                AND expires_at > now()\n              ORDER BY last_seen_at DESC NULLS LAST, created_at DESC\n              LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "refresh_token_enc",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "394563b71e9ff4c0cef02612faadc8d89fd54ed1f08f11ad92473f33734ad9b7"
+}

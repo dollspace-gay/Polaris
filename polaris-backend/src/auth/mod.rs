@@ -396,6 +396,29 @@ pub enum AuthError {
         #[source]
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+
+    /// Audit-log append failed during a login-side privilege grant.
+    ///
+    /// Issue #83 / first-run admin grant: when the very first
+    /// moderator's complete-login path inserts the `admin` row in
+    /// `moderator_roles`, it also writes an audit-log entry recording
+    /// the privilege escalation. A failure in that append (chain-break,
+    /// CBOR encode failure, database error) rolls the transaction back
+    /// — the moderator does not become admin if the audit record cannot
+    /// be persisted. The `#[source]` chain preserves the underlying
+    /// [`crate::audit::AuditError`] for structured-log surfaces.
+    #[error("audit-log append failed during login")]
+    Audit {
+        /// Underlying [`crate::audit::AuditError`].
+        #[source]
+        source: crate::audit::AuditError,
+    },
+}
+
+impl From<crate::audit::AuditError> for AuthError {
+    fn from(source: crate::audit::AuditError) -> Self {
+        Self::Audit { source }
+    }
 }
 
 impl From<SessionError> for AuthError {

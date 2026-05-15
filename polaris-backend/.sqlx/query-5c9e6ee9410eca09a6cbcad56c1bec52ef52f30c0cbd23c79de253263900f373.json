@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE polaris_setup_state\n          SET signing_key_path = $1,\n              signing_pubkey_did = $2,\n              updated_at = now()\n          WHERE id = TRUE",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5c9e6ee9410eca09a6cbcad56c1bec52ef52f30c0cbd23c79de253263900f373"
+}

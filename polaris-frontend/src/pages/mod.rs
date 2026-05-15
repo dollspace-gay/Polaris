@@ -9,3 +9,5 @@
 
 pub mod case_view;
 pub mod dashboard;
+pub mod login;
+pub mod setup;

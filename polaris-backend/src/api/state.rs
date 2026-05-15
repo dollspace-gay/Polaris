@@ -31,7 +31,9 @@ use crate::auth::session::SessionStore;
 use crate::auth::webauthn::WebauthnVerifier;
 use crate::bus::EventBus;
 use crate::bus::memory::MemoryBus;
-use crate::config::{ModeratorAnomalyEnvConfig, PatternActionsConfig, ReputationConfig};
+use crate::config::{
+    LabelerSigningKeyConfig, ModeratorAnomalyEnvConfig, PatternActionsConfig, ReputationConfig,
+};
 use crate::labeler::emitter::LabelEmitter;
 use crate::labeler::server::{LabelBroadcaster, PgLabelRepo};
 use crate::labeler::signer::ActiveSignerReceiver;
@@ -161,6 +163,21 @@ pub struct ApiState {
     /// `/auth/*` routes). Production wiring always installs the
     /// verifier via [`Self::with_moderator_auth`].
     pub moderator_auth: Option<Arc<AnyModeratorAuth>>,
+    /// OAuth client-metadata payload served at
+    /// `/oauth/client-metadata.json` (issue #81). `None` (the default)
+    /// makes the route return 404; production deployments install it
+    /// via [`Self::with_oauth_client_metadata`] when the operator
+    /// configures the atproto backend.
+    pub oauth_client_metadata: crate::api::oauth_metadata::ClientMetadataState,
+    /// Labeler signing-key custody configuration (issue #85).
+    ///
+    /// The `/api/setup/generate-key` handler reads this to decide
+    /// whether the wizard's in-process key mint is the right
+    /// configured path (only `file-plain` is supported from the
+    /// HTTP-driven wizard; other modes route through the
+    /// `labeler-key-rotate` CLI). Threaded onto the state so the
+    /// handler does not have to re-parse env on every call.
+    pub labeler_signing_key_cfg: LabelerSigningKeyConfig,
 }
 
 impl ApiState {
@@ -323,6 +340,17 @@ impl ApiState {
             // verifier and install it the same way; tests that don't
             // touch those routes leave the slot `None`.
             moderator_auth: None,
+            // Issue #81: empty cache by default; the binary installs it
+            // via with_oauth_client_metadata after loading the
+            // operator-supplied client_metadata.json.
+            oauth_client_metadata: crate::api::oauth_metadata::ClientMetadataState::empty(),
+            // Issue #85: default signing-key custody is the
+            // labeler-profile default (file-plain at the sentinel
+            // path). The binary entrypoint overrides it via
+            // [`Self::with_labeler_signing_key_cfg`] after env parse;
+            // tests that don't exercise the setup endpoints leave the
+            // default in place.
+            labeler_signing_key_cfg: LabelerSigningKeyConfig::default(),
         }
     }
 
@@ -397,7 +425,35 @@ impl ApiState {
     }
 
     /// Install the moderator-authentication verifier onto the state
-    /// (issue #67).
+    /// Install the OAuth client-metadata payload (issue #81). Production
+    /// wiring calls this after [`polaris_types::oauth_config::load_client_metadata`]
+    /// succeeds; the metadata is then served from
+    /// `/oauth/client-metadata.json` for the AS to fetch when verifying
+    /// the `client_id` URL.
+    #[must_use]
+    pub fn with_oauth_client_metadata(
+        mut self,
+        metadata: crate::api::oauth_metadata::ClientMetadataState,
+    ) -> Self {
+        self.oauth_client_metadata = metadata;
+        self
+    }
+
+    /// Install the labeler signing-key custody configuration onto the
+    /// state (issue #85).
+    ///
+    /// The binary entrypoint calls this after `LabelerConfig::from_env`
+    /// succeeds so the `/api/setup/generate-key` handler can pick the
+    /// configured path off the state without re-parsing env. Tests
+    /// that exercise the setup endpoints install their own config the
+    /// same way.
+    #[must_use]
+    pub fn with_labeler_signing_key_cfg(mut self, cfg: LabelerSigningKeyConfig) -> Self {
+        self.labeler_signing_key_cfg = cfg;
+        self
+    }
+
+    /// Install the moderator-authentication verifier (issue #67).
     ///
     /// The binary entrypoint builds the verifier via
     /// [`crate::auth::build_moderator_auth`] from the configured backend
@@ -448,6 +504,14 @@ impl std::fmt::Debug for ApiState {
                 "moderator_auth",
                 &self.moderator_auth.as_ref().map(|_| "<verifier>"),
             )
+            .field(
+                "oauth_client_metadata",
+                &self
+                    .oauth_client_metadata
+                    .payload()
+                    .map(|_| "<client-metadata>"),
+            )
+            .field("labeler_signing_key_cfg", &self.labeler_signing_key_cfg)
             .finish()
     }
 }
@@ -460,5 +524,11 @@ impl std::fmt::Debug for ApiState {
 impl axum::extract::FromRef<ApiState> for SessionStore {
     fn from_ref(state: &ApiState) -> Self {
         state.sessions.clone()
+    }
+}
+
+impl axum::extract::FromRef<ApiState> for crate::api::oauth_metadata::ClientMetadataState {
+    fn from_ref(state: &ApiState) -> Self {
+        state.oauth_client_metadata.clone()
     }
 }

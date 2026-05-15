@@ -360,12 +360,17 @@ async fn post_login_returns_303_with_location_to_authorize_url()
     // PDS-URL hint, which lets the test bypass DNS handle resolution and
     // exercise the start_login → PAR → authorize-URL path against the
     // mock AS.
-    let body = serde_json::json!({ "handle": pds_url });
+    //
+    // Body shape: `application/x-www-form-urlencoded` — the browser
+    // login page (issue #82) submits a real HTML form rather than a
+    // fetch() call so the handler's 303 propagates to the browser's
+    // location bar.
+    let body = form_urlencoded_body(&[("handle", pds_url)]);
     let request = Request::builder()
         .method("POST")
         .uri("/auth/atproto/login")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(serde_json::to_vec(&body)?))?;
+        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(Body::from(body))?;
     let response = fixture.router.oneshot(request).await?;
 
     assert_eq!(
@@ -505,12 +510,12 @@ async fn post_login_with_empty_handle_returns_400() -> Result<(), Box<dyn std::e
     let fetcher = Arc::new(MockFetcher::new());
     let fixture = build_fixture(fetcher).await?;
 
-    let body = serde_json::json!({ "handle": "" });
+    let body = form_urlencoded_body(&[("handle", "")]);
     let request = Request::builder()
         .method("POST")
         .uri("/auth/atproto/login")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(serde_json::to_vec(&body)?))?;
+        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(Body::from(body))?;
     let mut response = fixture.router.oneshot(request).await?;
 
     assert_eq!(
@@ -555,6 +560,29 @@ async fn get_callback_with_wrong_state_returns_400() -> Result<(), Box<dyn std::
         .expect("400 body should be JSON");
     assert_eq!(body["code"], "bad_request");
     Ok(())
+}
+
+/// Build an `application/x-www-form-urlencoded` body from a list of
+/// `(name, value)` pairs.
+///
+/// Mirrors the `&`-joined `key=value` shape a browser produces from an
+/// HTML form (the encoding rules the
+/// [WHATWG URL form-encoding standard][1] specifies). We deliberately
+/// avoid pulling `serde_urlencoded` or `form_urlencoded` into the
+/// dev-dep set for the one call site the tests use.
+///
+/// [1]: https://url.spec.whatwg.org/#application/x-www-form-urlencoded
+fn form_urlencoded_body(pairs: &[(&str, &str)]) -> String {
+    let mut out = String::new();
+    for (i, (name, value)) in pairs.iter().enumerate() {
+        if i > 0 {
+            out.push('&');
+        }
+        out.push_str(&urlencoding_encode(name));
+        out.push('=');
+        out.push_str(&urlencoding_encode(value));
+    }
+    out
 }
 
 /// Minimal URL-encoder for the small character set the state tokens use

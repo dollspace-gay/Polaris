@@ -3,11 +3,15 @@
 //! Two endpoints, mirroring the OIDC route shape promised in
 //! [`crate::middleware::auth::is_exempt`]:
 //!
-//! - `POST /auth/atproto/login` — accepts a JSON body `{ "handle": "..." }`,
-//!   drives [`AtprotoOauthAuthVerifier::start_login`] with
+//! - `POST /auth/atproto/login` — accepts an
+//!   `application/x-www-form-urlencoded` body with a single `handle`
+//!   field, drives [`AtprotoOauthAuthVerifier::start_login`] with
 //!   [`LoginHint::AtprotoHandle`], and returns a `303 See Other` with a
 //!   `Location` header pointing at the authorization-server's authorize
-//!   URL.
+//!   URL. Form-encoded (rather than JSON) is the natural shape for an
+//!   HTML form submit — issue #82 wires the browser login page as a
+//!   real `<form method="POST">` so the 303 propagates to the
+//!   browser's location bar without any client-side JS.
 //! - `GET /auth/atproto/callback?state=...&code=...` — drives
 //!   [`AtprotoOauthAuthVerifier::complete_login`], mints a Polaris session
 //!   via [`SessionStore::create`] (the verifier itself does this inside
@@ -42,7 +46,7 @@
 //!   middle-box that ignores cookie expiry still respects the session
 //!   window.
 
-use axum::Json;
+use axum::Form;
 use axum::extract::{Query, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
@@ -62,6 +66,11 @@ use crate::middleware::auth::SESSION_COOKIE;
 /// `resolve_input` will treat as the discovery target. Validation lives
 /// in the verifier; we surface a 400 on an empty string here so the
 /// handler does not call into `start_login` with garbage.
+///
+/// Decoded from an `application/x-www-form-urlencoded` body (issue
+/// #82): the browser login page is a plain HTML `<form>` so the 303
+/// response from the handler can propagate to the browser's location
+/// bar without any JS in the loop.
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
     /// ATProto handle the moderator is logging in with.
@@ -101,7 +110,7 @@ pub struct CallbackQuery {
 ///   moderator's handle does not resolve" from network failures.
 pub async fn login(
     State(state): State<ApiState>,
-    Json(req): Json<LoginRequest>,
+    Form(req): Form<LoginRequest>,
 ) -> Result<Response, ApiError> {
     if req.handle.trim().is_empty() {
         return Err(ApiError::BadRequest("handle must not be empty"));
@@ -243,7 +252,8 @@ fn auth_error_to_api(err: AuthError) -> ApiError {
         | AuthError::OauthExchange { .. }
         | AuthError::DpopBindingFailed { .. }
         | AuthError::HandleResolutionFailed { .. }
-        | AuthError::OauthRefreshFailed { .. } => ApiError::Internal(anyhow::anyhow!(err)),
+        | AuthError::OauthRefreshFailed { .. }
+        | AuthError::Audit { .. } => ApiError::Internal(anyhow::anyhow!(err)),
     }
 }
 

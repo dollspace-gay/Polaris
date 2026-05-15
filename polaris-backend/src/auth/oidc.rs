@@ -166,6 +166,44 @@ impl OidcAuthVerifier {
         })
     }
 
+    /// Run the OIDC moderator upsert and the first-run admin grant
+    /// inside a single transaction.
+    ///
+    /// Issue #83a: the OAuth complete-login path commits the moderator
+    /// row, the conditional `admin` grant in `moderator_roles`, and the
+    /// `first_user_admin_grant` audit-log entry atomically — a failure
+    /// in any step rolls the entire grant back so the moderator does
+    /// not become admin without the privilege-escalation audit record.
+    ///
+    /// Returns the moderator's UUID. The shared helper
+    /// [`crate::auth::atproto::maybe_grant_first_user_admin`] carries
+    /// the race-safety reasoning; this OIDC path applies the same
+    /// policy as the atproto path so a deployment that toggles between
+    /// backends sees identical first-run semantics.
+    async fn upsert_and_maybe_grant_admin(
+        &self,
+        external_id: &str,
+        display_name: Option<&str>,
+    ) -> Result<Uuid, AuthError> {
+        let mut tx = self.pool.begin().await.map_err(|e| AuthError::Storage {
+            source: crate::auth::session::SessionError::Database(e),
+        })?;
+        let moderator_uuid = upsert_moderator_in_tx(&mut tx, external_id, display_name)
+            .await
+            .map_err(AuthError::from)?;
+        crate::auth::atproto::maybe_grant_first_user_admin(
+            &mut tx,
+            moderator_uuid,
+            external_id,
+            "oidc",
+        )
+        .await?;
+        tx.commit().await.map_err(|e| AuthError::Storage {
+            source: crate::auth::session::SessionError::Database(e),
+        })?;
+        Ok(moderator_uuid)
+    }
+
     /// Internal `complete_login` implementation.
     async fn complete_login_impl(&self, state: &str, code: &str) -> Result<LoginResult, AuthError> {
         // Look up the PKCE verifier and CSRF nonce by state. Window: 10
@@ -265,10 +303,11 @@ impl OidcAuthVerifier {
             .and_then(|n| n.get(None).map(|name| name.deref().clone()))
             .or_else(|| claims.preferred_username().map(|u| u.deref().clone()));
 
-        // Upsert moderator row.
-        let moderator_uuid = upsert_moderator(&self.pool, &external_id, display_name.as_deref())
-            .await
-            .map_err(AuthError::from)?;
+        // Issue #83a / first-run admin grant: upsert + maybe-grant in
+        // one transaction. See [`Self::upsert_and_maybe_grant_admin`].
+        let moderator_uuid = self
+            .upsert_and_maybe_grant_admin(&external_id, display_name.as_deref())
+            .await?;
 
         // Persist the refresh token (encrypted via SessionStore::create).
         let refresh_token_plain = token_response
@@ -331,10 +370,16 @@ impl ModeratorAuth for NullAuthVerifier {
     }
 }
 
-/// Insert (or fetch the existing) moderator row for `(auth_backend='oidc', external_id)`.
+/// Insert (or fetch the existing) moderator row for
+/// `(auth_backend='oidc', external_id)` inside the caller's transaction.
 /// Updates `last_login_at` on every call.
-pub(crate) async fn upsert_moderator(
-    pool: &PgPool,
+///
+/// Issue #83a: the OAuth complete-login path runs the moderator upsert,
+/// the system-wide count of `moderator_roles`, the conditional admin
+/// grant, and the audit-log append in one transaction. This function
+/// is the per-call SQL the transaction composes around.
+pub(crate) async fn upsert_moderator_in_tx(
+    tx: &mut sqlx::PgConnection,
     external_id: &str,
     display_name: Option<&str>,
 ) -> Result<Uuid, crate::auth::session::SessionError> {
@@ -348,7 +393,7 @@ pub(crate) async fn upsert_moderator(
         external_id,
         display_name,
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
     Ok(row.id)
 }

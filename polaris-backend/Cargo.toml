@@ -82,6 +82,13 @@ polaris-types = { path = "../polaris-types" }
 # meaningful when both crates rev together.
 polaris-publish-labeler-record = { path = "../polaris-publish-labeler-record" }
 
+# Issue #85: the `/api/setup/*` handlers re-use the DID-document
+# constructors and the PLC `services` / `verificationMethods` payload
+# builders from the publish-did-service library so the backend and the
+# CLI emit the same wire shape. Path-only for the same reason as the
+# sibling above — both crates rev together.
+polaris-publish-did-service = { path = "../polaris-publish-did-service" }
+
 # Issue #30 / REQ-12 / AC-15: the `labeler-key-rotate` binary (src/bin/
 # labeler_key_rotate.rs) consumes clap's derive macros for `--mode`,
 # `--resume`, `--new-key-path`, `--reason`, `--dry-run`. Workspace-pinned

@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add reporter-reputation weighting (T3 mitigation) (#74)
 
 ### Added
+- Backend: /api/setup/* endpoints reusing moderator OAuth session (#85)
+- Frontend: first-run setup wizard (key-gen + labeler-record + DID-doc) (#84)
+- Backend: first-run detection + auto-admin grant for first ATProto OAuth login (#83)
+- Frontend: login page that wires to /auth/atproto/login (#82)
 - Rewire MemoryAnomalyDetector to consume reputation-weighted per-event scores (#77)
 - Byte-offset tamper diagnostic + 100k-event perf test for audit chain (#72)
 - Per-mode rotation: passphrase_sealed, os_keychain, cloud_kms_oracle (#64)
@@ -37,12 +41,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Establish workspace and skeleton (M0) (#2)
 
 ### Fixed
+- polaris-publish-did-service needs OAuth path — PLC ops reject app-password scope (#80)
 - Fix #29 cloud-kms serde tag mismatch (variant produces cloud-kms; code expects cloud-kms-oracle) (#63)
 - Fix bad_request_carries_static_message test in api/error.rs (#55)
 - Refine xtask hardcoded_mutating_route rule to allow PolarisApiClient gateway (#53)
 - Resolve proto-blue 0.3.1 MSRV blocker (1.88 features under declared 1.85) (#50)
 
 ### Changed
+- Docs: replace quick-start CLI steps with browser-based setup walkthrough (#86)
 - Bump aes-gcm 0.10 -> 0.11 when stable (remove deprecated GenericArray allows) (#62)
 - Consolidate duplicate canonical-CBOR encoders (emitter.rs + upstream_labels.rs) (#78)
 - Wasm bundle-size budget gate in CI (#71)

@@ -141,6 +141,74 @@ fn cli_help_exits_zero_and_documents_did_method_values() {
     }
 }
 
+/// `--oauth` without `--client-metadata` must not succeed. Clap's
+/// `requires = "oauth"` constraint runs the other direction
+/// (using `--client-metadata` without `--oauth` is rejected at parse
+/// time); the missing-metadata-with-oauth case is enforced by
+/// `select_auth_mode` and surfaces as `UserError::OauthMissingClientMetadata`
+/// → exit 1. Either failure mode is acceptable here; the contract
+/// pinned by this test is "the run must not succeed without metadata."
+/// Mirrors `polaris-publish-labeler-record::cli_oauth_requires_client_metadata_flag`.
+#[test]
+fn cli_oauth_requires_client_metadata_flag() {
+    let bin_path = env!("CARGO_BIN_EXE_polaris-publish-did-service");
+    let output = Command::new(bin_path)
+        .args([
+            "--account",
+            HANDLE,
+            "--service-url",
+            SERVICE_URL,
+            "--signing-key",
+            SIGNING_PUBKEY,
+            "--did-method",
+            "plc",
+            "--oauth",
+        ])
+        .output()
+        .expect("invocation should not fail");
+
+    assert!(
+        !output.status.success(),
+        "--oauth without --client-metadata must not succeed; got success"
+    );
+}
+
+/// `--oauth --client-metadata <missing-path>` lands the
+/// `polaris_types::oauth_config::load_client_metadata` error on the
+/// user-error exit path (exit code 1), not the remote/PDS path (exit
+/// code 2). This pins the integration: the CLI surfaces the
+/// polaris-types loader error (not a generic anyhow), and the exit
+/// code matches `UserError`'s documented mapping.
+/// Mirrors `polaris-publish-labeler-record::cli_oauth_missing_client_metadata_file_exits_user_error`.
+#[test]
+fn cli_oauth_missing_client_metadata_file_exits_user_error() {
+    let bin_path = env!("CARGO_BIN_EXE_polaris-publish-did-service");
+    let output = Command::new(bin_path)
+        .args([
+            "--account",
+            HANDLE,
+            "--service-url",
+            SERVICE_URL,
+            "--signing-key",
+            SIGNING_PUBKEY,
+            "--did-method",
+            "plc",
+            "--oauth",
+            "--client-metadata",
+            "/nonexistent/path/client-metadata.json",
+        ])
+        .output()
+        .expect("invocation should not fail");
+
+    let code = output.status.code().expect("process exited via signal");
+    assert_eq!(
+        code,
+        1,
+        "expected exit 1 (UserError); got {code}, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 /// CLI `--did-method=web` prints valid JSON containing the
 /// `#atproto_labeler` service entry to stdout.
 #[test]

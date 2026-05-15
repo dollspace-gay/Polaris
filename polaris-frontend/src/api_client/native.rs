@@ -11,7 +11,12 @@ use reqwest::Client;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use super::dto::{CaseView, DashboardSnapshot, Escalate, IncidentList, ReverseBody, SubmitAction};
+use super::dto::{
+    CaseView, DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList,
+    PublishLabelerRecordRequest, PublishLabelerRecordResponse, RequestPlcSignatureResponse,
+    ReverseBody, SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse,
+    WhoamiResponse,
+};
 use super::{ApiError, HealthStatus, PolarisApiClient};
 
 /// `reqwest`-backed [`PolarisApiClient`] impl.
@@ -142,5 +147,38 @@ impl PolarisApiClient for NativePolarisApiClient {
 
     async fn get_dashboard(&self) -> Result<DashboardSnapshot, ApiError> {
         self.get_json("/api/dashboard").await
+    }
+
+    async fn whoami(&self) -> Result<WhoamiResponse, ApiError> {
+        self.get_json("/api/whoami").await
+    }
+
+    async fn setup_generate_key(&self) -> Result<GenerateKeyResponse, ApiError> {
+        // Empty JSON body — the endpoint takes no input; everything it
+        // needs (the moderator identity, the keystore handle) comes
+        // from the authenticated session and the API state.
+        self.post_json("/api/setup/generate-key", &serde_json::json!({}))
+            .await
+    }
+
+    async fn setup_publish_labeler_record(
+        &self,
+        req: PublishLabelerRecordRequest,
+    ) -> Result<PublishLabelerRecordResponse, ApiError> {
+        self.post_json("/api/setup/publish-labeler-record", &req)
+            .await
+    }
+
+    async fn setup_request_plc_signature(&self) -> Result<RequestPlcSignatureResponse, ApiError> {
+        self.post_json("/api/setup/request-plc-signature", &serde_json::json!({}))
+            .await
+    }
+
+    async fn setup_submit_plc_operation(
+        &self,
+        req: SubmitPlcOperationRequest,
+    ) -> Result<SubmitPlcOperationResponse, ApiError> {
+        self.post_json("/api/setup/submit-plc-operation", &req)
+            .await
     }
 }

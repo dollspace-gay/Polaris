@@ -3982,6 +3982,7 @@ dependencies = [
  "http-body-util",
  "keyring",
  "openidconnect",
+ "polaris-publish-did-service",
  "polaris-publish-labeler-record",
  "polaris-types",
  "proptest",
@@ -4050,7 +4051,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "polaris-types",
  "proto-blue",
+ "secrecy",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",

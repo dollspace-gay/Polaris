@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE polaris_setup_state\n          SET did_document_updated_at = now(),\n              updated_at = now()\n          WHERE id = TRUE",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "e89aa94f5bc4579bd2c045afc616a10e5543d7e6dba2b7d49b490aacdf2012f6"
+}

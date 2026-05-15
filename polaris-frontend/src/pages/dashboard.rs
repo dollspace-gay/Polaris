@@ -52,6 +52,7 @@ use crate::components::dashboard::cluster_list::ClusterList;
 use crate::components::dashboard::coordinated_signals::CoordinatedSignalsPanel;
 use crate::components::dashboard::moderator_load::ModeratorLoadPanel;
 use crate::components::dashboard::report_volume_chart::ReportVolumeChart;
+use crate::pages::login::{is_unauthorized, redirect_to_login};
 
 /// Polling interval for the polling-fallback refetch trigger, in milliseconds.
 ///
@@ -183,8 +184,25 @@ pub fn PatternDashboard() -> impl IntoView {
     let snapshot = LocalResource::new(move || {
         let _token = tick.get();
         async move {
-            let client = default_client("").map_err(|e: ApiError| e.to_string())?;
-            client.get_dashboard().await.map_err(|e| e.to_string())
+            // Inspect each error against the 401-redirect contract
+            // (#82) BEFORE stringifying: an unauthenticated dashboard
+            // call must bounce the operator to `/login` rather than
+            // render an inline "HTTP 401" panel. `redirect_to_login`
+            // is a no-op on native targets so the same code path
+            // compiles for tests / IDE checks. Other errors propagate
+            // as their `Display` text into the `<Suspense>` arm.
+            let client = default_client("").map_err(|e: ApiError| {
+                if is_unauthorized(&e) {
+                    redirect_to_login();
+                }
+                e.to_string()
+            })?;
+            client.get_dashboard().await.map_err(|e: ApiError| {
+                if is_unauthorized(&e) {
+                    redirect_to_login();
+                }
+                e.to_string()
+            })
         }
     });
 

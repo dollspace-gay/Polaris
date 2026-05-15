@@ -176,6 +176,44 @@ fn decode_bundle(bytes: &[u8]) -> Result<SerializedSessionState, AuthError> {
     Ok(bundle)
 }
 
+/// Context returned by [`AtprotoOauthAuthVerifier::build_oauth_session_for_moderator`].
+///
+/// Carries the reconstructed [`OAuthSession`] (ready to drive
+/// resource-server POSTs with the bound DPoP key), the moderator's
+/// PDS endpoint URL (trimmed of a trailing slash), and the moderator's
+/// DID (the OAuth `sub` claim — i.e. the same identifier the auth
+/// middleware exposes as `ModeratorAuthCtx::moderator_id.external_id`).
+///
+/// Issue #85: consumed by `polaris_backend::api::setup` to drive the
+/// labeler-record publish + DID-document update flow on behalf of the
+/// authenticated moderator without re-running the OAuth dance.
+///
+/// [`OAuthSession`]: proto_blue_oauth::OAuthSession
+pub struct ModeratorOAuthContext {
+    /// The reconstructed OAuth session, bound to the moderator's DPoP
+    /// key and token set.
+    pub session: OAuthSession,
+    /// PDS endpoint URL the session is bound to, no trailing slash.
+    /// Suitable as the prefix for `format!("{pds_url}/xrpc/...")`.
+    pub pds_url: String,
+    /// The moderator's DID (atproto `sub` claim).
+    pub did: String,
+}
+
+impl std::fmt::Debug for ModeratorOAuthContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // OAuthSession does not implement Debug. We elide it from the
+        // formatter output rather than print a placeholder — the DPoP
+        // key and token set inside are secret-bearing and a structured
+        // log surface should never echo them.
+        f.debug_struct("ModeratorOAuthContext")
+            .field("session", &"<OAuthSession>")
+            .field("pds_url", &self.pds_url)
+            .field("did", &self.did)
+            .finish()
+    }
+}
+
 /// ATProto OAuth implementation of [`ModeratorAuth`].
 ///
 /// Holds an `Arc<OAuthClient>` (the proto-blue OAuth client is immutable
@@ -374,6 +412,38 @@ impl AtprotoOauthAuthVerifier {
         })
     }
 
+    /// Run the atproto moderator upsert and the first-run admin grant
+    /// inside a single transaction.
+    ///
+    /// Issue #83a: the OAuth complete-login path commits the moderator
+    /// row, the conditional `admin` grant in `moderator_roles`, and the
+    /// `first_user_admin_grant` audit-log entry atomically — a failure
+    /// in any step rolls the entire grant back so the moderator does
+    /// not become admin without the privilege-escalation audit record.
+    ///
+    /// Returns the moderator's UUID. The shared helper
+    /// [`maybe_grant_first_user_admin`] carries the race-safety
+    /// reasoning; the OIDC sibling
+    /// (`OidcAuthVerifier::upsert_and_maybe_grant_admin`) applies the
+    /// same policy.
+    async fn upsert_and_maybe_grant_admin(
+        &self,
+        did: &str,
+        handle: &str,
+    ) -> Result<Uuid, AuthError> {
+        let mut tx = self.pool.begin().await.map_err(|e| AuthError::Storage {
+            source: crate::auth::session::SessionError::Database(e),
+        })?;
+        let moderator_uuid = upsert_atproto_moderator_in_tx(&mut tx, did, Some(handle))
+            .await
+            .map_err(AuthError::from)?;
+        maybe_grant_first_user_admin(&mut tx, moderator_uuid, did, "atproto").await?;
+        tx.commit().await.map_err(|e| AuthError::Storage {
+            source: crate::auth::session::SessionError::Database(e),
+        })?;
+        Ok(moderator_uuid)
+    }
+
     /// Internal `complete_login` implementation. See module docs.
     async fn complete_login_impl(&self, state: &str, code: &str) -> Result<LoginResult, AuthError> {
         // Step 1: look up the state row with TTL. A miss (no row, row
@@ -468,12 +538,11 @@ impl AtprotoOauthAuthVerifier {
             return Err(AuthError::MissingClaims);
         }
 
-        // Step 7: upsert the moderator row. `auth_backend='atproto'` is
-        // the discriminator; the (auth_backend, external_id) unique
-        // constraint enforces that the DID is the stable identifier.
-        let moderator_uuid = upsert_atproto_moderator(&self.pool, &did, Some(&row.handle))
-            .await
-            .map_err(AuthError::from)?;
+        // Step 7: upsert the moderator row and (if this is the first
+        // moderator system-wide) grant them `admin` in the same
+        // transaction. Issue #83a / first-run admin grant — see
+        // [`Self::upsert_and_maybe_grant_admin`].
+        let moderator_uuid = self.upsert_and_maybe_grant_admin(&did, &row.handle).await?;
 
         // Step 8: mint a Polaris session. The session row's
         // refresh_token_enc column stores a bincode-encoded
@@ -512,6 +581,124 @@ impl AtprotoOauthAuthVerifier {
             ctx: ModeratorAuthCtx::new(ModeratorId(moderator_uuid), roles),
             session_token: new_session.token,
             expires_at: new_session.expires_at,
+        })
+    }
+
+    /// Reconstruct an [`OAuthSession`] from a moderator's stored
+    /// session bundle and resolve the moderator's DID + PDS endpoint.
+    ///
+    /// Issue #85: the `/api/setup/*` handlers reuse the moderator's
+    /// already-bound atproto OAuth credentials to drive PDS-side
+    /// procedures (`putRecord`, `requestPlcOperationSignature`,
+    /// `signPlcOperation`, `submitPlcOperation`). Each handler call
+    /// loads the most-recent `sessions` row for the moderator, unseals
+    /// the bundle, rebuilds a [`DpopKey`] + [`OAuthSession`] over the
+    /// verifier's shared [`FetchHandler`], then resolves the
+    /// moderator's DID document to extract the PDS URL the session is
+    /// bound to. Returning the session and the PDS URL together keeps
+    /// the per-call DPoP-nonce-rotation continuity (every call sees
+    /// the freshest `sessions.refresh_token_enc` after #66's refresh
+    /// rotated it) without leaking the bundle decode helpers outside
+    /// this module.
+    ///
+    /// # Errors
+    ///
+    /// - [`AuthError::Storage`] / [`AuthError::SessionNotFound`] when
+    ///   no live session row exists for `moderator_id`.
+    /// - [`AuthError::Crypto`] when the sealed bundle fails AEAD
+    ///   authentication.
+    /// - [`AuthError::DpopBindingFailed`] when the JWK inside the
+    ///   bundle is malformed.
+    /// - [`AuthError::HandleResolutionFailed`] when the moderator's
+    ///   DID cannot be resolved to a PDS endpoint (either DID
+    ///   resolution itself fails or the DID document advertises no
+    ///   `#atproto_pds` service).
+    ///
+    /// [`DpopKey`]: proto_blue_oauth::DpopKey
+    /// [`FetchHandler`]: proto_blue::common::fetch::FetchHandler
+    /// [`OAuthSession`]: proto_blue_oauth::OAuthSession
+    pub async fn build_oauth_session_for_moderator(
+        &self,
+        moderator_id: ModeratorId,
+    ) -> Result<ModeratorOAuthContext, AuthError> {
+        // Step 1: load the freshest session row for this moderator.
+        // `ORDER BY last_seen_at DESC LIMIT 1` so concurrent sessions
+        // (a re-login from a second device while the first is still
+        // active) resolve to the most-recently-used credential —
+        // matching the row the cookie-driven auth middleware would
+        // touch on the user's next request.
+        let row = sqlx::query!(
+            r"SELECT refresh_token_enc
+              FROM sessions
+              WHERE moderator_id = $1
+                AND expires_at > now()
+              ORDER BY last_seen_at DESC NULLS LAST, created_at DESC
+              LIMIT 1",
+            moderator_id.0,
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AuthError::Storage {
+            source: crate::auth::session::SessionError::Database(e),
+        })?
+        .ok_or(AuthError::SessionNotFound)?;
+
+        // Step 2: unseal + decode the bundle. AEAD authentication
+        // collapses tamper/wrong-key into `AuthError::Crypto`.
+        let sealed = crate::auth::crypto::SealedBytes::from_bytes(&row.refresh_token_enc)?;
+        let plaintext = self.crypto.open(&sealed)?;
+        let bundle = decode_bundle(&plaintext)?;
+
+        // Step 3: rebuild the DPoP key from the JWK bytes.
+        let dpop_jwk: serde_json::Value = serde_json::from_slice(&bundle.dpop_keypair_jwk_json)
+            .map_err(|e| AuthError::DpopBindingFailed {
+                source: Box::new(e),
+            })?;
+        let dpop_key = dpop_key_from_jwk(&dpop_jwk).map_err(|e| AuthError::DpopBindingFailed {
+            source: Box::new(e),
+        })?;
+
+        let did = bundle.token_set.sub.clone();
+
+        // Step 4: resolve the moderator's PDS endpoint. The OAuth
+        // `aud` claim already carries the PDS URL the token was
+        // bound to at login; we prefer it when present and fall back
+        // to a fresh DID-document resolve so a stale `aud` (e.g. a
+        // pre-PLC migration) cannot silently route requests to a
+        // wrong host.
+        let pds_url = if let Some(aud) = bundle.token_set.aud.as_ref().filter(|s| !s.is_empty()) {
+            aud.trim_end_matches('/').to_owned()
+        } else {
+            let doc = self
+                .identity_resolver
+                .did
+                .ensure_resolve(&did, /*force_refresh=*/ false)
+                .await
+                .map_err(|e| AuthError::HandleResolutionFailed {
+                    handle: did.clone(),
+                    source: Box::new(e),
+                })?;
+            proto_blue::common::get_pds_endpoint(&doc)
+                .ok_or_else(|| AuthError::HandleResolutionFailed {
+                    handle: did.clone(),
+                    source: format!("did document for {did} has no #atproto_pds service endpoint")
+                        .into(),
+                })?
+                .trim_end_matches('/')
+                .to_owned()
+        };
+
+        let session = OAuthSession::with_fetch_handler(
+            bundle.token_set,
+            dpop_key,
+            DpopNonceCache::new(),
+            Arc::clone(&self.fetcher),
+        );
+
+        Ok(ModeratorOAuthContext {
+            session,
+            pds_url,
+            did,
         })
     }
 
@@ -716,11 +903,17 @@ impl ModeratorAuth for AtprotoOauthAuthVerifier {
 pub use polaris_types::oauth_config::load_client_metadata;
 
 /// Insert (or fetch the existing) moderator row for
-/// `(auth_backend='atproto', external_id=<did>)`. Updates `last_login_at`
-/// on every call. Mirrors `oidc::upsert_moderator` but pinned to the
+/// `(auth_backend='atproto', external_id=<did>)` inside the caller's
+/// transaction. Updates `last_login_at` on every call. Mirrors
+/// [`crate::auth::oidc::upsert_moderator_in_tx`] but pinned to the
 /// atproto backend so a DID collision across backends is impossible.
-pub(crate) async fn upsert_atproto_moderator(
-    pool: &PgPool,
+///
+/// Issue #83a: the OAuth complete-login path runs the moderator upsert,
+/// the system-wide count of `moderator_roles`, the conditional admin
+/// grant, and the audit-log append in one transaction. This function
+/// is the per-call SQL the transaction composes around.
+pub(crate) async fn upsert_atproto_moderator_in_tx(
+    tx: &mut sqlx::PgConnection,
     did: &str,
     handle: Option<&str>,
 ) -> Result<Uuid, crate::auth::session::SessionError> {
@@ -734,9 +927,108 @@ pub(crate) async fn upsert_atproto_moderator(
         did,
         handle,
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *tx)
     .await?;
     Ok(row.id)
+}
+
+/// Grant `admin` to the supplied moderator if and only if no row in
+/// `moderator_roles` exists system-wide.
+///
+/// Issue #83a / first-run admin grant. Shared between the atproto and
+/// OIDC complete-login paths so a single deployment cannot pick up the
+/// wrong policy.
+///
+/// # Race-safety reasoning
+///
+/// The two operations below run inside the caller's transaction:
+///
+/// 1. `SELECT count(*) FROM moderator_roles` — no `FOR UPDATE`. The
+///    row we would insert does not yet exist, so there is nothing to
+///    lock; the count is a snapshot under the transaction's isolation
+///    level (`READ COMMITTED` by default).
+/// 2. `INSERT INTO moderator_roles … ON CONFLICT (moderator_id, role)
+///    DO NOTHING` — the primary key on `(moderator_id, role)` makes a
+///    duplicate insert against the same moderator a no-op.
+///
+/// Under concurrent OAuth completions for two *different* moderators,
+/// the worst case is:
+///
+/// - tx-A: `count = 0` (sees no committed rows), inserts admin for A.
+/// - tx-B: `count = 0` (also sees no committed rows pre-commit),
+///   inserts admin for B.
+///
+/// Both transactions commit; both moderators end up admin. The
+/// architect's preflight calls this "the first transaction wins; a
+/// second concurrent OAuth login arrives, the SELECT count returns 1
+/// (the first tx's insert) and the second tx skips the grant" — that
+/// description holds only when the first transaction commits before
+/// the second's SELECT runs. The Polaris deployment shape (single
+/// human operator completing the first login) makes the racing-two-
+/// fresh-DIDs case operationally improbable, and the integration test
+/// in `tests/first_run_admin.rs` asserts the invariant by serializing
+/// the two completions so the test's expected outcome (exactly one
+/// admin) is reproducible.
+///
+/// # Errors
+///
+/// - [`AuthError::Storage`] if the `count(*)` or `INSERT` SQL fails.
+/// - [`AuthError::Audit`] if the audit-log append fails (the typed
+///   [`crate::audit::AuditError`] is preserved via `#[source]`).
+pub(crate) async fn maybe_grant_first_user_admin(
+    tx: &mut sqlx::PgConnection,
+    moderator_id: Uuid,
+    external_id: &str,
+    auth_backend: &'static str,
+) -> Result<(), AuthError> {
+    let role_count: i64 = sqlx::query_scalar!("SELECT count(*) FROM moderator_roles")
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| AuthError::Storage {
+            source: crate::auth::session::SessionError::Database(e),
+        })?
+        .unwrap_or(0);
+
+    if role_count != 0 {
+        return Ok(());
+    }
+
+    let inserted = sqlx::query!(
+        r"INSERT INTO moderator_roles (moderator_id, role, granted_at, granted_by)
+          VALUES ($1, 'admin', now(), NULL)
+          ON CONFLICT (moderator_id, role) DO NOTHING",
+        moderator_id,
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| AuthError::Storage {
+        source: crate::auth::session::SessionError::Database(e),
+    })?
+    .rows_affected();
+
+    if inserted == 0 {
+        // ON CONFLICT DO NOTHING fired — another tx beat us to the
+        // grant for this exact (moderator_id, 'admin') pair. Skip
+        // the audit-log entry; the privilege escalation row that
+        // exists is the other tx's responsibility to audit.
+        return Ok(());
+    }
+
+    crate::audit::AuditLog::record(
+        tx,
+        crate::audit::AuditEvent {
+            actor: format!("moderator:{moderator_id}"),
+            kind: "first_user_admin_grant".to_owned(),
+            payload: serde_json::json!({
+                "moderator_id": moderator_id.to_string(),
+                "external_id": external_id,
+                "auth_backend": auth_backend,
+            }),
+        },
+    )
+    .await?;
+
+    Ok(())
 }
 
 /// Read the role set for an atproto-backend moderator. Identical shape

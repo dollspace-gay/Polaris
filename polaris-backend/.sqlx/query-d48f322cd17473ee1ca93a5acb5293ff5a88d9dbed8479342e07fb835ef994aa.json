@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT external_id, auth_backend FROM moderators WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "external_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "auth_backend",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "d48f322cd17473ee1ca93a5acb5293ff5a88d9dbed8479342e07fb835ef994aa"
+}

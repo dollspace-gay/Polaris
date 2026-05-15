@@ -29,10 +29,20 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 serde_json.workspace = true
 
-# URL parsing for the `--service-url` flag. Mirrors the workspace pin used
-# by polaris-publish-labeler-record so a typo on the operator's command
-# line is caught before any network call.
+# Redacts the app password in `Debug` output and zeroises it on drop.
+# Mirrors polaris-publish-labeler-record's `AuthMode::AppPassword` carrier
+# so the two CLIs share the same secret-handling discipline (#80).
+secrecy = { workspace = true, features = ["serde"] }
+
+# URL parsing for the `--service-url` flag and the OAuth callback paste-back
+# (#80). Mirrors the workspace pin used by polaris-publish-labeler-record so
+# a typo on the operator's command line is caught before any network call.
 url.workspace = true
+
+# Issue #80: shared OAuth client-metadata loader. Mirrors the
+# polaris-publish-labeler-record `--oauth` wiring (#61) so both CLIs share
+# the same read-and-parse path for the operator-supplied JSON.
+polaris-types = { path = "../polaris-types" }
 
 [lints]
 workspace = true

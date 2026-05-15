@@ -125,10 +125,39 @@ async fn main() -> anyhow::Result<()> {
         db.pool().clone(),
         api_state.label_broadcaster.clone(),
     ));
+    // Issue #81: serve the operator's OAuth client_metadata.json at
+    // `/oauth/client-metadata.json` so the same Polaris process can be
+    // the URL declared as `client_id` in the atproto OAuth flow. The
+    // payload is loaded once at startup from the operator-configured
+    // path; if the operator did not configure the atproto backend
+    // (e.g. OIDC-only deploy), `client_metadata` is the empty cache
+    // and the route returns 404.
+    let oauth_client_metadata = {
+        let path = &cfg.auth.atproto.client_metadata_path;
+        if path.as_os_str().is_empty() {
+            polaris_backend::api::oauth_metadata::ClientMetadataState::empty()
+        } else {
+            match polaris_types::oauth_config::load_client_metadata(path) {
+                Ok(md) => {
+                    polaris_backend::api::oauth_metadata::ClientMetadataState::from_metadata(&md)
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        ?err,
+                        path = ?path,
+                        "could not load OAuth client metadata at startup; /oauth/client-metadata.json will return 404"
+                    );
+                    polaris_backend::api::oauth_metadata::ClientMetadataState::empty()
+                }
+            }
+        }
+    };
+
     let api_state = api_state
         .with_label_emitter(emitter)
         .with_active_signer(signer_rx)
-        .with_moderator_auth(moderator_auth);
+        .with_moderator_auth(moderator_auth)
+        .with_oauth_client_metadata(oauth_client_metadata);
 
     // Issue #32: spawn one per-upstream subscribeLabels consumer for every
     // `upstream_labelers WHERE enabled = TRUE` row. Each task is detached

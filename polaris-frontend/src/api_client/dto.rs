@@ -248,6 +248,126 @@ pub struct ModeratorLoad {
 
 // ── Live dashboard feed (issue #57) ─────────────────────────────────────
 
+// ── First-run setup wizard (issue #84) ──────────────────────────────────
+
+/// Response from `POST /api/setup/generate-key`.
+///
+/// The backend mints a fresh K-256 signing key, persists the private
+/// half to its keystore, and returns the public half as a `did:key:z…`
+/// multikey the wizard surfaces to the operator for cross-checking
+/// against the labeler service record / DID document.
+///
+/// Mirrors the backend's `polaris_backend::api::setup::GenerateKeyResponse`
+/// (lands in #85). The wire shape is pinned here so the frontend's UI
+/// and the backend's handler agree on the JSON layout before the handler
+/// exists.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateKeyResponse {
+    /// `did:key:z…` multikey form of the freshly-minted public key.
+    pub did_key: String,
+}
+
+/// Request body for `POST /api/setup/publish-labeler-record`.
+///
+/// The backend pairs `service_url` + `label_values` with the
+/// already-minted signing key (from the previous step's
+/// [`GenerateKeyResponse`]) plus the moderator's authenticated session
+/// and submits the `app.bsky.labeler.service` record via the PDS.
+///
+/// `service_url` is a fully-qualified `https://…` URL (the labeler's
+/// public hostname); the labeler-record CLI's validation rules apply
+/// — see `polaris_publish_labeler_record::build_labeler_service_record`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublishLabelerRecordRequest {
+    /// HTTPS URL the labeler's WebSocket subscription endpoint lives at.
+    pub service_url: String,
+    /// Label values the labeler is declaring it emits (e.g. `["spam",
+    /// "porn"]`). Must be non-empty server-side.
+    pub label_values: Vec<String>,
+}
+
+/// Response from `POST /api/setup/publish-labeler-record`.
+///
+/// Echoes the AT-URI the record was written at plus the CID of the
+/// committed record so the wizard can surface a "your labeler is now
+/// published at … (cid …)" confirmation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublishLabelerRecordResponse {
+    /// AT-URI of the published record
+    /// (`at://<did>/app.bsky.labeler.service/self`).
+    pub at_uri: String,
+    /// CID of the committed record.
+    pub cid: String,
+}
+
+/// Response from `POST /api/setup/request-plc-signature`.
+///
+/// The backend asks the operator's PDS to email a PLC operation token
+/// to the operator's registered email address; the body returned here
+/// is a human-readable message the wizard renders so the operator knows
+/// to check their inbox.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RequestPlcSignatureResponse {
+    /// Human-readable instruction (e.g. `"Check your email at
+    /// op@example.com for the PLC operation token"`). The wizard
+    /// surfaces this verbatim — no client-side parsing.
+    pub message: String,
+}
+
+/// Request body for `POST /api/setup/submit-plc-operation`.
+///
+/// `token` is the value the operator copy-pasted from the email the
+/// PDS sent; `service_url` is the same `https://…` URL the previous
+/// step pinned, written into the DID document's `#atproto_labeler`
+/// service entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitPlcOperationRequest {
+    /// The PLC operation token the PDS emailed to the operator.
+    pub token: String,
+    /// HTTPS URL the labeler's service entry on the operator's DID
+    /// document should point at. Conventionally the same value passed
+    /// to the labeler-record publish step.
+    pub service_url: String,
+}
+
+/// Response from `POST /api/setup/submit-plc-operation`.
+///
+/// The DID identifier whose document was updated. Surfaced to the
+/// operator as confirmation that the PLC operation landed and the
+/// labeler service entry is now resolvable.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitPlcOperationResponse {
+    /// The DID whose document was updated (e.g. `did:plc:abcd…`).
+    pub did: String,
+}
+
+// ── /api/whoami (issue #83) ─────────────────────────────────────────────
+
+/// Wire shape returned by `GET /api/whoami`.
+///
+/// Mirrors the backend's
+/// [`polaris_backend::api::whoami::WhoamiResponse`] field-for-field.
+/// The frontend uses [`Self::first_run`] to decide whether the root
+/// route renders the dashboard or redirects to `/setup`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WhoamiResponse {
+    /// Stable moderator UUID rendered as a hyphenated hex string.
+    pub moderator_id: String,
+    /// External identifier for the moderator — the DID for
+    /// `auth_backend = "atproto"`, the `sub` claim for
+    /// `auth_backend = "oidc"`.
+    pub external_id: String,
+    /// Discriminator from the `moderators.auth_backend` column
+    /// (`"atproto"` or `"oidc"`).
+    pub auth_backend: String,
+    /// Role set granted to this moderator (stable role identifiers).
+    pub roles: Vec<String>,
+    /// `true` when the deployment is fresh (no committed actions, no
+    /// emitted labels) — the frontend routes to `/setup` instead of
+    /// `/` in that case.
+    pub first_run: bool,
+}
+
 /// Diff payload received from `GET /api/dashboard/live`.
 ///
 /// Mirrors the backend's `polaris_backend::api::dto::DashboardEvent`
@@ -309,6 +429,84 @@ mod tests {
         let back: SubmitAction = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(back.reasoning, body.reasoning);
         assert_eq!(back.policy_refs.len(), 1);
+    }
+
+    #[test]
+    fn generate_key_response_round_trips_through_serde() {
+        let body = GenerateKeyResponse {
+            did_key: "did:key:zQ3shokFTS3brHcDQrn82RUDfCZESWL1ZdCEJwekUDPQiYBme".to_owned(),
+        };
+        let json = serde_json::to_value(&body).expect("serialize");
+        assert_eq!(
+            json["did_key"],
+            "did:key:zQ3shokFTS3brHcDQrn82RUDfCZESWL1ZdCEJwekUDPQiYBme"
+        );
+        let back: GenerateKeyResponse = serde_json::from_value(json).expect("deserialize");
+        assert_eq!(back.did_key, body.did_key);
+    }
+
+    #[test]
+    fn publish_labeler_record_request_round_trips_through_serde() {
+        let req = PublishLabelerRecordRequest {
+            service_url: "https://labeler.example.com".to_owned(),
+            label_values: vec!["spam".to_owned(), "porn".to_owned()],
+        };
+        let json = serde_json::to_string(&req).expect("serialize");
+        let back: PublishLabelerRecordRequest = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.service_url, req.service_url);
+        assert_eq!(back.label_values, req.label_values);
+    }
+
+    #[test]
+    fn publish_labeler_record_response_round_trips_through_serde() {
+        let resp = PublishLabelerRecordResponse {
+            at_uri: "at://did:plc:test/app.bsky.labeler.service/self".to_owned(),
+            cid: "bafyreigh2akiscaildc...".to_owned(),
+        };
+        let json = serde_json::to_string(&resp).expect("serialize");
+        let back: PublishLabelerRecordResponse = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.at_uri, resp.at_uri);
+        assert_eq!(back.cid, resp.cid);
+    }
+
+    #[test]
+    fn submit_plc_operation_request_round_trips_through_serde() {
+        let req = SubmitPlcOperationRequest {
+            token: "abcdef-1234".to_owned(),
+            service_url: "https://labeler.example.com".to_owned(),
+        };
+        let json = serde_json::to_string(&req).expect("serialize");
+        let back: SubmitPlcOperationRequest = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.token, req.token);
+        assert_eq!(back.service_url, req.service_url);
+    }
+
+    #[test]
+    fn submit_plc_operation_response_round_trips_through_serde() {
+        let resp = SubmitPlcOperationResponse {
+            did: "did:plc:abc123".to_owned(),
+        };
+        let json = serde_json::to_string(&resp).expect("serialize");
+        let back: SubmitPlcOperationResponse = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.did, resp.did);
+    }
+
+    #[test]
+    fn whoami_response_round_trips_through_serde() {
+        let body = WhoamiResponse {
+            moderator_id: "00000000-0000-0000-0000-000000000001".to_owned(),
+            external_id: "did:plc:test".to_owned(),
+            auth_backend: "atproto".to_owned(),
+            roles: vec!["admin".to_owned()],
+            first_run: true,
+        };
+        let json = serde_json::to_value(&body).expect("serialize");
+        let back: WhoamiResponse = serde_json::from_value(json).expect("deserialize");
+        assert_eq!(back.moderator_id, body.moderator_id);
+        assert_eq!(back.external_id, body.external_id);
+        assert_eq!(back.auth_backend, body.auth_backend);
+        assert_eq!(back.roles, body.roles);
+        assert!(back.first_run);
     }
 
     #[test]

@@ -32,6 +32,7 @@ use crate::components::history_timeline::HistoryTimeline;
 use crate::components::network_panel::NetworkPanel;
 use crate::components::report_list::ReportList;
 use crate::components::subject_header::SubjectHeader;
+use crate::pages::login::{is_unauthorized, redirect_to_login};
 
 /// Render the subject-centric case view.
 ///
@@ -95,8 +96,24 @@ fn CaseViewLoaded(
     let case_resource = LocalResource::new(move || {
         let _token = refresh_token.get();
         async move {
-            let client = default_client("").map_err(|e: ApiError| e.to_string())?;
-            client.get_case(subject_id).await.map_err(|e| e.to_string())
+            // 401-redirect contract (#82): an unauthenticated fetch
+            // must bounce the operator to `/login` rather than render
+            // an inline "HTTP 401" panel. `redirect_to_login` is a
+            // no-op on native targets so the same code path compiles
+            // for tests / IDE checks. Other errors propagate as their
+            // `Display` text into the `<Suspense>` arm.
+            let client = default_client("").map_err(|e: ApiError| {
+                if is_unauthorized(&e) {
+                    redirect_to_login();
+                }
+                e.to_string()
+            })?;
+            client.get_case(subject_id).await.map_err(|e: ApiError| {
+                if is_unauthorized(&e) {
+                    redirect_to_login();
+                }
+                e.to_string()
+            })
         }
     });
 
