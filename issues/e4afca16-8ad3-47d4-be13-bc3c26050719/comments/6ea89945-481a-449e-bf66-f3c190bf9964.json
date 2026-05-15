@@ -1,0 +1,10 @@
+{
+  "uuid": "6ea89945-481a-449e-bf66-f3c190bf9964",
+  "issue_uuid": "e4afca16-8ad3-47d4-be13-bc3c26050719",
+  "author": "TeIq",
+  "content": "Closed. Single-line mechanical fix per architect-skill 'When to skip' exception: added url = \"2\" to root Cargo.toml [workspace.dependencies]; polaris-publish-labeler-record/Cargo.toml now references url.workspace = true. Build + clippy + fmt clean.",
+  "created_at": "2026-05-15T02:11:17.963929296Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAoqubgDtS2y9b5jioNuPJr+oWKxkk9oTyNKmOGTElXMwB719CwFO9zQJiNUA1Zn+SHenZXtC8OHzBfAM8757dDw=="
+}
