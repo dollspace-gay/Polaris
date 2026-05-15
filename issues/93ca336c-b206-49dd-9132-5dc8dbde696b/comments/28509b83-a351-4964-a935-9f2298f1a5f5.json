@@ -1,0 +1,10 @@
+{
+  "uuid": "28509b83-a351-4964-a935-9f2298f1a5f5",
+  "issue_uuid": "93ca336c-b206-49dd-9132-5dc8dbde696b",
+  "author": "TeIq",
+  "content": "Closed. Bumped aes-gcm from 0.10 to 0.11.0-rc.3 (workspace-pinned). Migrated 4× cipher init call sites from deprecated Key::<Aes256Gcm>::from_slice → Aes256Gcm::new_from_slice (KeyInit trait, returns Result, maps to SigningError::KeyDecrypt on degenerate-length inputs). Migrated 4× nonce sites from deprecated Nonce::from_slice → typed [u8; 12] arr → Nonce::<Aes256Gcm>::from(arr). Updated Aead::encrypt/decrypt calls to take &nonce per the 0.11 signature. Removed all 6× #[allow(deprecated)] blocks. Zero build warnings, clippy clean, fmt clean. 25/25 signer lib tests + 3/3 key_rotation integration tests pass. Pin back to 0.10 if the RC introduces a regression — call sites are narrow.",
+  "created_at": "2026-05-15T10:41:16.254196139Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAIDWdIHvVciiWHTz8nzW8sIr0oEedrgZyK3KCw0fGsIeRBM5xKyc6e+FsHeGBmmxs5Mx5+UNupeS1eSDhbDThAw=="
+}
