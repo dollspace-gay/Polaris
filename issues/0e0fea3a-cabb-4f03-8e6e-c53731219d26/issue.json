@@ -2,11 +2,12 @@
   "uuid": "0e0fea3a-cabb-4f03-8e6e-c53731219d26",
   "display_id": 65,
   "title": "AC-15 binding integration test: emit-rotate-emit-verify-both",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-14T19:29:09.144683479Z",
-  "updated_at": "2026-05-14T19:29:10.420375007Z",
+  "updated_at": "2026-05-15T02:49:20.633880013Z",
+  "closed_at": "2026-05-15T02:49:20.633880013Z",
   "labels": [
     "test"
   ]
