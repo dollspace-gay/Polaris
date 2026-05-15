@@ -1,0 +1,10 @@
+{
+  "uuid": "470a7e73-3c37-4611-8ea6-36b5ac355f37",
+  "issue_uuid": "464d4aa5-eca7-4f45-816b-aa46ff0b6ba3",
+  "author": "TeIq",
+  "content": "Setup UX prerequisites landed: #80, #81, #82, #83, #84, #85, #86 all closed inline. The smoke-test producer slice now becomes a browser walkthrough (docker compose up → open URL → login → setup wizard) per the user's redirect. Commit landing those changes preserves the smoke-test fixtures (PG container on :5439, polaris on :8080, lhr.life tunnel).",
+  "created_at": "2026-05-15T14:03:11.244289712Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA9qtQJvyGyK/u3vNRR6jgwKnzqfOgdi8dhxkSPAdSUrxy+VU7bWavNJDob3L6EPgp0ThZvEf71c2JYmaMbg/LBg=="
+}
