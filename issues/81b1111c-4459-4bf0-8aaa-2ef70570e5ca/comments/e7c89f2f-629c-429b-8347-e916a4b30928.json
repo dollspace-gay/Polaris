@@ -1,0 +1,10 @@
+{
+  "uuid": "e7c89f2f-629c-429b-8347-e916a4b30928",
+  "issue_uuid": "81b1111c-4459-4bf0-8aaa-2ef70570e5ca",
+  "author": "TeIq",
+  "content": "APPROVE. router_with_state now reads POLARIS_FRONTEND_DIST env and installs a tower-http ServeDir as the router fallback when set. Uses .fallback(ServeFile::new(index.html)) — NOT .not_found_service() — so SPA client-side routes (/login, /setup, /case/...) return 200 with index.html. tower-http feature 'fs' added to workspace pin. Verified: GET /, /login, /setup, /oauth/client-metadata.json all return 200 from polaris-backend with POLARIS_FRONTEND_DIST=polaris-frontend/dist set. /api/whoami returns 401 without session (correct gate). Build + clippy + fmt clean. Boundary 0/30.",
+  "created_at": "2026-05-15T14:17:27.399411882Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABARuanm/4+GFJ1ulaX/qrKL5gRy9ZVmDXiLSH28Gw8gkXWkhYFMzghpoZyqZ5gmRywlu2P6Z98qam79IOhn/d2Cg=="
+}
