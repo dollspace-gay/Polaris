@@ -2,11 +2,12 @@
   "uuid": "d44b2182-ca5a-4fc0-a005-3030a5248429",
   "display_id": 84,
   "title": "Frontend: first-run setup wizard (key-gen + labeler-record + DID-doc)",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-15T12:36:31.492757866Z",
-  "updated_at": "2026-05-15T12:36:32.755973472Z",
+  "updated_at": "2026-05-15T13:22:42.827114372Z",
+  "closed_at": "2026-05-15T13:22:42.827114372Z",
   "labels": [
     "feature"
   ]
