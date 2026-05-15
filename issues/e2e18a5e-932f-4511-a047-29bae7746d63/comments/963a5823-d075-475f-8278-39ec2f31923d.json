@@ -1,0 +1,10 @@
+{
+  "uuid": "963a5823-d075-475f-8278-39ec2f31923d",
+  "issue_uuid": "e2e18a5e-932f-4511-a047-29bae7746d63",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence: 4/4 auth_atproto_http integration tests pass in 2.73s. POST /auth/atproto/login returns 303 with Location header to AS authorize URL. GET /auth/atproto/callback mints polaris_session cookie (HttpOnly + Secure + SameSite=Lax + Path=/ + Max-Age) and 303 to /. Wrong state → 400. Empty handle → 400. AnyModeratorAuth::as_atproto accessor added. Routes wired on public_api_router AND added to middleware is_exempt list (defense-in-depth). clippy + fmt clean. AC: moderator can complete atproto OAuth round-trip and reach the dashboard.",
+  "created_at": "2026-05-15T03:23:00.631618970Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASTaiF+Tu8jx/2rucjrRABQ82HnmhBK29PVPlPkW2Q5qazZCxRPl2HI9vU1RZ8KKSX6AshC6ZCz0vIxL0XLTtBA=="
+}
