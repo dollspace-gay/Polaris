@@ -1,0 +1,10 @@
+{
+  "uuid": "90a63451-1db2-44ed-8a13-f3be8f49df95",
+  "issue_uuid": "6154a496-bd79-4d57-ab74-018a31ae5f52",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** Backend GET /api/dashboard/live via axum::extract::ws::WebSocketUpgrade; subscribes to EventBus (#16); forwards typed DashboardEvent JSON. Frontend gloo-net WebSocket subscribe; onclose falls back to existing polling LocalResource. Same DashboardSnapshot DTO; diff payloads (NewCluster/NewSignal/VolumeBucketUpdated/ModeratorLoadDelta). Exponential backoff on reconnect. AC-7 boundary preserved.",
+  "created_at": "2026-05-15T01:37:31.659884058Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAoYH6Yn7UfQXPq+tRytLyPNUwQud4At7E3M7LzNlvC14ezhFwX5IrPkdvqL8XFyrp4rc2KdWvDiTPm/CeNVmkBQ=="
+}
