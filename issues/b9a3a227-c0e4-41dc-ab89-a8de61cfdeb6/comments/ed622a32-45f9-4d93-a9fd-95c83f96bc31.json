@@ -1,0 +1,10 @@
+{
+  "uuid": "ed622a32-45f9-4d93-a9fd-95c83f96bc31",
+  "issue_uuid": "b9a3a227-c0e4-41dc-ab89-a8de61cfdeb6",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** Reshape MemoryAnomalyDetector bucket counters u64 → f64 to accept reputation-weighted per-event scores. observe_report signature gains weight: f32 (default 1.0 for unweighted callers). Welford running statistics operate on weighted sums. Hook into action insert path (or report insert) consuming PgReputationProvider::score_for. Tests: weighted vs unweighted detection produce different z-scores for the same input.",
+  "created_at": "2026-05-15T05:44:29.165537147Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAKov9S1TmhKTAoMH4EX0xJr33aFnv3yVI17DeUd/20Ga98BvRE8Kwxt/Tdyn2DPkSfEEFH/IulRrtu1dPOetqBg=="
+}
