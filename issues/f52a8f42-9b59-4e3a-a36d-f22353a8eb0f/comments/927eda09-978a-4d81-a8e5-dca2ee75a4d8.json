@@ -1,0 +1,10 @@
+{
+  "uuid": "927eda09-978a-4d81-a8e5-dca2ee75a4d8",
+  "issue_uuid": "f52a8f42-9b59-4e3a-a36d-f22353a8eb0f",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence: 10/10 pattern::moderator_anomaly lib tests + 2/2 threat_t1_compromised_moderator integration pass (no #[ignore]'d cases — moderator_behavior_anomaly_fires_on_action_burst confirms the detector wiring end-to-end). Build + clippy + fmt clean. ObservationKind::ModeratorBehaviorAnomaly variant added; migration 22 extends observations.kind CHECK. Synthetic per-moderator subject ('did:polaris:moderator-anomaly:<uuid>') keeps emissions in the existing observations + risk-signals + case-view path. Hook inside action-insert tx for atomicity. T1 threat-test #[ignore] removed.",
+  "created_at": "2026-05-15T05:15:39.732117551Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAy3LUahdDcK+p/u/0fmc2j+Pdy5NJ3FqmupaP3xkf5Qog1e14uVWn+hSttmiECzkMeKUSEJg82rPIycjdgfyYDQ=="
+}
