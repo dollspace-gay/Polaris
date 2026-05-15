@@ -1,0 +1,10 @@
+{
+  "uuid": "9a682c18-d0c0-4051-be7e-f86bf8fafdf7",
+  "issue_uuid": "e2e18a5e-932f-4511-a047-29bae7746d63",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** New polaris-backend/src/api/auth_atproto.rs with two handlers: POST /auth/atproto/login (LoginRequest { handle }, calls AtprotoOauthAuthVerifier::start_login with LoginHint::AtprotoHandle, returns 303 with Location header) and GET /auth/atproto/callback (state+code from query, calls complete_login, mints Polaris session cookie via SessionStore::create, 303 to /). Mirror api/auth_oidc.rs pattern if it exists. Add /auth/atproto/* to middleware-exempt paths. Tests: 303 redirect on login, session cookie set on successful callback, 400 on missing query params.",
+  "created_at": "2026-05-15T03:09:24.644834797Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABABNxw9c9j2SpE6XHKFc+LNZ/WnqmKmBUPPglUDwOznmVTihnZR3Or22U3oOtbMYWRtQMcH4ZclomFi5MTfT8fBA=="
+}
