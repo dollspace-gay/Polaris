@@ -1,0 +1,10 @@
+{
+  "uuid": "5aa6d481-549a-4d05-849f-4ed145270f08",
+  "issue_uuid": "f52a8f42-9b59-4e3a-a36d-f22353a8eb0f",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** Add ObservationKind::ModeratorBehaviorAnomaly { moderator_id, action_count, window_secs } to polaris-types. New polaris-backend/src/pattern/moderator_anomaly.rs: pure detect_moderator_anomaly(actions: &[Action], threshold, window) -> Option<ModeratorAnomaly>. Hook into action insert path: after every action, query count of actions for that moderator in last N seconds; if > threshold, insert an Observation. Config: POLARIS_MODERATOR_ANOMALY_THRESHOLD (default 50), POLARIS_MODERATOR_ANOMALY_WINDOW_SECS (default 3600). Un-ignore threat_t1 detector test.",
+  "created_at": "2026-05-15T04:55:38.121402761Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA45Ca88J/lFVDdT7espDwqk/hn76Y+GaI47yShq4qrtzXgWOzjrd6RXMWvT/eUfEAQgoj0joGEMrpzsT49q4XCw=="
+}
