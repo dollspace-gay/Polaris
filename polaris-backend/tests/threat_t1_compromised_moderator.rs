@@ -1,5 +1,5 @@
 //! Threat-model T1 — compromised moderator account abusing tool access
-//! (`design.md` §9 #1; issue #39).
+//! (`design.md` §9 #1; issue #39 + follow-up #73).
 //!
 //! # Mitigation under test
 //!
@@ -8,29 +8,16 @@
 //! (a moderator suddenly labeling 1000 accounts at 3am is itself an
 //! incident), senior co-sign for high-impact pattern actions."
 //!
-//! # Scope as of issue #39
+//! # What this file tests
 //!
-//! The "moderator behavioral anomaly" detector that fires when a
-//! single moderator submits N actions in T seconds does not exist
-//! yet. The `ObservationKind` enum in `polaris-types/src/observation.rs`
-//! has six variants (image-hash cluster, account cohort, reply
-//! brigade, report-volume anomaly, external label, classifier
-//! signal) — but no `ModeratorBehaviorAnomaly` variant. The
-//! anomaly detector in `polaris-backend/src/pattern/anomaly.rs`
-//! emits over report-volume buckets keyed on `(category, severity)`,
-//! not on moderator id.
-//!
-//! What we CAN test as a MUST-pass invariant today:
-//!
-//! - **Every action records the moderator id verbatim, plus
-//!   `created_at`.** This is what the future anomaly detector
-//!   computes over: `count(actions)` grouped by `moderator_id`
-//!   filtered to `created_at > now() - interval`. Pin the schema
-//!   invariant the detector depends on.
-//!
-//! The full anomaly-fires-on-N-actions-in-T-seconds assertion is
-//! left to follow-up #73 ("Add moderator-behavior-anomaly detector
-//! (T1 mitigation)").
+//! - **Schema MUST-pass.** Every action row records the acting
+//!   moderator's id and the action's `created_at`. The anomaly
+//!   detector queries exactly these two columns.
+//! - **Detector fires on burst.** Issue #73 added the
+//!   moderator-behavior-anomaly detector. With a threshold of 5 and
+//!   a 3600-second window, a burst of 6+ actions by one moderator
+//!   emits a `polaris_types::ObservationKind::ModeratorBehaviorAnomaly`
+//!   observation inside the action-insert transaction.
 
 #![allow(
     clippy::unwrap_used,
@@ -40,8 +27,9 @@
 )]
 
 use chrono::{DateTime, Utc};
+use polaris_backend::pattern::moderator_anomaly::ModeratorAnomalyConfig;
 use polaris_backend::repo::{ActionRepo as _, NewAction, PgActionRepo};
-use polaris_types::{ActionKind, LabelValue, ModeratorId, PolicyId, Severity};
+use polaris_types::{ActionKind, LabelValue, ModeratorId, ObservationKind, PolicyId, Severity};
 use sqlx::Row as _;
 
 #[path = "threats_common/mod.rs"]
@@ -128,41 +116,116 @@ async fn action_rows_record_moderator_id_and_timestamp() -> Result<(), Box<dyn s
     Ok(())
 }
 
-/// T1 IGNORED-WITH-FOLLOWUP: a moderator-behavior-anomaly observation
-/// fires when one moderator submits N actions in T seconds.
+/// T1 MUST-PASS (issue #73): the moderator-behavior-anomaly detector
+/// emits a `ModeratorBehaviorAnomaly` observation when one moderator
+/// submits more actions than `threshold` inside the configured
+/// rolling window.
 ///
-/// The detector does not exist yet (no
-/// `ObservationKind::ModeratorBehaviorAnomaly` variant in
-/// `polaris-types/src/observation.rs`; no detector module under
-/// `polaris-backend/src/pattern/` keyed on moderator id). See
-/// follow-up issue #73.
-///
-/// The MUST-pass invariant the detector depends on (per-action
-/// `moderator_id` + `created_at` recording) is asserted by
-/// `action_rows_record_moderator_id_and_timestamp` above; this test
-/// is the placeholder for the detector-fires assertion that lands
-/// with #73.
-//
-// Follow-up #73 owns un-ignoring this test once the
-// ModeratorBehaviorAnomaly detector lands. The mitigation surface
-// needed is a new module under `polaris-backend/src/pattern/`
-// (e.g. `moderator_anomaly.rs`) plus the matching
-// `ObservationKind::ModeratorBehaviorAnomaly` variant.
+/// The test wires `PgActionRepo` with a low threshold (`5`) so the
+/// burst fires the detector after the sixth action — the assertion
+/// shape is "the observation table grew by exactly one
+/// `ObservationKind::ModeratorBehaviorAnomaly` row, carrying the
+/// moderator id, action count, and window seconds from the
+/// configuration." The emission lives inside the action-insert
+/// transaction, so the observation must be queryable through the
+/// same pool the test has already committed against.
 #[tokio::test]
-#[ignore = "T1 moderator-behavior-anomaly detector does not exist yet — follow-up #73"]
 async fn moderator_behavior_anomaly_fires_on_action_burst() -> Result<(), Box<dyn std::error::Error>>
 {
-    // Spec out the acceptance criterion the follow-up must satisfy:
-    //
-    //   given moderator M submits 50 ActionKind::Label actions across
-    //   50 distinct subjects within 60 seconds,
-    //   the pattern-engine driver must emit an observation whose typed
-    //   kind is `ObservationKind::ModeratorBehaviorAnomaly` carrying
-    //   { moderator_id: M, action_count: 50, window: 60s }.
-    //
-    // Until that detector exists, this body is a placeholder. The
-    // architect's pre-flight permits #[ignore] tests with a docstring
-    // + filed follow-up issue + reference to the missing mitigation
-    // surface.
+    if !common::docker_available() {
+        println!("SKIP threat_t1_compromised_moderator: docker daemon not reachable.");
+        return Ok(());
+    }
+    let fixture = common::ThreatFixture::boot().await?;
+
+    let moderator: ModeratorId = fixture.insert_moderator().await?;
+    // Threshold = 5, window = 3600s. With a 12-action burst the
+    // detector must fire on the 6th insert (the first action whose
+    // `count(*)` post-insert strictly exceeds the threshold).
+    let cfg = ModeratorAnomalyConfig::new(5, 3_600)?;
+    let actions = PgActionRepo::new(fixture.pool.clone()).with_moderator_anomaly(cfg);
+
+    let burst_size: usize = 12;
+    for i in 0..burst_size {
+        let subject_id = fixture
+            .insert_account_subject(&format!("did:plc:t1detect{i:03}"))
+            .await?;
+        let incident_id = fixture
+            .insert_incident(subject_id, Severity::Medium)
+            .await?;
+        actions
+            .insert(NewAction {
+                incident_id,
+                subject_id,
+                moderator_id: moderator,
+                kind: ActionKind::Label,
+                label: Some(LabelValue::new("spam")),
+                reasoning: format!("burst action #{i} — long enough reasoning for the DB CHECK"),
+                policy_refs: vec![PolicyId::new("polaris.spam")],
+                reversible_until: Utc::now() + chrono::Duration::hours(24),
+                reverses_action_id: None,
+            })
+            .await?;
+    }
+
+    // The synthetic subject for moderator anomalies is keyed on the
+    // deterministic DID `did:polaris:moderator-anomaly:<uuid>`. Fetch
+    // the observation rows attached to it and assert (a) at least one
+    // emission fired, (b) every emission decodes back to the
+    // `ModeratorBehaviorAnomaly` variant carrying the configured
+    // window and the matching moderator id.
+    let synthetic_did = format!("did:polaris:moderator-anomaly:{}", moderator.into_uuid());
+    let rows = sqlx::query(
+        "SELECT o.kind, o.evidence
+         FROM observations o
+         JOIN subjects s ON s.id = o.subject_id
+         WHERE s.did = $1
+         ORDER BY o.detected_at ASC",
+    )
+    .bind(&synthetic_did)
+    .fetch_all(&fixture.pool)
+    .await?;
+
+    assert!(
+        !rows.is_empty(),
+        "expected at least one ModeratorBehaviorAnomaly observation after a 12-action \
+         burst with threshold=5; got 0 rows on synthetic subject {synthetic_did}",
+    );
+    // First emission must be on the 6th action (5 below threshold, 6
+    // strictly above). Once tripped, every subsequent action whose
+    // `count(*)` still exceeds the threshold also emits — that
+    // matches the architect's "emit-on-every-trip" wording in #73.
+    // We assert: exactly `burst_size - threshold` emissions
+    // (actions 6..=12).
+    assert_eq!(
+        rows.len(),
+        burst_size - 5,
+        "expected {} emissions (one per action whose count strictly exceeds threshold), got {}",
+        burst_size - 5,
+        rows.len(),
+    );
+    for row in &rows {
+        let kind: String = row.try_get("kind")?;
+        let evidence: serde_json::Value = row.try_get("evidence")?;
+        assert_eq!(kind, "moderator_behavior_anomaly");
+        let envelope = serde_json::json!({ "kind": kind, "data": evidence });
+        let typed: ObservationKind = serde_json::from_value(envelope)?;
+        match typed {
+            ObservationKind::ModeratorBehaviorAnomaly {
+                moderator_id,
+                action_count,
+                window_secs,
+            } => {
+                assert_eq!(moderator_id, moderator);
+                assert_eq!(window_secs, 3_600);
+                assert!(
+                    action_count > 5,
+                    "every emission's action_count must strictly exceed threshold 5, got {action_count}",
+                );
+            }
+            other => panic!("expected ModeratorBehaviorAnomaly, got {other:?}"),
+        }
+    }
+
     Ok(())
 }

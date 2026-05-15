@@ -26,11 +26,14 @@ tracing-subscriber.workspace = true
 serde_json.workspace = true
 secrecy = { workspace = true, features = ["serde"] }
 
-# URL parsing for the `--service-url` flag. `url` 2.5.x is already in the
-# lockfile transitively via proto-blue (which uses it for its XRPC base
-# URL); we add it as a direct dep here so the build is explicit about
-# the version it links against. MIT/Apache-2.0.
-url = "2"
+# URL parsing for the `--service-url` flag. Workspace-pinned (#59).
+url.workspace = true
+
+# Issue #61: shared OAuth client-metadata loader. Both this CLI's `--oauth`
+# flow and `polaris-backend`'s ATProto OAuth verifier (#31) import
+# `polaris_types::oauth_config::load_client_metadata` so there is one
+# canonical read-and-parse path for the operator-supplied JSON.
+polaris-types = { path = "../polaris-types" }
 
 [lints]
 workspace = true

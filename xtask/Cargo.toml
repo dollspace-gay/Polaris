@@ -34,5 +34,11 @@ polaris-backend = { path = "../polaris-backend" }
 sqlx.workspace = true
 tokio.workspace = true
 
+[dev-dependencies]
+# `tempfile` for the check-wasm-budget unit tests (#71) — writes a temp
+# file and asserts the size-budget gate against it. Already in the workspace
+# lockfile transitively via testcontainers / sqlx.
+tempfile = "3"
+
 [lints]
 workspace = true

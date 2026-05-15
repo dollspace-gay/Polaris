@@ -38,6 +38,29 @@ use crate::validation::validate_label_def;
 /// [`polaris_backend::api::cases::validate_submit_action`]'s `>= 10` check.
 pub const MIN_REASONING_LEN: usize = 10;
 
+/// Predicate behind the submit-button gate: a reasoning string is valid
+/// when its `len()` (byte length, matching the backend's identical check)
+/// is at least [`MIN_REASONING_LEN`].
+///
+/// Surfaced as a free function so the `composer_validation`
+/// `wasm-bindgen-test` (issue #54) can assert the contract without
+/// mounting the full component. The component itself routes its
+/// `is_valid` closure through this same function so the test and the
+/// runtime UI cannot drift.
+///
+/// # Examples
+///
+/// ```
+/// use polaris_frontend::components::action_composer::is_valid_reasoning;
+/// assert!(!is_valid_reasoning("nine char"));   // 9 bytes
+/// assert!(is_valid_reasoning("ten chars."));   // 10 bytes
+/// assert!(is_valid_reasoning(&"a".repeat(100)));
+/// ```
+#[must_use]
+pub fn is_valid_reasoning(reasoning: &str) -> bool {
+    reasoning.len() >= MIN_REASONING_LEN
+}
+
 /// Default policy ref hardcoded for the M1 composer.
 ///
 /// The richer policy picker (multi-select against the operator's policy
@@ -284,7 +307,11 @@ where
     let (lex_error, set_lex_error) = signal::<Option<String>>(None);
 
     let reasoning_len = move || reasoning.with(String::len);
-    let is_valid = move || reasoning_len() >= MIN_REASONING_LEN;
+    // Routed through `is_valid_reasoning` (rather than inlining the
+    // `>= MIN_REASONING_LEN` check) so the `composer_validation`
+    // wasm-bindgen-test can assert the same predicate the rendered UI
+    // uses. Keeps the test and the gate from drifting.
+    let is_valid = move || reasoning.with(|r| is_valid_reasoning(r));
 
     // Pull the shared `Lexicons` registry off Leptos context. The App
     // root (`app.rs`) provides this. `None` means the registry failed

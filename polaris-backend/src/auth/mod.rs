@@ -379,6 +379,23 @@ pub enum AuthError {
         #[source]
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+
+    /// The ATProto OAuth refresh call failed.
+    ///
+    /// Issue #66 / refresh flow — `proto-blue-oauth`'s
+    /// [`OAuthSession::refresh`] rejected the request (AS returned an
+    /// error response, network failure, or malformed token response).
+    /// The `Display` text is deliberately generic so it cannot be
+    /// probed; the underlying error is captured via `#[source]` for
+    /// structured-log surfaces.
+    ///
+    /// [`OAuthSession::refresh`]: proto_blue_oauth::OAuthSession::refresh
+    #[error("OAuth refresh failed")]
+    OauthRefreshFailed {
+        /// Underlying error from `proto-blue-oauth`.
+        #[source]
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 }
 
 impl From<SessionError> for AuthError {
@@ -410,6 +427,36 @@ pub enum AnyModeratorAuth {
     Oidc(OidcAuthVerifier),
     /// ATProto OAuth backend (issue #31).
     Atproto(AtprotoOauthAuthVerifier),
+}
+
+impl AnyModeratorAuth {
+    /// Borrow the inner [`AtprotoOauthAuthVerifier`] when the variant is
+    /// [`AnyModeratorAuth::Atproto`]; `None` otherwise.
+    ///
+    /// Issue #67 — the `/auth/atproto/{login,callback}` HTTP handlers
+    /// reach the atproto-specific surface ([`AtprotoOauthAuthVerifier::start_login`]
+    /// / [`AtprotoOauthAuthVerifier::complete_login`]) through this
+    /// downcast rather than the trait method on [`ModeratorAuth`],
+    /// because the trait method takes a [`LoginHint`] enum and the
+    /// HTTP handler already has a typed handle in hand. Routing the
+    /// call through the enum-typed trait method would force the
+    /// handler to construct a [`LoginHint::AtprotoHandle`] and then
+    /// re-match inside the verifier — this method short-circuits that
+    /// round-trip when the route is atproto-specific.
+    ///
+    /// When the deployment's `[auth] backend` is set to `oidc`, the
+    /// `/auth/atproto/*` HTTP routes are still mounted (the router is
+    /// not backend-aware) and this method returns `None`; the HTTP
+    /// handler surfaces that as a 400 with a generic message so the
+    /// caller cannot probe the backend selection from a 404 vs. 400
+    /// shape.
+    #[must_use]
+    pub fn as_atproto(&self) -> Option<&AtprotoOauthAuthVerifier> {
+        match self {
+            Self::Atproto(v) => Some(v),
+            Self::Oidc(_) => None,
+        }
+    }
 }
 
 impl ModeratorAuth for AnyModeratorAuth {

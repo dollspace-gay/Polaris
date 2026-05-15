@@ -48,4 +48,4 @@ pub mod attestation;
 pub mod log;
 
 pub use attestation::{AttestationError, AttestationWorker};
-pub use log::{AuditError, AuditEvent, AuditLog, VerifyError, verify_chain};
+pub use log::{AuditError, AuditEvent, AuditLog, TamperedField, VerifyError, verify_chain};

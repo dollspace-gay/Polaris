@@ -19,9 +19,14 @@
 //! 4. **Typed errors.** Each worker exports a `thiserror`-derived enum;
 //!    callers never see `anyhow::Error` cross the library boundary.
 
+pub mod aggregator;
 pub mod firehose;
 pub mod upstream_labels;
 
+pub use aggregator::{
+    AggregatorConfig, AggregatorError, DEFAULT_BATCH_SIZE, DEFAULT_POLL_INTERVAL_SECS,
+    DEFAULT_WINDOW_SECS, ReportAggregator,
+};
 pub use firehose::{FirehoseConfig, FirehoseError, FirehoseWorker, NormalizedEvent};
 pub use upstream_labels::{
     CacheError, HandleError, UpstreamKeyCache, UpstreamKeyFetcher, UpstreamLabelerConfig,

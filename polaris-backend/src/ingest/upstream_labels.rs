@@ -706,14 +706,13 @@ pub fn reconnect_delay(attempt: u32) -> Duration {
     Duration::from_millis(jittered_ms.max(1))
 }
 
-/// DAG-CBOR encode the label with `sig` cleared. Mirrors
-/// `crate::labeler::emitter::encode_canonical` for the inverse direction
-/// (consume rather than produce). Kept private to the module so the
-/// consume-side canonical-encoding rule stays close to the verify call.
+/// DAG-CBOR encode the label with `sig` cleared. Thin shim over the shared
+/// implementation in [`crate::labeler::canonicalize::encode_canonical_label`]
+/// so the produce-side (`labeler/emitter.rs`) and the consume-side (here)
+/// canonicalisation rule stay byte-identical (#78).
 fn encode_label_canonical(label: &ProtoLabel) -> Result<Vec<u8>, HandleError> {
-    let json = serde_json::to_value(label).map_err(|_| HandleError::CanonicalEncode)?;
-    let lex = proto_blue::lex_json::json_to_lex(&json);
-    proto_blue::lex_cbor::encode(&lex).map_err(|_| HandleError::CanonicalEncode)
+    crate::labeler::canonicalize::encode_canonical_label(label)
+        .map_err(|_| HandleError::CanonicalEncode)
 }
 
 // ── unit tests (no DB) ──────────────────────────────────────────────────

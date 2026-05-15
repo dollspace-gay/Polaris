@@ -24,9 +24,10 @@ use polaris_backend::auth::crypto::Crypto;
 use polaris_backend::auth::session::SessionStore;
 use polaris_backend::config::BlobStoreKind;
 use polaris_backend::evidence::{
-    BlobStore, EvidenceFetcher, EvidenceFetcherError, EvidenceWorker, FetchedEvidence,
-    InMemoryBlobStore, LocalFsBlobStore,
+    BlobStore, EvidenceFetcher, EvidenceWorker, InMemoryBlobStore, LiveEvidenceFetcher,
+    LocalFsBlobStore,
 };
+use polaris_backend::ingest::aggregator::{AggregatorConfig, ReportAggregator};
 use polaris_backend::ingest::upstream_labels::{
     self, UpstreamKeyCache, UpstreamKeyFetcher, UpstreamLabelerConsumer,
 };
@@ -64,13 +65,13 @@ async fn main() -> anyhow::Result<()> {
 
     // Build the moderator-auth verifier from configuration. Both OIDC
     // and ATProto backends compile in; the [auth] backend toggle picks
-    // one at runtime. `_moderator_auth` is held so the verifier stays
-    // alive for the process lifetime; #67 (to-be-filed) wires it into
-    // ApiState so the `/auth/<backend>/{login,callback}` handlers can
-    // drive it directly. The handlers themselves are out of scope for
-    // #31 — this dispatch only needs the verifier to exist at startup
-    // for the AC-5 swap-by-config criterion.
-    let _moderator_auth = polaris_backend::auth::build_moderator_auth(
+    // one at runtime. Installed onto `ApiState` below so the
+    // `/auth/atproto/{login,callback}` handlers (issue #67) can drive
+    // the verifier through `ApiState::moderator_auth`. The OIDC
+    // counterpart shares the same accessor surface
+    // ([`AnyModeratorAuth::as_atproto`] / a future `as_oidc`) so the
+    // handler shape stays uniform across backends.
+    let moderator_auth = polaris_backend::auth::build_moderator_auth(
         &cfg.auth,
         sessions.clone(),
         crypto,
@@ -126,7 +127,8 @@ async fn main() -> anyhow::Result<()> {
     ));
     let api_state = api_state
         .with_label_emitter(emitter)
-        .with_active_signer(signer_rx);
+        .with_active_signer(signer_rx)
+        .with_moderator_auth(moderator_auth);
 
     // Issue #32: spawn one per-upstream subscribeLabels consumer for every
     // `upstream_labelers WHERE enabled = TRUE` row. Each task is detached
@@ -136,14 +138,25 @@ async fn main() -> anyhow::Result<()> {
     // wedge the HTTP server.
     spawn_upstream_labeler_consumers(db.pool().clone()).await;
 
-    // Issue #33: spawn the evidence-preservation worker. Bounded
-    // concurrency via `tokio::sync::Semaphore` inside the worker. The
-    // fetcher is a NotWiredFetcher stub today; #69 swaps it for a
-    // proto-blue-api `Agent`-backed implementation. The blob store is
-    // selected by config. The spawn is detached: the worker runs for
-    // the process lifetime and a fatal error logs at WARN before
-    // exiting the task.
-    spawn_evidence_worker(&cfg.evidence, db.pool().clone());
+    // Issue #33 + #70: spawn the evidence-preservation worker.
+    // Bounded concurrency via `tokio::sync::Semaphore` inside the
+    // worker. The fetcher is a [`LiveEvidenceFetcher`] backed by
+    // proto-blue's typed `com.atproto.sync.getRecord` binding (#70);
+    // PDS endpoints are resolved on demand through the
+    // [`proto_blue::identity::IdResolver`]. The blob store is selected
+    // by config. The spawn is detached: the worker runs for the
+    // process lifetime and a fatal error logs at WARN before exiting
+    // the task.
+    spawn_evidence_worker(&cfg.evidence, db.pool().clone()).await;
+
+    // Issue #75: spawn the report-aggregation worker. The detached
+    // task walks reports with `incident_id IS NULL`, groups them by
+    // `subject_id`, and binds each batch to a fresh or existing
+    // incident under SKIP LOCKED — so multiple replicas can drain in
+    // parallel without stepping on each other. A failure inside the
+    // tick is logged and the loop continues; the only way the worker
+    // exits is task abort. See design.md §9 #4 (T4 mitigation).
+    spawn_report_aggregator(&cfg.aggregator, db.pool().clone());
 
     let app = api::router_with_state(db, api_state);
 
@@ -227,45 +240,43 @@ async fn park_consumer(consumer: UpstreamLabelerConsumer<PgObservationRepo>) {
     drop(consumer);
 }
 
-/// Issue #33: spawn the evidence-preservation worker.
+/// Issue #33 + #70: spawn the evidence-preservation worker.
 ///
-/// Builds the configured [`BlobStore`] backend, attaches a
-/// [`NotWiredEvidenceFetcher`] (#69 will wire a real proto-blue-api
-/// agent-backed fetcher in its place), and detaches the worker on a
-/// `tokio::spawn`. The semaphore-bounded drain loop runs for the
-/// process lifetime.
-fn spawn_evidence_worker(cfg: &polaris_backend::config::EvidenceConfig, pool: sqlx::PgPool) {
+/// Builds the configured [`BlobStore`] backend, attaches a live
+/// [`LiveEvidenceFetcher`] (#70 — typed `proto_blue::api::com::atproto::
+/// sync::get_record` over a shared `reqwest` transport, PDS endpoints
+/// resolved on demand via `proto_blue::identity::IdResolver`), and
+/// detaches the worker on a `tokio::spawn`. The semaphore-bounded
+/// drain loop runs for the process lifetime.
+///
+/// The function is `async` because the `BlobStoreKind::S3` arm
+/// constructs an `aws_sdk_s3::Client` through
+/// `aws_config::defaults(...).load().await`, which resolves
+/// credentials via the SDK's default chain (env vars → shared config
+/// → IMDS → SSO) and may make an asynchronous IMDS lookup on
+/// EC2-hosted deployments. The other arms (`InMemory`, `LocalFs`) are
+/// trivially sync; the function never suspends in those branches.
+async fn spawn_evidence_worker(cfg: &polaris_backend::config::EvidenceConfig, pool: sqlx::PgPool) {
     let blob_store: Arc<dyn BlobStore> = match cfg.blob_store.clone() {
         BlobStoreKind::InMemory => Arc::new(InMemoryBlobStore::new()),
         BlobStoreKind::LocalFs { root } => Arc::new(LocalFsBlobStore::new(root)),
-        BlobStoreKind::S3 { bucket, region } => {
-            // The s3-blob-store Cargo feature is what brings the AWS
-            // SDK into the build; when it's not enabled, an operator
-            // who selects `s3` at config time falls back to a
-            // documented warn + in-memory backend so the process
-            // does not silently lose evidence. Issue #69 wires the
-            // real S3 path under the feature gate.
-            warn!(
-                bucket,
-                region,
-                "S3 evidence-blob-store selected, but the `s3-blob-store` Cargo \
-                 feature is not built into this binary; falling back to in-memory \
-                 (no evidence will survive process restart) — #69",
-            );
-            Arc::new(InMemoryBlobStore::new())
-        }
+        BlobStoreKind::S3 { bucket, region } => build_s3_blob_store(bucket, region).await,
     };
-    let fetcher: Arc<dyn EvidenceFetcher> = Arc::new(NotWiredEvidenceFetcher);
-    let worker = Arc::new(EvidenceWorker::new(
+    let fetcher: Arc<dyn EvidenceFetcher> = Arc::new(LiveEvidenceFetcher::with_default_transport());
+    let worker = Arc::new(EvidenceWorker::with_retry_policy(
         pool,
         blob_store,
         fetcher,
         cfg.worker_concurrency,
         Duration::from_secs(cfg.poll_interval_secs),
+        cfg.max_attempts,
+        cfg.retry_base_secs,
     ));
     info!(
         concurrency = cfg.worker_concurrency,
         poll_secs = cfg.poll_interval_secs,
+        max_attempts = cfg.max_attempts,
+        retry_base_secs = cfg.retry_base_secs,
         "spawning evidence-preservation worker",
     );
     let task_worker = worker.clone();
@@ -280,36 +291,95 @@ fn spawn_evidence_worker(cfg: &polaris_backend::config::EvidenceConfig, pool: sq
     drop(worker);
 }
 
-/// Stub fetcher that surfaces a typed error on every call.
+/// Issue #75: spawn the report-aggregation worker.
 ///
-/// The live impl (issue #69) wraps a `proto_blue::api::Agent` with the
-/// repo PDS endpoint resolved via `describeRepo`. Until that lands,
-/// every job in production will mark itself `failed` with a clear
-/// message — preferable to silently dropping evidence.
-#[derive(Debug, Clone, Copy)]
-struct NotWiredEvidenceFetcher;
+/// Translates [`polaris_backend::config::AggregatorEnvConfig`] into a
+/// runtime [`AggregatorConfig`] (which clamps pathological values to
+/// safe minima inside the constructor) and detaches the worker on a
+/// `tokio::spawn`. The worker holds the pool by value; `PgPool` is
+/// internally `Arc`-shared so the clone is cheap.
+///
+/// The function is synchronous because the worker constructor never
+/// awaits — only the spawned future does. The spawn is intentionally
+/// fire-and-forget: the `run` loop is `! `-returning and folds every
+/// fallible step into a WARN log so a transient DB failure cannot
+/// terminate the task.
+fn spawn_report_aggregator(cfg: &polaris_backend::config::AggregatorEnvConfig, pool: sqlx::PgPool) {
+    let aggregator_cfg = AggregatorConfig {
+        batch_size: cfg.batch_size,
+        poll_interval: Duration::from_secs(cfg.poll_interval_secs),
+        window_secs: cfg.window_secs,
+    };
+    info!(
+        batch_size = cfg.batch_size,
+        poll_interval_secs = cfg.poll_interval_secs,
+        window_secs = cfg.window_secs,
+        "spawning report aggregator",
+    );
+    let aggregator = ReportAggregator::new(pool, aggregator_cfg);
+    tokio::spawn(aggregator.run());
+}
 
-impl EvidenceFetcher for NotWiredEvidenceFetcher {
-    fn fetch_record_with_proof<'a>(
-        &'a self,
-        subject_uri: &'a str,
-    ) -> std::pin::Pin<
-        Box<
-            dyn std::future::Future<Output = Result<FetchedEvidence, EvidenceFetcherError>>
-                + Send
-                + 'a,
-        >,
-    > {
-        let uri = subject_uri.to_owned();
-        Box::pin(async move {
-            Err(EvidenceFetcherError::Upstream {
-                message: format!(
-                    "live proto-blue evidence fetcher not wired in this build \
-                     (subject_uri={uri}); #69 lands the real fetch path",
-                ),
-            })
-        })
-    }
+/// Construct the [`S3BlobStore`] backend from configuration (#68).
+///
+/// Resolves credentials through the AWS SDK's **default credential
+/// chain**: env vars (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+/// `AWS_SESSION_TOKEN`) → shared config (`~/.aws/credentials`,
+/// `AWS_PROFILE`) → container-/EC2-IMDS → SSO. Plaintext credentials
+/// **never** appear in argv or in this code path; the SDK reads them
+/// from the process environment / instance metadata.
+///
+/// The function consumes the configured bucket + region pair and
+/// returns an `Arc<dyn BlobStore>` ready to hand to
+/// [`crate::evidence::EvidenceWorker`]. Endpoint URL is left
+/// AWS-default; operators pointing at a non-AWS S3-compatible store
+/// (minio, R2, …) drive that via the AWS SDK's `AWS_ENDPOINT_URL_S3`
+/// env var, which `aws_config::defaults(...).load()` honours.
+#[cfg(feature = "s3-blob-store")]
+async fn build_s3_blob_store(bucket: String, region: String) -> Arc<dyn BlobStore> {
+    info!(
+        bucket = %bucket,
+        region = %region,
+        "constructing S3 evidence-blob-store via AWS SDK default credential chain",
+    );
+    let region_owned = aws_sdk_s3::config::Region::new(region);
+    let sdk_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+        .region(region_owned)
+        .load()
+        .await;
+    let client = aws_sdk_s3::Client::new(&sdk_config);
+    Arc::new(polaris_backend::evidence::S3BlobStore::new(client, bucket))
+}
+
+/// Fallback for builds without the `s3-blob-store` feature flag.
+///
+/// When the operator selects `BlobStoreKind::S3` at config time but
+/// the binary was built without `--features s3-blob-store`, we log a
+/// WARN and fall back to an in-memory store. This is intentionally
+/// fail-loud: the evidence will not survive process restart, but the
+/// process boots so the rest of the labeler stays available. An
+/// operator who genuinely wants S3 must rebuild with the feature.
+///
+/// The `async` qualifier on the signature is load-bearing — it
+/// matches the feature-enabled arm so the caller's `.await` compiles
+/// regardless of feature selection. clippy's
+/// `unused_async` would fire on this body alone; the allow is
+/// justified because the qualifier is part of the cross-cfg API
+/// contract, not a developer mistake.
+#[cfg(not(feature = "s3-blob-store"))]
+#[allow(
+    clippy::unused_async,
+    reason = "signature matches the s3-blob-store-enabled arm for cross-cfg dispatch"
+)]
+async fn build_s3_blob_store(bucket: String, region: String) -> Arc<dyn BlobStore> {
+    warn!(
+        bucket = %bucket,
+        region = %region,
+        "S3 evidence-blob-store selected, but the `s3-blob-store` Cargo \
+         feature is not built into this binary; falling back to in-memory \
+         (no evidence will survive process restart)",
+    );
+    Arc::new(InMemoryBlobStore::new())
 }
 
 /// Default [`UpstreamKeyFetcher`]: resolves the upstream's signing key by

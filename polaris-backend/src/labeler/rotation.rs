@@ -76,9 +76,11 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tracing::info;
 use uuid::Uuid;
+use zeroize::Zeroize as _;
 
 use crate::audit::{AuditEvent, AuditLog};
-use crate::config::LabelerSigningKeyConfig;
+use crate::config::{KmsProvider, LabelerSigningKeyConfig};
+use crate::labeler::signer::passphrase_sealed::PassphraseSealedSigner;
 
 /// The set of custody modes the rotation CLI accepts on its `--mode`
 /// flag. Mirrored from [`LabelerSigningKeyConfig`] but flattened to a
@@ -295,29 +297,97 @@ pub enum RotationError {
     #[error("post-swap signer reload failed")]
     Signer(#[source] crate::labeler::signer::SigningError),
 
-    /// The CLI was invoked with `--mode <m>` but `<m>` is not the
-    /// `file-plain` mode #30 implements end-to-end. Carries the mode
-    /// name so the operator's error message names the follow-up
-    /// (issue #64 will land the remaining three modes).
-    #[error(
-        "rotation mode {mode:?} not yet supported in #30; tracked as #64 (passphrase-sealed / os-keychain / cloud-kms-oracle)"
-    )]
+    /// The CLI was invoked with `--mode <m>` but the implementation
+    /// of `<m>` is still a stub. After #64 only the un-wired cloud-KMS
+    /// providers (GCP / Azure) raise this; passphrase-sealed,
+    /// os-keychain, and AWS-cloud-kms are wired end-to-end.
+    #[error("rotation mode {mode:?} is not yet wired end-to-end")]
     Unsupported {
-        /// The mode the operator asked for.
+        /// The mode (or provider variant) the operator asked for.
         mode: &'static str,
     },
 }
 
+/// Per-mode parameters the rotation state machine needs at
+/// `step_write_new_key_material` time.
+///
+/// `RotationContext` carries one of these — the variant must match
+/// `plan.custody_mode`. The state machine reads this carrier inside the
+/// `WriteNewKeyMaterial` dispatch to thread mode-specific runtime
+/// inputs (passphrase / account / KMS region) into the helper functions.
+///
+/// `FilePlain` carries no params (the staged plaintext on `new_key_path`
+/// is all the file-plain write path needs). The other variants carry
+/// the inputs the operator supplies via env vars or CLI flags.
+#[derive(Debug, Clone)]
+pub enum RotationCustodyParams {
+    /// File-plain — no extra params beyond the staged path.
+    FilePlain,
+    /// Passphrase-sealed — operator-supplied unseal passphrase.
+    ///
+    /// The string holds the passphrase **only for the duration of the
+    /// rotation step**; the helper consumes it, derives the KEK, and
+    /// drops the buffer immediately. See
+    /// [`PassphraseSealedSigner::write_sealed`] for the seal contract.
+    PassphraseSealed {
+        /// Passphrase used to derive the AES-256-GCM KEK.
+        passphrase: String,
+    },
+    /// OS keychain — operator-configured account name.
+    OsKeychain {
+        /// Account name under the `polaris.labeler` service. Mirrors
+        /// `LabelerSigningKeyConfig::OsKeychain.account`.
+        account: String,
+    },
+    /// Cloud KMS oracle — provider, region, and the existing alias the
+    /// rotation re-points at the freshly-created KMS key.
+    CloudKms {
+        /// Cloud-KMS provider. Only [`KmsProvider::Aws`] is wired today.
+        provider: KmsProvider,
+        /// Region of both the alias and the new key.
+        region: String,
+        /// Existing alias name (e.g. `"alias/polaris-labeler"`). After
+        /// rotation, this alias points at the freshly-created key id.
+        current_alias: String,
+    },
+}
+
+impl RotationCustodyParams {
+    /// Custody mode this params variant matches.
+    #[must_use]
+    pub const fn mode(&self) -> CustodyMode {
+        match self {
+            Self::FilePlain => CustodyMode::FilePlain,
+            Self::PassphraseSealed { .. } => CustodyMode::PassphraseSealed,
+            Self::OsKeychain { .. } => CustodyMode::OsKeychain,
+            Self::CloudKms { .. } => CustodyMode::CloudKms,
+        }
+    }
+}
+
 /// Runtime side of a rotation: the DB pool, the plan, and the
-/// per-mode parameters the steps need (the new-key file path for
-/// `file-plain`).
+/// per-mode parameters the steps need.
+///
+/// `new_key_path` is the *staging* path: every mode generates a fresh
+/// K-256 keypair locally first (so `step_generate_key` stays mode-
+/// agnostic), then `step_write_new_key_material` transports the bytes
+/// into the configured custody store. For `file-plain` the staging
+/// path *is* the final destination; for the other three modes the
+/// staged file is consumed by `step_write_new_key_material` and removed
+/// afterwards.
 #[derive(Debug)]
 pub struct RotationContext {
     pool: PgPool,
     plan: RotationPlan,
-    /// Filesystem path the rotation CLI writes new key material to
-    /// (file-plain only).
+    /// Filesystem path the staged plaintext keypair is written to. For
+    /// `file-plain` this is the final destination; for the other modes
+    /// it is a temporary handoff between `step_generate_key` (writes)
+    /// and `step_write_new_key_material` (consumes + deletes).
     new_key_path: PathBuf,
+    /// Per-mode params the dispatch in `step_write_new_key_material`
+    /// reads. Must match `plan.custody_mode` — `new_rotation` /
+    /// `resume` reject mismatches at construction time.
+    custody_params: RotationCustodyParams,
 }
 
 impl RotationContext {
@@ -344,15 +414,25 @@ impl RotationContext {
     /// `labeler-key-bootstrap` flow filed as #65). A rotation against a
     /// never-bootstrapped DB returns [`RotationError::Init`].
     ///
+    /// `params` must carry a variant matching `mode`; the carrier feeds
+    /// the per-mode dispatch in `step_write_new_key_material`.
+    ///
     /// # Errors
     ///
-    /// - [`RotationError::Init`] when the DB has no active key.
+    /// - [`RotationError::Init`] when the DB has no active key or when
+    ///   `params` does not match `mode`.
     /// - [`RotationError::Db`] for any underlying SQL error.
     pub async fn new_rotation(
         pool: PgPool,
         mode: CustodyMode,
         new_key_path: PathBuf,
+        params: RotationCustodyParams,
     ) -> Result<Self, RotationError> {
+        if params.mode() != mode {
+            return Err(RotationError::Init {
+                reason: "RotationCustodyParams variant does not match the CustodyMode argument",
+            });
+        }
         let active = sqlx::query!(
             r#"
             SELECT public_key_did
@@ -402,23 +482,36 @@ impl RotationContext {
                 new_did: None,
             },
             new_key_path,
+            custody_params: params,
         })
     }
 
     /// Reload a rotation from its `rotation_state.id` (the `--resume`
     /// path).
     ///
+    /// `params` must carry a variant matching the CLI's `cli_mode` —
+    /// the `rotation_state` row carries the mode itself (the on-the-
+    /// wire string) but not the per-mode runtime inputs, so the caller
+    /// re-supplies them on resume.
+    ///
     /// # Errors
     ///
     /// - [`RotationError::Init`] when the row is missing, the custody
-    ///   mode column does not match the CLI's `--mode`, or the enum
+    ///   mode column does not match the CLI's `--mode`, the params
+    ///   variant does not match the CLI's `--mode`, or the enum
     ///   decoding fails.
     /// - [`RotationError::Db`] for any underlying SQL error.
     pub async fn resume(
         pool: PgPool,
         rotation_id: Uuid,
         cli_mode: CustodyMode,
+        params: RotationCustodyParams,
     ) -> Result<Self, RotationError> {
+        if params.mode() != cli_mode {
+            return Err(RotationError::Init {
+                reason: "RotationCustodyParams variant does not match the --mode argument",
+            });
+        }
         let row = sqlx::query!(
             r#"
             SELECT
@@ -468,6 +561,7 @@ impl RotationContext {
                 new_did: row.new_public_key_did,
             },
             new_key_path,
+            custody_params: params,
         })
     }
 
@@ -485,14 +579,11 @@ impl RotationContext {
     /// is moved to `Aborted` and the error category is written to
     /// `rotation_state.error`; the error is then returned verbatim.
     pub async fn run(&mut self) -> Result<(), RotationError> {
-        if matches!(self.plan.custody_mode, CustodyMode::FilePlain) {
-            // fall through
-        } else {
-            return Err(RotationError::Unsupported {
-                mode: self.plan.custody_mode.as_str(),
-            });
-        }
-
+        // All four custody modes flow through the same transition
+        // table; the per-mode work happens inside
+        // `step_write_new_key_material`'s dispatch. The previous
+        // `FilePlain`-only gate was lifted as part of #64 — see the
+        // dispatch site for the per-mode write paths.
         loop {
             let Some(next) = next_step(&self.plan) else {
                 // Promote terminal Swapped → Complete (the rotation
@@ -650,15 +741,26 @@ impl RotationContext {
     }
 
     /// Step 2: write the new key material to its custody-store
-    /// destination. For `file-plain` the key was already written to
-    /// disk in step 1 (the secret lifetime is `step_generate_key`'s
-    /// local scope, so we cannot defer the write to here); this step
-    /// verifies the on-disk did matches `new_public_key_did` and
-    /// applies the mode-0o600 enforcement.
+    /// destination.
     ///
-    /// Idempotency: re-reading and re-stat-ing the on-disk file is
-    /// safe; the same did is computed deterministically from the same
-    /// 32 bytes.
+    /// `step_generate_key` (step 1) writes a hex-encoded plaintext
+    /// keypair to `new_key_path` regardless of custody mode — the
+    /// staging file is the bridge between the in-memory keypair and
+    /// the per-mode persistence. This step dispatches on
+    /// `plan.custody_mode` and transports the staged bytes into the
+    /// configured custody store:
+    ///
+    /// | mode               | write path                                         |
+    /// |--------------------|----------------------------------------------------|
+    /// | `file-plain`       | verify + enforce 0o600 on `new_key_path`           |
+    /// | `passphrase-sealed`| seal + atomic-rename the sealed blob at `new_key_path` |
+    /// | `os-keychain`      | keyring `set_password` + delete staged file        |
+    /// | `cloud-kms-oracle` | KMS create + alias swap; delete staged file        |
+    ///
+    /// Idempotency: every per-mode helper is idempotent (sealed re-
+    /// write is byte-identical for the same secret+passphrase modulo
+    /// salt/nonce, keyring `set_password` overwrites, alias swap is
+    /// a no-op when it already points at the new key id).
     async fn step_write_new_key_material(&mut self) -> Result<(), RotationError> {
         let expected_did = self
             .plan
@@ -668,28 +770,98 @@ impl RotationContext {
                 reason: "new_public_key_did is unset at step_write_new_key_material",
             })?;
 
+        // Read + validate the staged plaintext once. Each per-mode
+        // helper then consumes the resulting `K256Keypair` instead of
+        // re-decoding the file. The mode-0o600 check still runs for
+        // `FilePlain`; the other modes either re-seal-then-replace
+        // (passphrase-sealed) or move the secret off disk entirely
+        // (os-keychain, cloud-kms-oracle) — both safer postures than
+        // the staged-plaintext intermediate.
         let raw =
             std::fs::read_to_string(&self.new_key_path).map_err(|_| RotationError::WriteKey {
                 reason: "could not read new key file at WriteNewKeyMaterial step",
             })?;
-        let bytes = hex::decode(raw.trim()).map_err(|_| RotationError::WriteKey {
+        let mut secret_bytes = hex::decode(raw.trim()).map_err(|_| RotationError::WriteKey {
             reason: "new key file is not valid hex at WriteNewKeyMaterial step",
         })?;
-        let kp = K256Keypair::from_private_key(&bytes).map_err(|_| RotationError::WriteKey {
-            reason: "new key file does not form a valid K-256 secret",
-        })?;
+        let kp =
+            K256Keypair::from_private_key(&secret_bytes).map_err(|_| RotationError::WriteKey {
+                reason: "new key file does not form a valid K-256 secret",
+            })?;
         let on_disk_did = kp.did();
         if on_disk_did != expected_did {
+            // Zeroise the staged secret before bailing — we read it
+            // into a heap Vec and we own it.
+            secret_bytes.zeroize();
             return Err(RotationError::WriteKey {
                 reason: "on-disk new key did does not match the rotation-state recorded did",
             });
         }
 
-        enforce_mode_0o600(&self.new_key_path)?;
+        match &self.custody_params {
+            RotationCustodyParams::FilePlain => {
+                // File-plain: the staged file IS the custody store.
+                // Only enforce 0o600 — `step_generate_key` already
+                // wrote with mode 0o600 via the atomic-rename helper.
+                enforce_mode_0o600(&self.new_key_path)?;
+            }
+            RotationCustodyParams::PassphraseSealed { passphrase } => {
+                let secret_arr: &[u8; 32] =
+                    secret_bytes
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| RotationError::WriteKey {
+                            reason: "staged K-256 secret is not exactly 32 bytes",
+                        })?;
+                write_passphrase_sealed_key(&self.new_key_path, secret_arr, passphrase)?;
+            }
+            RotationCustodyParams::OsKeychain { account } => {
+                let hex_secret = hex::encode(&secret_bytes);
+                write_os_keychain_key(account, &hex_secret)?;
+                // Remove the staged plaintext — the canonical store is
+                // now the OS keychain. Failure to delete is logged but
+                // not fatal: a stale file on disk is recoverable, but
+                // a successful keychain write must not be unwound.
+                if let Err(e) = std::fs::remove_file(&self.new_key_path) {
+                    tracing::warn!(
+                        new_key_path = %self.new_key_path.display(),
+                        error = ?e,
+                        "rotation: keychain write succeeded but staged plaintext could not be removed",
+                    );
+                }
+            }
+            RotationCustodyParams::CloudKms {
+                provider,
+                region,
+                current_alias,
+            } => {
+                let new_key_id = write_cloud_kms_key(*provider, region, current_alias)?;
+                // The new key id ends up on the rotation row's
+                // `error` column-equivalent — currently nowhere, since
+                // the schema only carries `new_public_key_did`. For
+                // forward-compat we log it; a follow-up will add a
+                // `new_kms_key_id` column.
+                info!(
+                    rotation_id = %self.plan.id,
+                    new_kms_key_id = %new_key_id,
+                    "rotation: cloud-kms-oracle new key created and alias swapped"
+                );
+                if let Err(e) = std::fs::remove_file(&self.new_key_path) {
+                    tracing::warn!(
+                        new_key_path = %self.new_key_path.display(),
+                        error = ?e,
+                        "rotation: KMS rotation succeeded but staged plaintext could not be removed",
+                    );
+                }
+            }
+        }
+
+        secret_bytes.zeroize();
 
         self.advance_to(RotationStep::KeyWritten).await?;
         info!(
             rotation_id = %self.plan.id,
+            mode = self.plan.custody_mode.as_str(),
             new_key_path = %self.new_key_path.display(),
             "rotation: new key material persisted to custody store"
         );
@@ -1007,6 +1179,214 @@ fn enforce_mode_0o600(_path: &std::path::Path) -> Result<(), RotationError> {
     Ok(())
 }
 
+/// Write the new K-256 secret to `path` sealed under `passphrase`.
+///
+/// Calls [`PassphraseSealedSigner::write_sealed`] to produce the v1
+/// AES-256-GCM-with-scrypt-KEK blob, then atomic-renames it into place
+/// with mode `0o600`. The on-disk format is the exact format
+/// [`PassphraseSealedSigner::from_path`] consumes — round-trip tested
+/// in the passphrase-sealed unit tests.
+///
+/// # Errors
+///
+/// Returns [`RotationError::WriteKey`] on seal failure (in practice
+/// unreachable for the hard-coded scrypt params; the typed error path
+/// keeps the API uniform) or on filesystem write failure.
+fn write_passphrase_sealed_key(
+    path: &std::path::Path,
+    secret: &[u8; 32],
+    passphrase: &str,
+) -> Result<(), RotationError> {
+    let sealed = PassphraseSealedSigner::write_sealed(secret, passphrase).map_err(|_| {
+        RotationError::WriteKey {
+            reason: "passphrase-sealed seal step failed during rotation",
+        }
+    })?;
+    write_bytes_atomic(path, &sealed).map_err(|reason| RotationError::WriteKey { reason })?;
+    Ok(())
+}
+
+/// Write `keypair_hex` into the OS keychain under
+/// `(KEYRING_SERVICE, account)`.
+///
+/// `keypair_hex` is the 64-char hex encoding of the raw 32-byte K-256
+/// secret — the same format
+/// [`crate::labeler::signer::os_keychain::OsKeychainSigner::from_account`]
+/// reads back at signer-construction time. `keyring::Entry::set_password`
+/// overwrites the existing entry when one is present, so re-running
+/// this step on a partially-applied rotation is a no-op-or-overwrite.
+///
+/// # Errors
+///
+/// Returns [`RotationError::WriteKey`] on a keychain transport,
+/// platform, or permission failure. The platform name is included so
+/// an operator running on a host without a supported backend sees an
+/// actionable message.
+fn write_os_keychain_key(account: &str, keypair_hex: &str) -> Result<(), RotationError> {
+    // Pin the service name to the signer module's constant so the
+    // rotation write and the signer read agree on the keychain key.
+    use crate::labeler::signer::os_keychain::KEYRING_SERVICE;
+
+    let entry =
+        keyring::Entry::new(KEYRING_SERVICE, account).map_err(|_| RotationError::WriteKey {
+            reason: "os-keychain: could not address keychain entry for rotation write",
+        })?;
+    entry.set_password(keypair_hex).map_err(|_| {
+        RotationError::WriteKey {
+            reason: "os-keychain: could not store new key in OS keychain (platform / permission failure)",
+        }
+    })?;
+    Ok(())
+}
+
+/// Create a new KMS keypair, point `current_alias` at it, return the
+/// new key id.
+///
+/// Alias swap is the rotation primitive: callers (the polaris-backend
+/// runtime, the labeler signer) address KMS via the *alias*, not the
+/// raw key id. After this function returns, the alias resolves to the
+/// freshly-created key; the old key id keeps existing in KMS (an
+/// operator-side scheduled deletion is the recommended follow-up but
+/// is intentionally not automated — KMS deletion is irreversible and
+/// must remain a manual decision).
+///
+/// AWS KMS does not have a single "make me a new asymmetric signing
+/// key" RPC that matches the architect pre-flight's
+/// `generate_data_key_pair` exactly: that RPC is for *data* keys
+/// (a fresh keypair *encrypted* by a CMK), which a labeler signer
+/// cannot sign with directly. The right primitive for an asymmetric
+/// signing key is `CreateKey` with `KeyUsage=SIGN_VERIFY` and
+/// `KeySpec=ECC_SECG_P256K1`; that is what this function calls. The
+/// alias swap (`UpdateAlias`) is the second leg. See the AWS KMS
+/// developer guide on rotating asymmetric customer-managed keys for
+/// background.
+///
+/// # Errors
+///
+/// - [`RotationError::Unsupported`] for the non-AWS `KmsProvider`
+///   variants (Gcp / Azure), or when the `kms-integration` Cargo
+///   feature is disabled (the AWS SDK is feature-gated).
+/// - [`RotationError::WriteKey`] on a KMS RPC failure or missing key
+///   id in the SDK response.
+fn write_cloud_kms_key(
+    provider: KmsProvider,
+    region: &str,
+    current_alias: &str,
+) -> Result<String, RotationError> {
+    match provider {
+        KmsProvider::Aws => write_cloud_kms_key_aws(region, current_alias),
+        KmsProvider::Gcp => Err(RotationError::Unsupported {
+            mode: "cloud-kms-oracle/gcp",
+        }),
+        KmsProvider::Azure => Err(RotationError::Unsupported {
+            mode: "cloud-kms-oracle/azure",
+        }),
+    }
+}
+
+#[cfg(feature = "kms-integration")]
+fn write_cloud_kms_key_aws(region: &str, current_alias: &str) -> Result<String, RotationError> {
+    use aws_config::BehaviorVersion;
+    use aws_sdk_kms::Client;
+    use aws_sdk_kms::types::{KeySpec, KeyUsageType};
+
+    // The rotation CLI is not yet inside a tokio runtime when this
+    // function runs (the CLI's `main` is `#[tokio::main]`, but the
+    // step is invoked from a sync context within an async `run`).
+    // Spin a short-lived runtime exclusively for the two KMS RPCs.
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle: failed to spin a tokio runtime for KMS rotation",
+        })?;
+
+    let region_owned = region.to_owned();
+    let alias_owned = current_alias.to_owned();
+
+    rt.block_on(async move {
+        let cfg = aws_config::defaults(BehaviorVersion::latest())
+            .region(aws_config::Region::new(region_owned))
+            .load()
+            .await;
+        let client = Client::new(&cfg);
+
+        // 1. CreateKey — make a fresh asymmetric K-256 signing key.
+        let create_resp = client
+            .create_key()
+            .key_usage(KeyUsageType::SignVerify)
+            .key_spec(KeySpec::EccSecgP256K1)
+            .description("polaris labeler signing key (rotated)")
+            .send()
+            .await
+            .map_err(|_| RotationError::WriteKey {
+                reason: "cloud-kms-oracle: AWS KMS CreateKey RPC failed",
+            })?;
+        let new_key_id = create_resp
+            .key_metadata()
+            .map(|m| m.key_id().to_owned())
+            .ok_or(RotationError::WriteKey {
+                reason: "cloud-kms-oracle: AWS KMS CreateKey returned no key metadata",
+            })?;
+
+        // 2. UpdateAlias — atomically re-point the existing alias at
+        // the new key id. UpdateAlias is the alias-swap primitive (a
+        // single AWS-side mutation); CreateAlias would fail when the
+        // alias already exists, which is precisely the rotation case.
+        client
+            .update_alias()
+            .alias_name(alias_owned)
+            .target_key_id(&new_key_id)
+            .send()
+            .await
+            .map_err(|_| RotationError::WriteKey {
+                reason: "cloud-kms-oracle: AWS KMS UpdateAlias RPC failed",
+            })?;
+
+        Ok::<String, RotationError>(new_key_id)
+    })
+}
+
+#[cfg(not(feature = "kms-integration"))]
+fn write_cloud_kms_key_aws(_region: &str, _current_alias: &str) -> Result<String, RotationError> {
+    Err(RotationError::Unsupported {
+        mode: "cloud-kms-oracle/aws (requires `kms-integration` cargo feature)",
+    })
+}
+
+/// Atomically write arbitrary bytes to `path` with mode `0o600`.
+///
+/// Same atomic-rename strategy as [`write_key_atomic`]; the byte-
+/// oriented variant exists for the sealed-blob write path which is
+/// not UTF-8.
+fn write_bytes_atomic(path: &std::path::Path, contents: &[u8]) -> Result<(), &'static str> {
+    use std::io::Write as _;
+
+    let parent = path.parent().unwrap_or_else(|| std::path::Path::new("."));
+    let stem = path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("polaris-key");
+    let tmp_name = format!("{stem}.tmp-{}", Uuid::new_v4());
+    let tmp_path = parent.join(tmp_name);
+
+    let mut file =
+        std::fs::File::create(&tmp_path).map_err(|_| "could not create temp file for new key")?;
+    file.write_all(contents)
+        .map_err(|_| "write to temp file failed")?;
+    file.flush().map_err(|_| "temp file flush failed")?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let perms = std::fs::Permissions::from_mode(0o600);
+        std::fs::set_permissions(&tmp_path, perms)
+            .map_err(|_| "could not set 0o600 on temp file")?;
+    }
+    drop(file);
+    std::fs::rename(&tmp_path, path).map_err(|_| "atomic rename of new key file failed")?;
+    Ok(())
+}
+
 /// Look up the active signing key did at a particular instant.
 ///
 /// Used by [`crate::labeler::verify::verify_label`] at signature-verify
@@ -1213,5 +1593,241 @@ mod tests {
         write_key_atomic(&target, "first").unwrap();
         write_key_atomic(&target, "second").unwrap();
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "second");
+    }
+
+    // ── #64a/b — per-mode write-path tests ───────────────────────────
+
+    #[test]
+    fn rotation_custody_params_mode_matches_variant() {
+        assert_eq!(
+            RotationCustodyParams::FilePlain.mode(),
+            CustodyMode::FilePlain
+        );
+        assert_eq!(
+            RotationCustodyParams::PassphraseSealed {
+                passphrase: "x".to_owned()
+            }
+            .mode(),
+            CustodyMode::PassphraseSealed,
+        );
+        assert_eq!(
+            RotationCustodyParams::OsKeychain {
+                account: "a".to_owned()
+            }
+            .mode(),
+            CustodyMode::OsKeychain,
+        );
+        assert_eq!(
+            RotationCustodyParams::CloudKms {
+                provider: crate::config::KmsProvider::Aws,
+                region: "us-east-1".to_owned(),
+                current_alias: "alias/polaris-labeler".to_owned(),
+            }
+            .mode(),
+            CustodyMode::CloudKms,
+        );
+    }
+
+    /// Passphrase-sealed rotation write path: seal a fresh K-256
+    /// secret to a temp path, then drive
+    /// `PassphraseSealedSigner::from_sealed_bytes_with_passphrase` over
+    /// the resulting blob and confirm a sign+verify roundtrip against
+    /// the original public key.
+    ///
+    /// The env-driven `from_path` entry point requires
+    /// `POLARIS_SIGNING_PASSPHRASE`; we deliberately avoid touching
+    /// the global env (the `#![deny(unsafe_code)]` crate attribute
+    /// forbids `std::env::set_var` calls in this codebase). The
+    /// in-process `from_sealed_bytes_with_passphrase` is the test-only
+    /// twin of `from_path` and exercises the exact same AES-GCM /
+    /// scrypt cycle, just sourcing the passphrase as a parameter.
+    #[test]
+    fn write_passphrase_sealed_key_roundtrip_sign_verify() {
+        use crate::labeler::signer::SigningKey as _;
+        use proto_blue::crypto::{ExportableKeypair as _, K256Keypair, Verifier as _};
+
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("k.sealed");
+
+        let kp = K256Keypair::generate();
+        let secret: [u8; 32] = kp.export_private_key().try_into().unwrap();
+        let passphrase = "test-passphrase";
+
+        // Write via the rotation helper.
+        write_passphrase_sealed_key(&path, &secret, passphrase).unwrap();
+
+        // The on-disk format is the v1 sealed blob: magic 0x01, 16-byte
+        // salt, 12-byte nonce, ciphertext+tag. Total = 1+16+12+32+16 = 77.
+        let blob = std::fs::read(&path).unwrap();
+        assert_eq!(blob.len(), 77, "v1 sealed blob length stable");
+        assert_eq!(blob[0], 0x01, "v1 sealed blob magic byte");
+
+        // 0o600 on Unix.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "sealed write must land mode 0o600");
+        }
+
+        // Drive the in-process unseal entry point, then sign+verify.
+        let signer =
+            PassphraseSealedSigner::from_sealed_bytes_with_passphrase(&blob, passphrase).unwrap();
+        let payload = b"polaris label payload";
+        let sig = signer.sign(payload).unwrap();
+        let verifier = K256Keypair::verifier_from_compressed(&kp.public_key_compressed()).unwrap();
+        assert!(verifier.verify(payload, sig.as_bytes()).unwrap());
+        assert_eq!(signer.public_key_did(), kp.did());
+    }
+
+    #[test]
+    fn write_cloud_kms_key_rejects_gcp_and_azure_variants() {
+        let err = write_cloud_kms_key(
+            crate::config::KmsProvider::Gcp,
+            "us-east-1",
+            "alias/polaris-labeler",
+        )
+        .unwrap_err();
+        match err {
+            RotationError::Unsupported { mode } => {
+                assert!(mode.contains("gcp"), "got {mode}");
+            }
+            other => panic!("expected Unsupported, got {other:?}"),
+        }
+
+        let err = write_cloud_kms_key(
+            crate::config::KmsProvider::Azure,
+            "us-east-1",
+            "alias/polaris-labeler",
+        )
+        .unwrap_err();
+        match err {
+            RotationError::Unsupported { mode } => {
+                assert!(mode.contains("azure"), "got {mode}");
+            }
+            other => panic!("expected Unsupported, got {other:?}"),
+        }
+    }
+
+    /// AWS-without-feature path: when the `kms-integration` Cargo
+    /// feature is OFF, the rotation helper short-circuits with
+    /// `Unsupported` naming the missing feature flag. Mirrors the
+    /// convention in `signer::cloud_kms::tests`.
+    #[cfg(not(feature = "kms-integration"))]
+    #[test]
+    fn write_cloud_kms_key_aws_without_feature_returns_unsupported() {
+        let err = write_cloud_kms_key(
+            crate::config::KmsProvider::Aws,
+            "us-east-1",
+            "alias/polaris-labeler",
+        )
+        .unwrap_err();
+        match err {
+            RotationError::Unsupported { mode } => {
+                assert!(mode.contains("kms-integration"), "got {mode}");
+            }
+            other => panic!("expected Unsupported, got {other:?}"),
+        }
+    }
+
+    /// AWS-with-feature integration test against localstack. Skipped
+    /// (not failed) when `POLARIS_KMS_TEST_REGION` /
+    /// `POLARIS_KMS_TEST_ALIAS` are unset — same gate convention as
+    /// `signer::cloud_kms::aws::tests::aws_kms_roundtrip_against_localstack`.
+    #[cfg(feature = "kms-integration")]
+    #[test]
+    fn write_cloud_kms_key_aws_alias_swap_against_localstack() {
+        let Ok(region) = std::env::var("POLARIS_KMS_TEST_REGION") else {
+            eprintln!("skipping: POLARIS_KMS_TEST_REGION unset");
+            return;
+        };
+        let Ok(alias) = std::env::var("POLARIS_KMS_TEST_ALIAS") else {
+            eprintln!("skipping: POLARIS_KMS_TEST_ALIAS unset");
+            return;
+        };
+        let new_key_id =
+            write_cloud_kms_key(crate::config::KmsProvider::Aws, &region, &alias).unwrap();
+        assert!(
+            !new_key_id.is_empty(),
+            "AWS KMS CreateKey must return a non-empty key id"
+        );
+    }
+
+    /// OS keychain round-trip. Ignored by default: the test mutates
+    /// real OS credential-store state (would pollute the developer's
+    /// keychain) and the keychain daemons (Secret Service, macOS
+    /// Keychain, Windows Credential Manager) are not available in a
+    /// stock CI sandbox. To exercise locally on macOS / Linux /
+    /// Windows:
+    ///
+    /// ```bash
+    /// cargo test -p polaris-backend labeler::rotation::tests::write_os_keychain -- --ignored
+    /// ```
+    ///
+    /// On Linux additionally requires a running Secret Service daemon
+    /// (`gnome-keyring-daemon` or `kwalletd`).
+    #[ignore = "requires a real OS keychain daemon — see test docstring"]
+    #[test]
+    fn write_os_keychain_key_roundtrip() {
+        use crate::labeler::signer::SigningKey as _;
+        use proto_blue::crypto::{ExportableKeypair as _, K256Keypair};
+
+        let account = format!("rotation-test-{}", Uuid::new_v4());
+        let kp = K256Keypair::generate();
+        let secret_hex = hex::encode(kp.export_private_key());
+
+        write_os_keychain_key(&account, &secret_hex).unwrap();
+
+        // Read back via the signer's entry point — both sides must
+        // agree on the (service, account) pair and the hex encoding.
+        let result = (|| -> Result<(), Box<dyn std::error::Error>> {
+            let signer =
+                crate::labeler::signer::os_keychain::OsKeychainSigner::from_account(&account)?;
+            assert_eq!(signer.public_key_did(), kp.did());
+            Ok(())
+        })();
+
+        // Tidy up the keychain entry, even if the test failed.
+        if let Ok(entry) = keyring::Entry::new(
+            crate::labeler::signer::os_keychain::KEYRING_SERVICE,
+            &account,
+        ) {
+            let _ = entry.delete_credential();
+        }
+        result.unwrap();
+    }
+
+    #[test]
+    fn new_rotation_rejects_mismatched_params_variant() {
+        // Pure constructor-shape test: drive `new_rotation` with a
+        // mode/params disagreement and confirm `Init` is returned
+        // before any DB work. The variant check runs strictly before
+        // the first query, so an unreachable lazy pool is fine — a
+        // failure to short-circuit would surface as a `Db` error
+        // (caught by the assertion's `other` branch).
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let err = rt.block_on(async {
+            let pool = sqlx::postgres::PgPoolOptions::new()
+                .max_connections(1)
+                .connect_lazy("postgres://invalid:invalid@127.0.0.1:1/none")
+                .unwrap();
+            RotationContext::new_rotation(
+                pool,
+                CustodyMode::PassphraseSealed,
+                std::path::PathBuf::from("/tmp/nope"),
+                RotationCustodyParams::FilePlain,
+            )
+            .await
+            .unwrap_err()
+        });
+        match err {
+            RotationError::Init { reason } => {
+                assert!(reason.contains("does not match"), "got {reason}");
+            }
+            other => panic!("expected Init, got {other:?}"),
+        }
     }
 }

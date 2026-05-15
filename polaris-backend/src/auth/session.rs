@@ -193,6 +193,15 @@ impl SessionStore {
         Self { pool, crypto, ttl }
     }
 
+    /// Session TTL window. Borrowed by the atproto refresh-flow
+    /// implementation in [`crate::auth::atproto::AtprotoOauthAuthVerifier::refresh_session`]
+    /// so the post-refresh `expires_at` aligns with the cookie window
+    /// the store would emit on a fresh `create()`.
+    #[must_use]
+    pub fn ttl(&self) -> Duration {
+        self.ttl
+    }
+
     /// Create a new session for `moderator_id`, sealing `refresh_token_plain`
     /// at rest.
     ///

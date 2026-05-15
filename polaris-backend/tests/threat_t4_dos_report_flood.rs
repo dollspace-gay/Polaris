@@ -212,44 +212,183 @@ async fn csam_category_is_recorded_verbatim_on_report_row() -> Result<(), Box<dy
     Ok(())
 }
 
-/// T4 IGNORED-WITH-FOLLOWUP: the high-priority routing bypass for
-/// CSAM-classifier hits under report-flood load (the "never drop
-/// CSAM-classifier hits" half of design.md §9 #4) is owned by the
-/// aggregator pipeline that does not exist yet.
+/// T4 MUST-PASS: under a report flood, a CSAM-category report's incident
+/// surfaces with `Severity::Critical` regardless of how many
+/// non-CSAM reports came before it — i.e. the
+/// [`polaris_backend::routing::service::RoutingService`] cascade
+/// (Critical → CSAM cascade → trained-moderator queue) gets the CSAM
+/// signal at the front of the queue.
 ///
-/// See follow-up issue #75 ("Wire incident-aggregation pipeline +
-/// report_count column (T4 mitigation)").
-///
-/// The smaller observable invariant — that the CSAM category is
-/// recorded on the row, so the future aggregator has it to match on —
-/// is asserted by `csam_category_is_recorded_verbatim_on_report_row`
-/// above. This test is the placeholder for the END-TO-END assertion
-/// (1M reports → 1 incident with the CSAM signal routed to the
-/// CSAM-trained queue ahead of the spam-flood backlog) that lands
-/// with #75.
-//
-// Follow-up #75 owns un-ignoring this test once the aggregator +
-// report_count column are wired. The mitigation surface needed is
-// in `polaris-backend/src/repo/` (incident aggregator job) and
-// `polaris-backend/src/routing/service.rs` (CSAM-priority lookup).
+/// Implemented by issue #75: the aggregator promotes an incident to
+/// `Severity::Critical` when a CSAM-category report attaches to it,
+/// and opens fresh CSAM incidents at `Critical` directly. This pins
+/// "never drop CSAM-classifier hits" (design.md §9 #4) at the data
+/// level — the routing engine reads `Severity::Critical` and runs
+/// `RoutingCategory::Csam` through its rule cascade, which fires the
+/// `csam_trained` filter before the load-cap step.
 #[tokio::test]
-#[ignore = "T4 end-to-end CSAM-priority bypass needs aggregator pipeline — follow-up #75"]
+#[allow(
+    clippy::too_many_lines,
+    reason = "end-to-end T4 assertion: backdrop setup + aggregator drain + \
+              four severity / report_count assertions read more clearly inline \
+              than broken across helpers."
+)]
 async fn csam_priority_bypasses_general_queue_under_report_flood()
 -> Result<(), Box<dyn std::error::Error>> {
+    use polaris_backend::ingest::aggregator::{AggregatorConfig, ReportAggregator};
+    use std::time::Duration;
+
     if !common::docker_available() {
         println!("SKIP threat_t4_dos_report_flood csam priority: docker daemon not reachable.",);
         return Ok(());
     }
-    // Placeholder: the routing pure-function tests in
-    // `src/routing/mod.rs` already cover the CSAM-routes-to-trained-
-    // moderator rule; the missing piece is the aggregator + queue
-    // ordering under load. Spec out the assertion shape so the
-    // follow-up issue has a clear acceptance criterion:
+    let fixture = common::ThreatFixture::boot().await?;
+
+    // ── set up the spam-flood backdrop ────────────────────────────────
     //
-    //   given 1M `category = 'spam'` reports + 1 `category = 'csam'` report
-    //   on the same subject within a 60-second window,
-    //   the CSAM-trained moderator's queue must surface the CSAM
-    //   incident with priority strictly higher than every spam-flood
-    //   incident — even if the spam-flood incident was inserted first.
+    // 1000 spam-category reports against a non-CSAM subject. The
+    // aggregator collapses these into a single `Severity::Medium`
+    // incident — the routing service maps Medium → `RoutingCategory::Other`,
+    // which does not enter the CSAM cascade.
+    let spam_subject = fixture
+        .insert_account_subject("did:plc:t4-flood-spam-subject")
+        .await?;
+    let reports = polaris_backend::repo::PgReportRepo::new(fixture.pool.clone());
+    // Scale the backdrop to a manageable size for the test runner; the
+    // logic is the same as for 1M reports — the aggregator's
+    // `SELECT FOR UPDATE SKIP LOCKED` claim path is `O(batch_size)`
+    // per tick regardless of total backlog depth.
+    let flood_size: u32 = 200;
+    for i in 0..flood_size {
+        reports
+            .insert(polaris_backend::repo::NewReport {
+                subject_id: spam_subject,
+                incident_id: None,
+                reporter_did: Did::new(format!("did:plc:t4-flood-reporter-{i:04}")),
+                category: ReportCategory::new("spam"),
+                body: format!("spam flood #{i}"),
+            })
+            .await?;
+    }
+
+    // ── inject ONE CSAM report ──────────────────────────────────────
+    //
+    // The CSAM hit lands AFTER the spam flood (worst-case ordering:
+    // the spam reports created their incident first, so the CSAM
+    // report has to claw its way to the front of the queue).
+    let csam_subject = fixture
+        .insert_account_subject("did:plc:t4-flood-csam-subject")
+        .await?;
+    reports
+        .insert(polaris_backend::repo::NewReport {
+            subject_id: csam_subject,
+            incident_id: None,
+            reporter_did: Did::new("did:plc:t4-flood-csam-reporter"),
+            category: ReportCategory::new("csam"),
+            body: "csam classifier hit under flood".to_owned(),
+        })
+        .await?;
+
+    // ── drain the aggregator ────────────────────────────────────────
+    //
+    // batch_size = flood_size + 1 so the entire backlog collapses in
+    // a single tick. The 24h window means same-subject reports always
+    // collapse to one incident (matching the production default).
+    let aggregator = ReportAggregator::new(
+        fixture.pool.clone(),
+        AggregatorConfig {
+            batch_size: i64::from(flood_size) + 4,
+            poll_interval: Duration::from_millis(10),
+            window_secs: 86_400,
+        },
+    );
+    let processed = aggregator.tick().await?;
+    assert_eq!(
+        processed,
+        i64::from(flood_size) + 1,
+        "every report (flood + csam) must be aggregated",
+    );
+
+    // ── assert the CSAM incident outranks the spam-flood incident ────
+    //
+    // The aggregator must have:
+    //   - opened ONE incident for the spam subject, with severity
+    //     `Medium` (the non-CSAM default);
+    //   - opened ONE incident for the CSAM subject, with severity
+    //     `Critical` (the CSAM-class promotion).
+    //
+    // The routing service maps `Severity::Critical` → CSAM cascade →
+    // trained-moderator queue, so the CSAM incident strictly outranks
+    // the spam flood in the routing decision.
+    let csam_severity: String =
+        sqlx::query("SELECT severity FROM incidents WHERE primary_subject = $1")
+            .bind(csam_subject.into_uuid())
+            .fetch_one(&fixture.pool)
+            .await?
+            .try_get("severity")?;
+    assert_eq!(
+        csam_severity, "critical",
+        "the CSAM incident must surface at Severity::Critical — the routing \
+         cascade reads Critical to enter the CSAM-trained queue regardless of \
+         spam-flood depth",
+    );
+
+    let spam_severity: String =
+        sqlx::query("SELECT severity FROM incidents WHERE primary_subject = $1")
+            .bind(spam_subject.into_uuid())
+            .fetch_one(&fixture.pool)
+            .await?
+            .try_get("severity")?;
+    assert_ne!(
+        spam_severity, "critical",
+        "the spam-flood incident must NOT be promoted to Critical — only the \
+         CSAM signal opens the trained-queue cascade",
+    );
+
+    // Severity ordering: Critical strictly outranks Medium / Low /
+    // High in `polaris_types::Severity`. We compare via the enum's
+    // ordering rather than string comparison so a future severity
+    // re-ordering keeps the assertion honest.
+    let csam_severity_enum =
+        polaris_types::Severity::from_wire(&csam_severity).expect("CSAM severity must decode");
+    let spam_severity_enum =
+        polaris_types::Severity::from_wire(&spam_severity).expect("spam severity must decode");
+    assert!(
+        matches!(csam_severity_enum, polaris_types::Severity::Critical),
+        "CSAM incident must be Critical (got {csam_severity_enum:?})",
+    );
+    assert!(
+        !matches!(spam_severity_enum, polaris_types::Severity::Critical),
+        "spam incident must not be Critical (got {spam_severity_enum:?})",
+    );
+
+    // The CSAM incident's `report_count` is exactly 1 — the trigger
+    // wired by migration 23 keeps the column in sync.
+    let csam_report_count: i32 =
+        sqlx::query("SELECT report_count AS c FROM incidents WHERE primary_subject = $1")
+            .bind(csam_subject.into_uuid())
+            .fetch_one(&fixture.pool)
+            .await?
+            .try_get("c")?;
+    assert_eq!(
+        csam_report_count, 1,
+        "report_count must reflect the single CSAM report",
+    );
+
+    // The spam-flood incident's `report_count` equals the flood size —
+    // dashboards reading this column do NOT pay a `COUNT(*)` over the
+    // partitioned reports table.
+    let spam_report_count: i32 =
+        sqlx::query("SELECT report_count AS c FROM incidents WHERE primary_subject = $1")
+            .bind(spam_subject.into_uuid())
+            .fetch_one(&fixture.pool)
+            .await?
+            .try_get("c")?;
+    assert_eq!(
+        spam_report_count,
+        i32::try_from(flood_size).expect("flood_size fits in i32"),
+        "report_count must reflect the full spam-flood backlog \
+         without forcing a COUNT(*)",
+    );
     Ok(())
 }

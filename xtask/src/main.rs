@@ -11,7 +11,7 @@
 
 use clap::{Parser, Subcommand};
 
-use xtask::{audit_verify, check_frontend_boundary, check_wasm_symbols};
+use xtask::{audit_verify, check_frontend_boundary, check_wasm_budget, check_wasm_symbols};
 
 /// Polaris workspace automation tasks.
 #[derive(Debug, Parser)]
@@ -40,6 +40,12 @@ enum Command {
     /// fails if no symbol containing `lexicon` / `Lexicons` / `validate`
     /// is present.
     CheckWasmSymbols,
+    /// Assert the released wasm artifact stays under the size budget (#71).
+    /// Reads `target/wasm32-unknown-unknown/release/polaris_frontend.wasm`
+    /// and fails if raw or gzipped bytes exceed the budget. Defaults: 2 MiB
+    /// raw, 500 KiB gzipped. Override via `POLARIS_WASM_BUDGET_BYTES` and
+    /// `POLARIS_WASM_GZIP_BUDGET_BYTES`.
+    CheckWasmBudget,
     /// Walk the hash-chained audit log against the DB identified by
     /// `DATABASE_URL` and report whether every row's stored hash
     /// matches its recomputed value (issue #35; design.md §6 + §9).
@@ -52,6 +58,7 @@ fn main() {
     let result = match cli.command {
         Command::CheckFrontendBoundary => check_frontend_boundary::run(),
         Command::CheckWasmSymbols => check_wasm_symbols::run(),
+        Command::CheckWasmBudget => check_wasm_budget::run(),
         Command::AuditVerify => audit_verify::run(),
     };
 

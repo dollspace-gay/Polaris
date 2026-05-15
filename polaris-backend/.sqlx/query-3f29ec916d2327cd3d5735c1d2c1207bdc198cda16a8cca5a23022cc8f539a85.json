@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(*)::bigint AS \"count!: i64\"\n        FROM actions\n        WHERE moderator_id = $1\n          AND created_at > now() - make_interval(secs => $2)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "3f29ec916d2327cd3d5735c1d2c1207bdc198cda16a8cca5a23022cc8f539a85"
+}

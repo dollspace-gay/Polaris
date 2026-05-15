@@ -36,7 +36,11 @@ use super::{RedactedKeypair, Signature, SigningError, SigningKey};
 /// future migration to a per-environment service name (e.g.,
 /// `"polaris.labeler.production"`) is a coordinated rename, not a
 /// per-call decision.
-const KEYRING_SERVICE: &str = "polaris.labeler";
+///
+/// `pub(crate)` so the rotation write path
+/// ([`crate::labeler::rotation`]) can pin the same service identifier
+/// without duplicating the literal across modules.
+pub(crate) const KEYRING_SERVICE: &str = "polaris.labeler";
 
 /// Signer backed by an OS-native secret store.
 pub struct OsKeychainSigner {

@@ -6,7 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+- Frontend test harness for T5 click-to-reveal sanitization (#76)
+- Wire incident-aggregation pipeline + report_count column (T4 mitigation) (#75)
+- Add moderator-behavior-anomaly detector (T1 mitigation) (#73)
+- Add reporter-reputation weighting (T3 mitigation) (#74)
+
 ### Added
+- Rewire MemoryAnomalyDetector to consume reputation-weighted per-event scores (#77)
+- Byte-offset tamper diagnostic + 100k-event perf test for audit chain (#72)
+- Per-mode rotation: passphrase_sealed, os_keychain, cloud_kms_oracle (#64)
+- Live proto-blue XRPC fetcher (replaces NotWiredEvidenceFetcher) (#70)
+- Retry-with-backoff for failed evidence jobs (#69)
+- Wire real aws-sdk-s3 BlobStore with minio integration tests (#68)
+- HTTP handlers for /auth/atproto/{login,callback} (#67)
+- DPoP-nonce-rotation refresh flow for atproto sessions (#66)
+- OAuth client-metadata loader so --oauth path is end-to-end functional (#61)
+- DID document service-entry helper for #atproto_labeler (#60)
+- Add live WebSocket integration test for subscribeLabels (#58)
+- Add WebSocket live-feed for dashboard real-time updates (#57)
+- Add testcontainers integration tests for Kafka and NATS bus backends (#56)
+- Add composer_validation wasm-bindgen-test for reasoning-length gate (#54)
+- Add case_api integration test suite for AC-7 + auth-gate runtime proof (#52)
+- Add firehose reconnect test fixture for AC-9 mechanical proof (#51)
 - Add labeler service hosting and v1 hardening (M4) (#6)
 - Expand Polaris beyond v1 (M5+) (#41)
 - Add wellness instrumentation, specialty routing, and appeals (M3) (#5)
@@ -21,6 +43,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Resolve proto-blue 0.3.1 MSRV blocker (1.88 features under declared 1.85) (#50)
 
 ### Changed
+- Consolidate duplicate canonical-CBOR encoders (emitter.rs + upstream_labels.rs) (#78)
+- Wasm bundle-size budget gate in CI (#71)
+- AC-15 binding integration test: emit-rotate-emit-verify-both (#65)
+- Migrate url dep to [workspace.dependencies] (#59)
 - Add reporter reputation scoring and false-report weighting in pattern engine (#37)
 - Iterate Polaris tech architecture around proto-blue SDK (#1)
 - Add hardware-token (PKCS#11 / FIDO2 HSM) SigningKey impl with attended-signing UX (#49)

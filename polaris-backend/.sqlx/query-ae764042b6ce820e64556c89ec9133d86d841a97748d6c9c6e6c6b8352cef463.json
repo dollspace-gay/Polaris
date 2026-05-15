@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE reporter_stats\n        SET cached_score = $2,\n            cached_at    = $3\n        WHERE did = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Float4",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ae764042b6ce820e64556c89ec9133d86d841a97748d6c9c6e6c6b8352cef463"
+}

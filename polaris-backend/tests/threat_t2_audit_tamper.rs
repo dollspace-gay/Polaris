@@ -42,7 +42,7 @@
     reason = "integration test code is allowed to panic — rust-quality §7 convention"
 )]
 
-use polaris_backend::audit::{AuditEvent, AuditLog, VerifyError, verify_chain};
+use polaris_backend::audit::{AuditEvent, AuditLog, TamperedField, VerifyError, verify_chain};
 
 #[path = "threats_common/mod.rs"]
 mod common;
@@ -125,12 +125,18 @@ async fn verify_chain_detects_byte_flip_on_historic_row() -> Result<(), Box<dyn 
     match err {
         VerifyError::Tampered {
             at_seq,
+            field,
             expected,
             found,
         } => {
             assert_eq!(
                 at_seq, 3,
                 "verifier must flag the row whose hash was flipped"
+            );
+            assert_eq!(
+                field,
+                TamperedField::ThisHash,
+                "a flipped this_hash byte must surface as TamperedField::ThisHash",
             );
             assert_ne!(
                 expected, found,
@@ -184,10 +190,15 @@ async fn verify_chain_detects_prev_hash_link_break() -> Result<(), Box<dyn std::
         .expect_err("verify_chain must reject the link break");
 
     match err {
-        VerifyError::Tampered { at_seq, .. } => {
+        VerifyError::Tampered { at_seq, field, .. } => {
             assert_eq!(
                 at_seq, 4,
                 "verifier must flag seq=4 (the row whose prev_hash no longer links to seq=3)",
+            );
+            assert_eq!(
+                field,
+                TamperedField::PrevHash,
+                "a scrambled prev_hash must surface as TamperedField::PrevHash",
             );
         }
         other => panic!("expected VerifyError::Tampered, got {other:?}"),

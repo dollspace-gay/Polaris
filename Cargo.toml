@@ -4,6 +4,7 @@ members = [
     "polaris-backend",
     "polaris-frontend",
     "polaris-publish-labeler-record",
+    "polaris-publish-did-service",
     "xtask",
 ]
 resolver = "2"
@@ -138,6 +139,10 @@ async-trait = "0.1"
 # Observability
 tracing = "0.1"
 tracing-subscriber = "0.3"
+
+# URL parsing — pulled transitively by proto-blue already; declaring here so
+# workspace members reference one pinned version via `url.workspace = true`.
+url = "2"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

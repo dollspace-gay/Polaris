@@ -174,6 +174,59 @@ impl PassphraseSealedSigner {
         })
     }
 
+    /// Decrypt a sealed blob with the passphrase passed in-process —
+    /// the env- and stdin-free entry point used by the rotation
+    /// rust-quality tests so a test does not have to mutate the
+    /// global `POLARIS_SIGNING_PASSPHRASE` env var.
+    ///
+    /// Available in `cfg(test)` only because the production read path
+    /// is the env-driven [`Self::from_path`] / [`Self::from_sealed_bytes`];
+    /// exposing an in-process passphrase reader on the public API
+    /// would invite callers to thread plaintext passphrases through
+    /// argv-style channels, which is exactly what
+    /// [`read_passphrase`] is designed to prevent.
+    ///
+    /// # Errors
+    ///
+    /// As for [`Self::from_sealed_bytes`], minus the env / stdin
+    /// failure modes.
+    #[cfg(test)]
+    pub(crate) fn from_sealed_bytes_with_passphrase(
+        blob: &[u8],
+        passphrase: &str,
+    ) -> Result<Self, SigningError> {
+        let (salt, nonce_bytes, ciphertext) = split_sealed_blob(blob)?;
+        let mut kek = derive_kek(passphrase, salt)?;
+        #[allow(
+            deprecated,
+            reason = "aes-gcm 0.10 internal generic-array 0.x; bump with aes-gcm 0.11 stable"
+        )]
+        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&kek));
+        kek.zeroize();
+        #[allow(
+            deprecated,
+            reason = "aes-gcm 0.10 internal generic-array 0.x; bump with aes-gcm 0.11 stable"
+        )]
+        let nonce = Nonce::from_slice(nonce_bytes);
+        let secret_bytes = cipher
+            .decrypt(nonce, ciphertext)
+            .map_err(|_| SigningError::KeyDecrypt)?;
+        if secret_bytes.len() != SECRET_KEY_LEN {
+            return Err(SigningError::KeyLoad {
+                reason: "decrypted payload is not exactly 32 bytes (K-256 secret)",
+            });
+        }
+        let keypair =
+            K256Keypair::from_private_key(&secret_bytes).map_err(|_| SigningError::KeyLoad {
+                reason: "decrypted bytes do not form a valid K-256 secret",
+            })?;
+        let public_key_did = keypair.did();
+        Ok(Self {
+            keypair: RedactedKeypair(keypair),
+            public_key_did,
+        })
+    }
+
     /// Encrypt a fresh K-256 secret to disk under `passphrase`,
     /// generating a fresh 16-byte scrypt salt and a fresh 12-byte
     /// AES-GCM nonce.

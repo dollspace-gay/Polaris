@@ -50,6 +50,15 @@ use proto_blue::repo::{
     AccountEvent, CommitEvent, FirehoseEvent, IdentityEvent, InfoEvent, RepoError, SyncEvent,
 };
 
+/// Internal pump → worker channel capacity.
+///
+/// Sized to absorb a small burst of decoded events while the worker is
+/// otherwise busy (e.g. mid-`flush_cursor`). Independent of the
+/// public outbound channel capacity: the pump's backpressure budget is
+/// bounded by *this* number of un-handled events, not by the public
+/// consumer's queue depth.
+const INTERNAL_PUMP_CHANNEL_CAPACITY: usize = 32;
+
 // ── public configuration ─────────────────────────────────────────────────
 
 /// Default capacity of the outbound `(FirehoseWorker → consumer)` channel.
@@ -270,125 +279,214 @@ impl FirehoseWorker {
             cancel,
         } = self;
 
-        let mut cursor = load_cursor(&pool).await?;
+        let cursor = load_cursor(&pool).await?;
         tracing::info!(
             cursor,
             relay_url = %cfg.relay_url,
             "firehose worker starting",
         );
 
-        let mut firehose =
-            proto_blue::repo::Firehose::new(build_subscribe_url(&cfg.relay_url, cursor));
-        let mut flush_timer = tokio::time::interval(cfg.flush_every);
-        // `MissedTickBehavior::Delay` keeps a stalled tick from generating a
-        // burst of catch-up flushes after the worker is unparked.
-        flush_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        // First tick fires immediately; consume it so the first real flush
-        // is `flush_every` away from `run`-entry.
-        let _ = flush_timer.tick().await;
+        // Decouple `next_event` from the worker's `select!`.
+        //
+        // `proto_blue::repo::Firehose::next_event` ultimately polls
+        // `WebSocketKeepAlive::recv`, which is **not** cancel-safe during
+        // its connect phase: a freshly-constructed `Firehose` has
+        // `transport = None`, so the first poll falls into a
+        // `tokio::time::sleep(reconnect_delay)` (1s on initial setup).
+        // If a different `select!` arm — the flush timer, or
+        // cancellation — fires before the sleep completes, the
+        // `next_event` future is dropped and the in-progress connect
+        // is abandoned. The next loop iteration starts the connect
+        // from scratch and sleeps another 1s. A sufficiently fast
+        // flush cadence (e.g. AC-9's test uses `flush_every =
+        // 100ms`) therefore *starves* the connect forever: zero
+        // events ever reach the worker.
+        //
+        // The fix is to move the firehose read into a dedicated
+        // pump task that has no `select!` interrupting it — just a
+        // straight-line `loop { firehose.next_event().await }`. The
+        // pump owns the `Firehose` by value (so reconnect-rebuilds
+        // are local) and forwards each event over an internal
+        // bounded channel back to the worker. The worker's
+        // `select!` then races *that* channel's `recv` (which **is**
+        // cancel-safe — dropping it mid-poll loses no message) with
+        // the flush timer and cancellation token.
+        let (pump_tx, mut pump_rx) =
+            mpsc::channel::<Result<FirehoseEvent, RepoError>>(INTERNAL_PUMP_CHANNEL_CAPACITY);
+        let pump_cancel = cancel.clone();
+        let pump_cfg = cfg.clone();
+        let pump_handle = tokio::spawn(async move {
+            run_firehose_pump(pump_cfg, cursor, pump_tx, pump_cancel).await;
+        });
 
-        let mut since_flush: usize = 0;
-        let mut last_flushed = cursor;
+        let result = run_consume_loop(&cfg, &pool, &tx, &cancel, &mut pump_rx, cursor).await;
 
-        loop {
-            tokio::select! {
-                // Co-operative shutdown. Race the firehose read so we can
-                // exit promptly even if the upstream is silent.
-                () = cancel.cancelled() => {
-                    tracing::info!(cursor, "firehose worker received cancellation");
+        // Co-operative pump shutdown. Cancellation is the primary signal;
+        // dropping `pump_rx` will also cause the pump's `tx.send` to
+        // surface a `SendError` and return. Either way the handle should
+        // resolve promptly.
+        cancel.cancel();
+        let _ = pump_handle.await;
+        result
+    }
+}
+
+// ── pump + consume helpers ──────────────────────────────────────────────
+
+/// Drive `proto_blue::repo::Firehose::next_event` in a tight, un-select-ed
+/// loop and forward each decoded event (or terminal error) to the
+/// worker via the supplied `tx`. Handles reconnect locally: on a clean
+/// `Ok(None)` from the upstream or a server-sent error frame, the pump
+/// rebuilds `firehose` with the latest cursor it has observed and keeps
+/// going.
+///
+/// The pump exits when either:
+///
+/// 1. `cancel` is fired.
+/// 2. `tx.send(...)` errors — i.e. the worker has dropped its receiver
+///    (the worker exited).
+async fn run_firehose_pump(
+    cfg: FirehoseConfig,
+    start_cursor: i64,
+    tx: mpsc::Sender<Result<FirehoseEvent, RepoError>>,
+    cancel: CancellationToken,
+) {
+    let mut cursor = start_cursor;
+    let mut firehose = proto_blue::repo::Firehose::new(build_subscribe_url(&cfg.relay_url, cursor));
+
+    loop {
+        // Race the upstream read against the cancellation token *only*.
+        // No flush timer, no other concurrent arm: this is the read
+        // serialization the worker's `select!` cannot provide.
+        let outcome = tokio::select! {
+            biased;
+            () = cancel.cancelled() => return,
+            res = firehose.next_event() => res,
+        };
+
+        match outcome {
+            Ok(Some(event)) => {
+                if let Some(seq) = event.seq()
+                    && seq > cursor
+                {
+                    cursor = seq;
+                }
+                if tx.send(Ok(event)).await.is_err() {
+                    // Worker dropped the receiver; nothing left to do.
+                    return;
+                }
+            }
+            Ok(None) => {
+                tracing::warn!(
+                    cursor,
+                    "firehose stream closed cleanly; reconnecting from cursor",
+                );
+                firehose =
+                    proto_blue::repo::Firehose::new(build_subscribe_url(&cfg.relay_url, cursor));
+            }
+            Err(RepoError::FirehoseError { error, message }) => {
+                tracing::warn!(
+                    cursor,
+                    error = %error,
+                    message = ?message,
+                    "firehose server error frame; reconnecting",
+                );
+                firehose =
+                    proto_blue::repo::Firehose::new(build_subscribe_url(&cfg.relay_url, cursor));
+            }
+            Err(err) => {
+                // Decode / transport. The keep-alive layer auto-reconnects
+                // on transport failure; for a decode error we surface it
+                // to the worker (for visibility) and keep polling.
+                if tx.send(Err(err)).await.is_err() {
+                    return;
+                }
+            }
+        }
+    }
+}
+
+/// Consume events from the internal pump channel and apply the cursor-
+/// flush / outbound-send / cancellation / periodic-flush state machine.
+///
+/// Split out from [`FirehoseWorker::run`] so the borrow shape is small
+/// and the function reads top-to-bottom. All three `select!` arms here
+/// are cancel-safe: `cancelled()`, `interval.tick()`, and `mpsc::Receiver::recv()`.
+async fn run_consume_loop(
+    cfg: &FirehoseConfig,
+    pool: &PgPool,
+    tx: &mpsc::Sender<NormalizedEvent>,
+    cancel: &CancellationToken,
+    pump_rx: &mut mpsc::Receiver<Result<FirehoseEvent, RepoError>>,
+    start_cursor: i64,
+) -> Result<(), FirehoseError> {
+    let mut cursor = start_cursor;
+    let mut last_flushed = cursor;
+    let mut since_flush: usize = 0;
+
+    let mut flush_timer = tokio::time::interval(cfg.flush_every);
+    flush_timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let _ = flush_timer.tick().await;
+
+    loop {
+        tokio::select! {
+            () = cancel.cancelled() => {
+                tracing::info!(cursor, "firehose worker received cancellation");
+                if cursor != last_flushed {
+                    flush_cursor(pool, cursor).await?;
+                }
+                tracing::info!(cursor, "firehose worker stopped");
+                return Ok(());
+            }
+
+            _ = flush_timer.tick() => {
+                if cursor != last_flushed {
+                    flush_cursor(pool, cursor).await?;
+                    last_flushed = cursor;
+                    since_flush = 0;
+                }
+            }
+
+            maybe_msg = pump_rx.recv() => {
+                let Some(msg) = maybe_msg else {
+                    // Pump exited. The supervisor (cancel token or
+                    // upstream end) is responsible for this; surface a
+                    // clean shutdown rather than a fatal error so the
+                    // outer caller can decide.
+                    tracing::warn!(cursor, "firehose pump terminated; stopping worker");
                     if cursor != last_flushed {
-                        flush_cursor(&pool, cursor).await?;
+                        flush_cursor(pool, cursor).await?;
                     }
-                    tracing::info!(cursor, "firehose worker stopped");
                     return Ok(());
-                }
-
-                // Periodic flush. `tokio::time::Interval::tick` is
-                // cancel-safe: dropping it mid-poll is a no-op.
-                _ = flush_timer.tick() => {
-                    if cursor != last_flushed {
-                        flush_cursor(&pool, cursor).await?;
-                        last_flushed = cursor;
-                        since_flush = 0;
+                };
+                match msg {
+                    Ok(event) => {
+                        if let Some(seq) = event.seq()
+                            && seq > cursor
+                        {
+                            cursor = seq;
+                        }
+                        let normalized = NormalizedEvent::from(event);
+                        // Bounded send. Awaiting here is *correct* — it's
+                        // how backpressure propagates upstream.
+                        tx.send(normalized)
+                            .await
+                            .map_err(|_| FirehoseError::ChannelClosed)?;
+                        since_flush += 1;
+                        if since_flush >= cfg.flush_every_n_events
+                            && cursor != last_flushed
+                        {
+                            flush_cursor(pool, cursor).await?;
+                            last_flushed = cursor;
+                            since_flush = 0;
+                        }
                     }
-                }
-
-                // Read one event from the firehose. `next_event` is
-                // cancel-safe via `proto_blue_ws::WebSocketKeepAlive::recv`
-                // — the underlying transport buffers atomic frames and
-                // resumes from the next frame on the following poll. The
-                // select macro will not lose a partially-decoded message.
-                ev = firehose.next_event() => {
-                    match ev {
-                        Ok(Some(event)) => {
-                            // Advance cursor *before* the send so a closed
-                            // channel doesn't lose the seq we just read.
-                            // The next on-flush write captures it.
-                            if let Some(seq) = event.seq() {
-                                if seq > cursor {
-                                    cursor = seq;
-                                }
-                            }
-                            let normalized = NormalizedEvent::from(event);
-                            // Bounded send. Awaiting here is *correct* —
-                            // it's how backpressure propagates upstream.
-                            // Forbidden patterns #4 (unbounded) and #5
-                            // (silent drop) are both addressed by this
-                            // single line.
-                            tx.send(normalized).await.map_err(|_| FirehoseError::ChannelClosed)?;
-                            since_flush += 1;
-                            if since_flush >= cfg.flush_every_n_events
-                                && cursor != last_flushed
-                            {
-                                flush_cursor(&pool, cursor).await?;
-                                last_flushed = cursor;
-                                since_flush = 0;
-                            }
-                        }
-                        Ok(None) => {
-                            // Clean upstream close. Rebuild the Firehose
-                            // with the current cursor so the next
-                            // `?cursor=` resume picks up exactly where we
-                            // left off.
-                            tracing::warn!(
-                                cursor,
-                                "firehose stream closed cleanly; reconnecting from cursor",
-                            );
-                            firehose = proto_blue::repo::Firehose::new(
-                                build_subscribe_url(&cfg.relay_url, cursor),
-                            );
-                        }
-                        Err(RepoError::FirehoseError { error, message }) => {
-                            // Server-sent error frame (e.g. `FutureCursor`,
-                            // `ConsumerTooSlow`). Non-fatal: log and
-                            // reconnect from the persisted cursor. For
-                            // `FutureCursor` specifically the relay will
-                            // accept a smaller cursor on the next attempt;
-                            // we leave the cursor in place because the
-                            // worker has not seen evidence to rewind it.
-                            tracing::warn!(
-                                cursor,
-                                error = %error,
-                                message = ?message,
-                                "firehose server error frame; reconnecting",
-                            );
-                            firehose = proto_blue::repo::Firehose::new(
-                                build_subscribe_url(&cfg.relay_url, cursor),
-                            );
-                        }
-                        Err(err) => {
-                            // Decode / transport error. The keep-alive
-                            // layer already auto-reconnects on transport
-                            // failure, so we surface the diagnostic and
-                            // keep polling. Decode errors are bug-shaped
-                            // (a malformed frame for a known type); we
-                            // log and skip rather than crash the worker.
-                            tracing::warn!(
-                                cursor,
-                                error = ?err,
-                                "firehose decode/transport error; continuing",
-                            );
-                        }
+                    Err(err) => {
+                        tracing::warn!(
+                            cursor,
+                            error = ?err,
+                            "firehose decode/transport error; continuing",
+                        );
                     }
                 }
             }

@@ -240,7 +240,7 @@ fn decode_observation(
 )]
 mod tests {
     use super::*;
-    use polaris_types::{Did, LabelValue};
+    use polaris_types::{Did, LabelValue, ModeratorId};
 
     /// The encode → decode pair must round-trip every variant. This is a
     /// pure-data test (no DB) — it proves the typed↔(discriminator, JSONB)
@@ -272,6 +272,11 @@ mod tests {
                 model: "csam-v3".to_owned(),
                 label: "csam".to_owned(),
                 confidence: 0.99,
+            },
+            ObservationKind::ModeratorBehaviorAnomaly {
+                moderator_id: ModeratorId::new(),
+                action_count: 137,
+                window_secs: 3600,
             },
         ];
         for k in cases {

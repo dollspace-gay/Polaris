@@ -25,12 +25,17 @@
 use std::sync::Arc;
 
 use crate::api::appeals::AppealsRateLimiter;
+use crate::api::dto::DashboardEvent;
+use crate::auth::AnyModeratorAuth;
 use crate::auth::session::SessionStore;
 use crate::auth::webauthn::WebauthnVerifier;
-use crate::config::{PatternActionsConfig, ReputationConfig};
+use crate::bus::EventBus;
+use crate::bus::memory::MemoryBus;
+use crate::config::{ModeratorAnomalyEnvConfig, PatternActionsConfig, ReputationConfig};
 use crate::labeler::emitter::LabelEmitter;
 use crate::labeler::server::{LabelBroadcaster, PgLabelRepo};
 use crate::labeler::signer::ActiveSignerReceiver;
+use crate::pattern::moderator_anomaly::ModeratorAnomalyConfig;
 use crate::repo::{
     PgActionRepo, PgAppealRepo, PgCalibrationEventRepo, PgIncidentRepo, PgObservationRepo,
     PgPatternActionRepo, PgReportRepo, PgSecondOpinionRepo, PgSubjectRepo,
@@ -42,7 +47,7 @@ use crate::reputation::{PgReputationProvider, ReputationParams};
 /// Cloning is cheap: every field is an `Arc<_>` and the underlying
 /// `sqlx::PgPool` is internally `Arc`-shared. Axum clones state per request
 /// so this matters.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ApiState {
     /// Subject repository handle.
     pub subjects: Arc<PgSubjectRepo>,
@@ -125,6 +130,37 @@ pub struct ApiState {
     /// at startup; tests that don't exercise reputation simply ignore
     /// the field. Cloning is cheap (`Arc::clone`).
     pub reputation: Arc<PgReputationProvider>,
+    /// Live dashboard event bus (issue #57). Producers (the pattern
+    /// engine, the incident-state transition path, the report-insert
+    /// path) publish [`DashboardEvent`] diffs here; the
+    /// `GET /api/dashboard/live` WebSocket handler subscribes per
+    /// connection and forwards each envelope as a JSON text frame.
+    ///
+    /// Default is an in-process [`MemoryBus`] — production deployments
+    /// keep this seam in place because the dashboard feed is process-
+    /// local (one Polaris instance serves the moderator UI). If a future
+    /// deployment fans out across multiple backend processes, swap a
+    /// kafka- or nats-backed implementation in via [`Self::with_dashboard_bus`].
+    ///
+    /// `Arc<dyn EventBus<_>>` rather than a concrete `MemoryBus` so the
+    /// test fixtures and the production wiring share one field shape and
+    /// the bus implementation is interchangeable.
+    pub dashboard_bus: Arc<dyn EventBus<DashboardEvent>>,
+    /// Moderator-authentication verifier (issue #67).
+    ///
+    /// The `/auth/atproto/{login,callback}` handlers reach the atproto
+    /// verifier through [`AnyModeratorAuth::as_atproto`]; a future OIDC
+    /// handler will reach the OIDC verifier through a sibling
+    /// accessor. The enum lives behind an `Arc` so cloning the state
+    /// per request is cheap — every concrete verifier owns a `PgPool`,
+    /// a `Crypto`, and (for atproto) an `Arc<dyn FetchHandler>`, and
+    /// none of those want to be cloned per Axum request.
+    ///
+    /// `None` when the binary entrypoint did not construct a verifier
+    /// (the integration-test path that does not exercise the
+    /// `/auth/*` routes). Production wiring always installs the
+    /// verifier via [`Self::with_moderator_auth`].
+    pub moderator_auth: Option<Arc<AnyModeratorAuth>>,
 }
 
 impl ApiState {
@@ -168,6 +204,7 @@ impl ApiState {
             sessions,
             pattern_actions_cfg,
             ReputationConfig::default(),
+            ModeratorAnomalyEnvConfig::default(),
         )
     }
 
@@ -182,12 +219,21 @@ impl ApiState {
     /// path. Tests that pass invalid params expect the panic; the
     /// production path reads from validated env so the validation
     /// already passed at `AppConfig::from_env`.
+    ///
+    /// Panics if `moderator_anomaly_cfg` carries a zero `threshold` or
+    /// `window_secs` — the constructor on
+    /// [`ModeratorAnomalyConfig::new`] rejects degenerate values, and
+    /// the default (50, 3600) trivially satisfies them. The
+    /// `AppConfig::from_env` validation rejects any operator override
+    /// outside `u32` range, so the only path to a panic here is a
+    /// test passing zero deliberately.
     #[must_use]
     pub fn with_full_config(
         pool: sqlx::PgPool,
         sessions: SessionStore,
         pattern_actions_cfg: PatternActionsConfig,
         reputation_cfg: ReputationConfig,
+        moderator_anomaly_cfg: ModeratorAnomalyEnvConfig,
     ) -> Self {
         let reputation_params = ReputationParams {
             prior_actioned: reputation_cfg.prior_actioned,
@@ -213,9 +259,31 @@ impl ApiState {
             // reporter_stats per-reporter on Label/Takedown/NoAction.
             // Inject the provider so the same tx commits the action
             // and the stats update atomically.
-            actions: Arc::new(
-                PgActionRepo::new(pool.clone()).with_reputation(Arc::clone(&reputation)),
-            ),
+            actions: {
+                // Issue #73, T1 mitigation: install the moderator-
+                // behavior-anomaly hook on the action-insert path. The
+                // ModeratorAnomalyEnvConfig fields are already u32-
+                // validated by env parsing; only a deliberate test
+                // override of zero would reach the panic branch.
+                #[allow(
+                    clippy::expect_used,
+                    reason = "Constructor-time validation of operator-supplied \
+                              params. Defaults (50, 3600) trivially pass; env-\
+                              derived params are validated upstream in \
+                              ModeratorAnomalyEnvConfig::from_env, so this \
+                              expect guards a degenerate caller only."
+                )]
+                let anomaly_cfg = ModeratorAnomalyConfig::new(
+                    moderator_anomaly_cfg.threshold,
+                    moderator_anomaly_cfg.window_secs,
+                )
+                .expect("ModeratorAnomalyEnvConfig defaults / env-validated params are non-zero");
+                Arc::new(
+                    PgActionRepo::new(pool.clone())
+                        .with_reputation(Arc::clone(&reputation))
+                        .with_moderator_anomaly(anomaly_cfg),
+                )
+            },
             observations: Arc::new(PgObservationRepo::new(pool.clone())),
             // Issue #37: same wiring for the report-insert path
             // (bumps reports_filed + last_active).
@@ -242,6 +310,19 @@ impl ApiState {
             pattern_actions_cfg,
             webauthn: None,
             reputation,
+            // Process-local in-memory bus is the default backend. Tests
+            // that drive the WebSocket directly construct their own bus
+            // and install it via `with_dashboard_bus`; production wiring
+            // can swap in a kafka/nats backend the same way once the
+            // multi-process deploy lands.
+            dashboard_bus: Arc::new(MemoryBus::<DashboardEvent>::new_default()),
+            // Issue #67: the moderator-auth verifier is installed by the
+            // binary entrypoint via `with_moderator_auth` after
+            // `build_moderator_auth` succeeds. Integration tests that
+            // exercise the `/auth/*` routes construct their own
+            // verifier and install it the same way; tests that don't
+            // touch those routes leave the slot `None`.
+            moderator_auth: None,
         }
     }
 
@@ -298,6 +379,76 @@ impl ApiState {
     pub fn with_label_emitter(mut self, emitter: Arc<LabelEmitter>) -> Self {
         self.label_emitter = Some(emitter);
         self
+    }
+
+    /// Install an explicit [`EventBus`] backend for the live-dashboard
+    /// feed (issue #57).
+    ///
+    /// Production wiring leaves the default in-process [`MemoryBus`] in
+    /// place. Tests that need to observe the WebSocket fan-out construct
+    /// a `MemoryBus<DashboardEvent>`, install it here, and publish
+    /// directly while a client is connected. A future multi-process
+    /// deploy can swap a kafka- or nats-backed implementation in via
+    /// this builder without touching the handler.
+    #[must_use]
+    pub fn with_dashboard_bus(mut self, bus: Arc<dyn EventBus<DashboardEvent>>) -> Self {
+        self.dashboard_bus = bus;
+        self
+    }
+
+    /// Install the moderator-authentication verifier onto the state
+    /// (issue #67).
+    ///
+    /// The binary entrypoint builds the verifier via
+    /// [`crate::auth::build_moderator_auth`] from the configured backend
+    /// (`oidc` / `atproto`) and installs the resulting
+    /// `Arc<AnyModeratorAuth>` here before the router takes ownership of
+    /// the state. The atproto HTTP handlers
+    /// (`/auth/atproto/{login,callback}`) reach the verifier through
+    /// [`AnyModeratorAuth::as_atproto`]; an OIDC counterpart will reach
+    /// it through a sibling accessor when that handler lands.
+    #[must_use]
+    pub fn with_moderator_auth(mut self, auth: Arc<AnyModeratorAuth>) -> Self {
+        self.moderator_auth = Some(auth);
+        self
+    }
+}
+
+// Manual `Debug` impl so the `Arc<dyn EventBus<DashboardEvent>>` field
+// (which the trait does not require to be `Debug`) does not block the
+// auto-derive on `ApiState`. The bus is opaque in logs — its address is
+// not useful and the topic surface is fixed by [`crate::api::dashboard_ws`].
+impl std::fmt::Debug for ApiState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ApiState")
+            .field("subjects", &self.subjects)
+            .field("incidents", &self.incidents)
+            .field("actions", &self.actions)
+            .field("observations", &self.observations)
+            .field("reports", &self.reports)
+            .field("pattern_actions", &self.pattern_actions)
+            .field("appeals", &self.appeals)
+            .field("calibration_events", &self.calibration_events)
+            .field("second_opinion", &self.second_opinion)
+            .field("labels", &self.labels)
+            .field("label_broadcaster", &self.label_broadcaster)
+            .field("label_emitter", &self.label_emitter)
+            .field(
+                "active_signer",
+                &self.active_signer.as_ref().map(|_| "<receiver>"),
+            )
+            .field("appeals_rate_limiter", &self.appeals_rate_limiter)
+            .field("pool", &self.pool)
+            .field("sessions", &self.sessions)
+            .field("pattern_actions_cfg", &self.pattern_actions_cfg)
+            .field("webauthn", &self.webauthn.as_ref().map(|_| "<verifier>"))
+            .field("reputation", &self.reputation)
+            .field("dashboard_bus", &"<dyn EventBus<DashboardEvent>>")
+            .field(
+                "moderator_auth",
+                &self.moderator_auth.as_ref().map(|_| "<verifier>"),
+            )
+            .finish()
     }
 }
 

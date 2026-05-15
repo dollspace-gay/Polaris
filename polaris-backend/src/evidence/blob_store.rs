@@ -1,11 +1,11 @@
-//! Object-storage abstraction for evidence CARs (issue #33).
+//! Object-storage abstraction for evidence CARs (issue #33, #68).
 //!
 //! [`BlobStore`] is the trait the [`crate::evidence::worker::EvidenceWorker`]
 //! depends on. The trait keeps the worker pure with respect to storage —
 //! tests run against [`InMemoryBlobStore`], the labeler-profile binary
 //! runs against [`LocalFsBlobStore`], and the Bluesky-profile binary
-//! runs against [`S3BlobStore`] (feature-gated; #69 wires the
-//! end-to-end S3 plumbing with minio tests).
+//! runs against [`S3BlobStore`] (feature-gated). Issue #68 wired the
+//! end-to-end S3 plumbing against a minio testcontainer.
 //!
 //! # Key shape
 //!
@@ -211,31 +211,42 @@ impl BlobStore for LocalFsBlobStore {
     }
 }
 
-// ── S3 stub ─────────────────────────────────────────────────────────────
+// ── S3 backend ──────────────────────────────────────────────────────────
 //
 // Feature-gated behind `s3-blob-store` so a stock build does not pull
-// the AWS SDK tree. The body intentionally calls real `aws-sdk-s3`
-// methods — `put_object`, `get_object`, `head_object` — against the
-// SDK's default credential chain, but end-to-end wiring (minio tests,
-// retry policy, error-class routing) is filed as #69 follow-up. The
-// stub returns `BlobStoreError::Other("not yet wired")` for any code
-// path it does not yet implement so a misconfigured Bluesky-profile
-// deployment fails closed rather than silently dropping CARs.
+// the AWS SDK tree. Issue #68 wired this against a minio testcontainer
+// (see `tests/blob_store_s3.rs`); `from_endpoint` is the constructor
+// the tests use, while production builds construct the SDK client
+// through `aws_config::defaults(...)` and hand it to [`S3BlobStore::new`]
+// — see `polaris-backend/src/main.rs`'s `spawn_evidence_worker`.
 //
-// Credentials handling: we use the SDK's `from_env` default chain
-// (env > shared config > IMDS > SSO). Plaintext credentials never
-// appear in this code path; the SDK reads them from process env.
+// Credentials handling for production:
+//   - Production code paths construct the AWS SDK client via
+//     `aws_config::defaults(BehaviorVersion::latest()).load()`. That
+//     resolves credentials through the SDK's default chain
+//     (env > shared config > IMDS > SSO). Plaintext credentials never
+//     appear in this code path; the SDK reads them from the process
+//     environment / instance metadata.
+//   - `from_endpoint` is for test / dev clusters only (minio,
+//     localstack); it takes the access-key / secret-key inline so the
+//     caller can stand up an ephemeral container with known dummy
+//     credentials. Real deployments do not go through that path.
 
-/// S3-backed blob store (feature-gated, skeleton).
+/// S3-backed blob store (feature-gated).
 ///
-/// **Not production-ready.** Issue #69 covers end-to-end wiring,
-/// minio integration tests, and the retry / error-class routing
-/// against the AWS SDK error tree. The skeleton exists so the
-/// Bluesky-profile binary's startup can pick between
-/// `LocalFsBlobStore` and `S3BlobStore` without paying for a
-/// half-wired backend — the methods below call real SDK ops, and
-/// failures surface as typed [`BlobStoreError::S3`] strings the
-/// operator can act on.
+/// Used by the Bluesky-profile binary against AWS S3 (or any
+/// S3-compatible object store: minio, ceph, R2, …). The
+/// [`Self::new`] constructor accepts a fully-configured
+/// `aws_sdk_s3::Client` so callers control credential and endpoint
+/// resolution; [`Self::from_endpoint`] is a convenience for
+/// integration tests against minio / localstack.
+///
+/// All three operations (`put`, `get`, `exists`) route AWS SDK
+/// `SdkError<…>` failures through structured discriminant matching:
+/// `NoSuchKey` on `get` and `NotFound` on `head` collapse to
+/// `Ok(None)` / `Ok(false)`; every other error variant surfaces as
+/// [`BlobStoreError::S3`] with the SDK's `Display` string (which
+/// includes the request id and error code on real-AWS failures).
 #[cfg(feature = "s3-blob-store")]
 #[derive(Debug, Clone)]
 pub struct S3BlobStore {
@@ -246,7 +257,9 @@ pub struct S3BlobStore {
 #[cfg(feature = "s3-blob-store")]
 impl S3BlobStore {
     /// Build an [`S3BlobStore`] against `bucket` using the supplied
-    /// SDK client (which carries the credential chain).
+    /// SDK client. The caller owns credential resolution; this is the
+    /// production constructor used by `polaris-backend`'s startup glue
+    /// (via the AWS SDK's default credential chain).
     #[must_use]
     pub fn new(client: aws_sdk_s3::Client, bucket: impl Into<String>) -> Self {
         Self {
@@ -254,12 +267,72 @@ impl S3BlobStore {
             bucket: bucket.into(),
         }
     }
+
+    /// Build an [`S3BlobStore`] against a custom endpoint URL.
+    ///
+    /// This is the constructor used by integration tests against a
+    /// minio or localstack container — both expose an S3-compatible
+    /// API on a non-AWS endpoint and accept arbitrary credentials.
+    /// Pass `endpoint_url = "http://127.0.0.1:<port>"` for a
+    /// testcontainer-driven minio; `bucket` is the bucket name the
+    /// store will read/write under; `region` is the value the SDK
+    /// puts in `x-amz-region` (minio accepts any string but the SDK
+    /// requires *some* region). `access_key` / `secret_key` are the
+    /// container's published credentials (default minio:
+    /// `minioadmin` / `minioadmin`).
+    ///
+    /// Forces **path-style addressing** (`http://host/bucket/key`
+    /// rather than `http://bucket.host/key`) so minio's
+    /// default-virtual-host-disabled posture works without extra DNS
+    /// tricks.
+    ///
+    /// # Errors
+    ///
+    /// This constructor is infallible at construction time — every
+    /// argument is consumed by the SDK builder synchronously and the
+    /// returned `Self` is a thin wrapper around an
+    /// `aws_sdk_s3::Client`. The signature is `async` for parity
+    /// with future variants that may resolve credentials over the
+    /// network; today the future never yields.
+    pub async fn from_endpoint(
+        endpoint_url: &str,
+        bucket: &str,
+        region: &str,
+        access_key: &str,
+        secret_key: &str,
+    ) -> Result<Self, BlobStoreError> {
+        let creds = aws_sdk_s3::config::Credentials::new(
+            access_key.to_owned(),
+            secret_key.to_owned(),
+            None,
+            None,
+            "polaris-s3-blob-store",
+        );
+        let region_owned = aws_sdk_s3::config::Region::new(region.to_owned());
+        let sdk_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .region(region_owned)
+            .endpoint_url(endpoint_url)
+            .credentials_provider(creds)
+            .load()
+            .await;
+        let s3_cfg = aws_sdk_s3::config::Builder::from(&sdk_config)
+            .force_path_style(true)
+            .build();
+        let client = aws_sdk_s3::Client::from_conf(s3_cfg);
+        Ok(Self::new(client, bucket.to_owned()))
+    }
 }
 
 #[cfg(feature = "s3-blob-store")]
 #[async_trait]
 impl BlobStore for S3BlobStore {
     async fn put(&self, key: &str, bytes: Bytes) -> Result<(), BlobStoreError> {
+        // The SDK's `ByteStream::from(Vec<u8>)` takes ownership; we
+        // pay one `to_vec()` to detach from the caller's `Bytes`
+        // refcount. Streaming uploads (multipart, chunked body) are a
+        // separate code path we don't need at evidence-CAR sizes
+        // (CARs are small per-record blobs, not multi-gigabyte
+        // archives).
         self.client
             .put_object()
             .bucket(&self.bucket)
@@ -267,7 +340,7 @@ impl BlobStore for S3BlobStore {
             .body(aws_sdk_s3::primitives::ByteStream::from(bytes.to_vec()))
             .send()
             .await
-            .map_err(|e| BlobStoreError::S3(format!("{e}")))?;
+            .map_err(|err| BlobStoreError::S3(format!("put_object: {err}")))?;
         Ok(())
     }
 
@@ -285,16 +358,24 @@ impl BlobStore for S3BlobStore {
                     .body
                     .collect()
                     .await
-                    .map_err(|e| BlobStoreError::S3(format!("body: {e}")))?
+                    .map_err(|err| BlobStoreError::S3(format!("get_object body: {err}")))?
                     .into_bytes();
                 Ok(Some(Bytes::from(data.to_vec())))
             }
-            Err(e) => {
-                let s = format!("{e}");
-                if s.contains("NoSuchKey") || s.contains("404") {
+            // Structured discriminant match: `NoSuchKey` collapses to
+            // `Ok(None)`. Every other SDK error variant (timeout,
+            // dispatch, 5xx, access denied, …) surfaces as
+            // `BlobStoreError::S3`. We use `as_service_error()` so we
+            // can keep the original `SdkError` for the error path
+            // without an extra clone.
+            Err(err) => {
+                if err
+                    .as_service_error()
+                    .is_some_and(aws_sdk_s3::operation::get_object::GetObjectError::is_no_such_key)
+                {
                     Ok(None)
                 } else {
-                    Err(BlobStoreError::S3(s))
+                    Err(BlobStoreError::S3(format!("get_object: {err}")))
                 }
             }
         }
@@ -310,12 +391,19 @@ impl BlobStore for S3BlobStore {
             .await
         {
             Ok(_) => Ok(true),
-            Err(e) => {
-                let s = format!("{e}");
-                if s.contains("NotFound") || s.contains("404") {
+            // `HeadObject` returns a generic `NotFound` (rather than
+            // `NoSuchKey`) because the API does not differentiate
+            // between a missing bucket and a missing key at the
+            // HEAD-only level. Either way, the moderator-facing
+            // contract is "the blob is absent."
+            Err(err) => {
+                if err
+                    .as_service_error()
+                    .is_some_and(aws_sdk_s3::operation::head_object::HeadObjectError::is_not_found)
+                {
                     Ok(false)
                 } else {
-                    Err(BlobStoreError::S3(s))
+                    Err(BlobStoreError::S3(format!("head_object: {err}")))
                 }
             }
         }

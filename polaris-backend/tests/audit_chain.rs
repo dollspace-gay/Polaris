@@ -317,6 +317,73 @@ async fn long_chain_thousand_events_verify_within_five_seconds()
     Ok(())
 }
 
+// ── 5b. 100k-event perf test (gated behind `#[ignore]`) ─────────────
+
+/// Stress the verifier on a 100 000-event chain.
+///
+/// Marked `#[ignore]` so it is excluded from default `cargo test`
+/// runs; invoke with
+/// `cargo test -p polaris-backend --test audit_chain -- --ignored
+/// long_chain_hundred_thousand` to execute.
+///
+/// # Strategy
+///
+/// Inserting 100 000 audit rows naively (one transaction per row)
+/// would issue 100 000 fsync barriers and dominate wall time. We batch
+/// in chunks of 1000 records per transaction, which preserves the
+/// chain-correctness contract (every `record` still reads the head and
+/// computes a fresh hash; the chain-check trigger still fires inside
+/// the batch) while amortising commit overhead. The assertion is on
+/// the **verify** walk time, not the insert time — verification is
+/// the latency-sensitive operation an auditor cares about.
+#[tokio::test]
+#[ignore = "perf test — run with --ignored. Takes ~30s wall."]
+async fn long_chain_hundred_thousand_events_verify_within_thirty_seconds()
+-> Result<(), Box<dyn std::error::Error>> {
+    const TOTAL_EVENTS: u32 = 100_000;
+    const BATCH_SIZE: u32 = 1_000;
+
+    if !docker_available() {
+        println!("SKIP audit_chain 100k: docker daemon not reachable.");
+        return Ok(());
+    }
+    let (_container, pool) = fresh_pool().await?;
+
+    let insert_started = Instant::now();
+    let mut next: u32 = 1;
+    while next <= TOTAL_EVENTS {
+        let batch_end = (next + BATCH_SIZE - 1).min(TOTAL_EVENTS);
+        let mut tx = pool.begin().await?;
+        for i in next..=batch_end {
+            AuditLog::record(&mut tx, sample_event("system", "bulk100k", i)).await?;
+        }
+        tx.commit().await?;
+        next = batch_end + 1;
+    }
+    let insert_elapsed = insert_started.elapsed();
+    println!(
+        "audit_chain 100k events inserted in {insert_elapsed:?} \
+         (batched {BATCH_SIZE} per tx)"
+    );
+
+    let verify_started = Instant::now();
+    let head = verify_chain(&pool).await?;
+    let verify_elapsed = verify_started.elapsed();
+
+    assert_eq!(
+        head,
+        i64::from(TOTAL_EVENTS),
+        "verify_chain must walk all 100k rows"
+    );
+    println!("audit_chain 100k events verify walk: {verify_elapsed:?}");
+    assert!(
+        verify_elapsed < Duration::from_secs(30),
+        "verify_chain over 100k rows must finish in <30s, took {verify_elapsed:?}",
+    );
+
+    Ok(())
+}
+
 // ── 6. Atomic with caller tx — ROLLBACK rolls back the audit row ────
 
 #[tokio::test]

@@ -19,6 +19,11 @@
 //!   `(category, severity)` bucket, a Welford rolling-mean +
 //!   sample-variance detector emits when the most recently closed
 //!   bucket's count crosses a configurable z-score threshold.
+//! - [`moderator_anomaly`] (#73) — T1 mitigation. Counts per-moderator
+//!   actions inside a rolling window and emits a
+//!   [`polaris_types::ObservationKind::ModeratorBehaviorAnomaly`] when
+//!   the count crosses a configurable threshold. Hooks into the
+//!   action-insert transaction so emission is atomic with the action.
 //!
 //! # Persistence boundary
 //!
@@ -37,6 +42,7 @@
 
 pub mod anomaly;
 pub mod minhash;
+pub mod moderator_anomaly;
 pub mod simhash;
 
 /// Errors raised by the pattern-detection layer.

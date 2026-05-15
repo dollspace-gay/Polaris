@@ -277,7 +277,15 @@ fn project_signal(
         ObservationKind::ReportVolumeAnomaly { category, .. } => {
             (CoordinatedSignalKind::ReportVolumeAnomaly, category)
         }
-        ObservationKind::ExternalLabel { .. } | ObservationKind::ClassifierSignal { .. } => {
+        ObservationKind::ExternalLabel { .. }
+        | ObservationKind::ClassifierSignal { .. }
+        | ObservationKind::ModeratorBehaviorAnomaly { .. } => {
+            // ExternalLabel / ClassifierSignal are subject-level (not
+            // pattern-level); ModeratorBehaviorAnomaly is a T1 mitigation
+            // signal keyed on a synthetic moderator-anomaly subject and
+            // surfaces on its own panel, not on the coordinated-signal
+            // dashboard. The SQL filter already excludes these kinds —
+            // the projection stays defensive.
             return None;
         }
     })

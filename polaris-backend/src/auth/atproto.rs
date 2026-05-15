@@ -63,30 +63,46 @@
 //!   so the structured-log chain can surface it without echoing it into
 //!   a user-visible string.
 //!
-//! # Refresh flow (deferred)
+//! # Refresh flow (issue #66)
 //!
-//! `proto-blue-oauth` supports `DPoP`-nonce-rotation refresh via
-//! [`OAuthClient::refresh_token`]. AC-4 only covers the initial login
-//! binding; the refresh dance is filed as a follow-up (see issue #66 in
-//! the kickoff plan). The stored sealed `DPoP` keypair is the
-//! input that future refresh code will rebuild the [`DpopKey`] from —
-//! the [`SessionStore::create`] call here writes that to
-//! `sessions.refresh_token_enc` so the refresh-flow implementation has
-//! the keypair material to work with without a schema migration.
+//! `proto-blue-oauth` handles `DPoP`-nonce-rotation refresh internally
+//! via [`OAuthSession::refresh`], which delegates to
+//! [`OAuthClient::refresh_token`] (the latter retries with the
+//! AS-issued nonce when the first request returns `use_dpop_nonce`).
+//! [`Self::refresh_session`] consumes that primitive: it loads
+//! `sessions.refresh_token_enc`, unseals + bincode-decodes a
+//! [`SerializedSessionState`] containing the DPoP keypair JWK + the
+//! upstream `TokenSet` (with `refresh_token`), drives the refresh, and
+//! re-seals the rotated bundle back into the same column.
+//!
+//! `complete_login_impl` writes that bundle at login time so the
+//! refresh path has every piece of material proto-blue's primitive
+//! requires without a schema migration: the DPoP private JWK to rebuild
+//! the [`DpopKey`], the refresh token to send to `/token`, the
+//! `TokenSet`'s `issuer` to re-discover the AS metadata, and the `sub`
+//! claim so the bundle round-trips the moderator's DID untouched.
 //!
 //! [`AuthState`]: proto_blue_oauth::AuthState
 //! [`DpopKey`]: proto_blue_oauth::DpopKey
 //! [`OAuthClient::callback`]: proto_blue_oauth::OAuthClient::callback
 //! [`OAuthClient::refresh_token`]: proto_blue_oauth::OAuthClient::refresh_token
+//! [`OAuthSession::refresh`]: proto_blue_oauth::OAuthSession::refresh
 
 use std::path::Path;
 use std::sync::Arc;
 
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use proto_blue::common::fetch::FetchHandler;
 use proto_blue::identity::{IdResolver, IdentityResolverOpts};
 use proto_blue::oauth::client::dpop_key_from_jwk;
-use proto_blue::oauth::{OAuthClient, OAuthClientMetadata, OAuthServerMetadata, resolve_input};
+use proto_blue::oauth::{
+    DpopNonceCache, OAuthClient, OAuthServerMetadata, OAuthSession, TokenSet, resolve_input,
+};
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
+
+use crate::auth::session::SessionToken;
 
 use crate::auth::crypto::Crypto;
 use crate::auth::session::SessionStore;
@@ -94,6 +110,71 @@ use crate::auth::{
     AuthError, LoginHint, LoginRedirect, LoginResult, ModeratorAuth, ModeratorAuthCtx, ModeratorId,
     Role,
 };
+
+/// Sealed-at-rest bundle persisted in `sessions.refresh_token_enc` for
+/// atproto-backed sessions.
+///
+/// The bundle carries every input proto-blue-oauth's refresh primitive
+/// requires to drive a DPoP-nonce-rotation refresh without revisiting
+/// the schema: the DPoP keypair JWK (to rebuild a [`DpopKey`]) and the
+/// upstream [`TokenSet`] (which already carries `issuer`, `sub`,
+/// `access_token`, `refresh_token`, `token_type`, `expires_at`, `aud`,
+/// and `scope`).
+///
+/// Serialisation: bincode 2 via `bincode::serde::encode_to_vec`. The
+/// DPoP JWK is pre-serialised to its JSON byte form because bincode is
+/// non-self-describing and `serde_json::Value` deserialises via
+/// `deserialize_any` (which bincode rejects with `AnyNotSupported`);
+/// JSON bytes inside bincode round-trips cleanly. The plaintext bundle
+/// is then sealed via [`Crypto::seal`] — the AES-256-GCM ciphertext is
+/// what actually hits the BYTEA column.
+///
+/// [`DpopKey`]: proto_blue_oauth::DpopKey
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct SerializedSessionState {
+    /// Private DPoP JWK, pre-serialised to its JSON byte form. Stored
+    /// as `Vec<u8>` rather than `serde_json::Value` to keep the bundle
+    /// inside bincode's non-self-describing wire format; the bytes
+    /// re-parse to a JWK Value at refresh time via `serde_json::from_slice`.
+    pub(crate) dpop_keypair_jwk_json: Vec<u8>,
+    /// Upstream OAuth token set. The `refresh_token` field is the
+    /// credential `OAuthClient::refresh_token` sends to `/token`;
+    /// `issuer` drives the AS-metadata re-discovery on refresh.
+    pub(crate) token_set: TokenSet,
+}
+
+/// Bincode-encode a [`SerializedSessionState`] for the seal stage.
+///
+/// Bincode failures are mapped to [`AuthError::Config`] with a
+/// diagnostic-only message; encoding the bundle (a `serde_json::Value`
+/// plus a flat token-set struct) cannot fail in practice — no
+/// recursion limits hit, no non-UTF-8 keys — so an error here
+/// indicates a proto-blue type-contract change worth surfacing rather
+/// than silencing.
+fn encode_bundle(bundle: &SerializedSessionState) -> Result<Vec<u8>, AuthError> {
+    bincode::serde::encode_to_vec(bundle, bincode::config::standard()).map_err(|e| {
+        AuthError::Config {
+            message: format!("failed to bincode-encode atproto session bundle: {e}"),
+        }
+    })
+}
+
+/// Inverse of [`encode_bundle`]. A decode failure here means the
+/// stored ciphertext is from an older or newer envelope version than
+/// this build understands; we surface that as
+/// [`AuthError::DpopBindingFailed`] so callers treat the row as
+/// unrecoverable (the moderator must log in again) rather than
+/// retrying.
+fn decode_bundle(bytes: &[u8]) -> Result<SerializedSessionState, AuthError> {
+    let (bundle, _) = bincode::serde::decode_from_slice::<SerializedSessionState, _>(
+        bytes,
+        bincode::config::standard(),
+    )
+    .map_err(|e| AuthError::DpopBindingFailed {
+        source: Box::new(e),
+    })?;
+    Ok(bundle)
+}
 
 /// ATProto OAuth implementation of [`ModeratorAuth`].
 ///
@@ -109,6 +190,13 @@ pub struct AtprotoOauthAuthVerifier {
     sessions: SessionStore,
     crypto: Crypto,
     pool: PgPool,
+    /// Shared HTTP transport handed to both `oauth_client` and
+    /// `identity_resolver` at construction. Retained here so the
+    /// refresh-flow path ([`Self::refresh_session`]) can reuse the same
+    /// transport when building an [`OAuthSession`] — the `OAuthClient`
+    /// stores its fetcher privately and does not expose it, so the
+    /// verifier becomes the canonical owner of the handle.
+    fetcher: Arc<dyn FetchHandler>,
 }
 
 impl std::fmt::Debug for AtprotoOauthAuthVerifier {
@@ -129,11 +217,17 @@ impl AtprotoOauthAuthVerifier {
     ///
     /// The OAuth client must already have validated client metadata
     /// (`proto_blue_oauth::validate_client_metadata`) at construction
-    /// time; this constructor does not re-validate.
+    /// time; this constructor does not re-validate. `fetcher` MUST be
+    /// the same handler the `oauth_client` and `identity_resolver` were
+    /// built with — passing a different one here would route the
+    /// refresh-flow's [`OAuthSession`] transport to a different
+    /// destination than the login dance, breaking the DPoP-nonce-cache
+    /// continuity proto-blue relies on.
     #[must_use]
     pub fn new(
         oauth_client: Arc<OAuthClient>,
         identity_resolver: Arc<IdResolver>,
+        fetcher: Arc<dyn FetchHandler>,
         sessions: SessionStore,
         crypto: Crypto,
         pool: PgPool,
@@ -144,6 +238,7 @@ impl AtprotoOauthAuthVerifier {
             sessions,
             crypto,
             pool,
+            fetcher,
         }
     }
 
@@ -162,15 +257,29 @@ impl AtprotoOauthAuthVerifier {
         crypto: Crypto,
         pool: PgPool,
     ) -> Result<Self, AuthError> {
-        let metadata = load_client_metadata(client_metadata_path)?;
+        let metadata =
+            load_client_metadata(client_metadata_path).map_err(|e| AuthError::Config {
+                message: e.to_string(),
+            })?;
         proto_blue::oauth::validate_client_metadata(&metadata).map_err(|e| AuthError::Config {
             message: format!("client_metadata failed atproto OAuth profile validation: {e}"),
         })?;
-        let oauth_client = Arc::new(OAuthClient::new(metadata));
-        let identity_resolver = Arc::new(IdResolver::new(IdentityResolverOpts::default(), None));
+        // Build one shared fetch handler and thread it through every
+        // proto-blue component. The default `ReqwestFetcher` is the
+        // production transport; tests use [`Self::new`] directly with a
+        // MockFetcher to avoid the DNS / TCP fanout entirely.
+        let fetcher: Arc<dyn FetchHandler> =
+            Arc::new(proto_blue::common::fetch::ReqwestFetcher::new());
+        let oauth_client = Arc::new(OAuthClient::with_fetch_handler(metadata, fetcher.clone()));
+        let identity_resolver = Arc::new(IdResolver::with_fetch_handler(
+            IdentityResolverOpts::default(),
+            None,
+            fetcher.clone(),
+        ));
         Ok(Self::new(
             oauth_client,
             identity_resolver,
+            fetcher,
             sessions,
             crypto,
             pool,
@@ -330,6 +439,10 @@ impl AtprotoOauthAuthVerifier {
         let _dpop_key = dpop_key_from_jwk(&dpop_jwk).map_err(|e| AuthError::DpopBindingFailed {
             source: Box::new(e),
         })?;
+        // Clone the JWK before moving it into AuthState — the same
+        // value is also persisted via [`SerializedSessionState`] below
+        // so the refresh flow can rebuild a [`DpopKey`] from it.
+        let dpop_jwk_for_bundle = dpop_jwk.clone();
         let auth_state = proto_blue::oauth::AuthState {
             issuer: row.issuer.clone(),
             verifier: row.pkce_verifier,
@@ -363,18 +476,33 @@ impl AtprotoOauthAuthVerifier {
             .map_err(AuthError::from)?;
 
         // Step 8: mint a Polaris session. The session row's
-        // refresh_token_enc column stores the sealed DPoP keypair JWK
-        // bytes — for atproto-backed sessions that's the credential a
-        // future refresh-flow implementation will rebuild a DpopKey
-        // from. The bytes were already sealed once for the login-state
-        // row; here we hand SessionStore the plaintext JWK and let it
-        // re-seal with a fresh nonce per the SessionStore::create
-        // contract. (Re-using the old sealed bytes would require a
-        // separate API on SessionStore; the cost of an extra seal is a
-        // microsecond.)
+        // refresh_token_enc column stores a bincode-encoded
+        // [`SerializedSessionState`] — the DPoP keypair JWK plus the
+        // upstream `TokenSet` (carrying the refresh token, issuer, sub,
+        // and aud) — sealed via AES-256-GCM. This is the input
+        // [`Self::refresh_session`] rebuilds an [`OAuthSession`] from
+        // when proto-blue's DPoP-nonce-rotation refresh runs. We hand
+        // SessionStore the plaintext bundle and let it re-seal with a
+        // fresh nonce per the `SessionStore::create` contract; the
+        // login-state row's sealed DPoP-only bytes are not reusable
+        // here because they carry no refresh token.
+        // Pre-serialise the JWK to bytes for the bincode envelope.
+        // The original byte form from step 3 (`dpop_jwk_bytes`) was
+        // produced before the DpopKey reconstruction validated the
+        // shape — re-serialising the validated Value here costs
+        // nothing and keeps the producer/consumer symmetric.
+        let dpop_jwk_json =
+            serde_json::to_vec(&dpop_jwk_for_bundle).map_err(|e| AuthError::Config {
+                message: format!("failed to serialise DPoP JWK for session bundle: {e}"),
+            })?;
+        let bundle = SerializedSessionState {
+            dpop_keypair_jwk_json: dpop_jwk_json,
+            token_set,
+        };
+        let bundle_bytes = encode_bundle(&bundle)?;
         let new_session = self
             .sessions
-            .create(ModeratorId(moderator_uuid), &dpop_jwk_bytes)
+            .create(ModeratorId(moderator_uuid), &bundle_bytes)
             .await?;
 
         // Step 9: load the role set the auth middleware will see.
@@ -385,6 +513,178 @@ impl AtprotoOauthAuthVerifier {
             session_token: new_session.token,
             expires_at: new_session.expires_at,
         })
+    }
+
+    /// Refresh the upstream ATProto OAuth tokens bound to `session_token`.
+    ///
+    /// Issue #66 / refresh flow. Reads the sealed
+    /// [`SerializedSessionState`] from `sessions.refresh_token_enc`,
+    /// rebuilds a [`DpopKey`] + [`OAuthSession`], delegates to
+    /// [`OAuthSession::refresh`] (which handles DPoP-nonce-rotation
+    /// internally — `proto-blue-oauth` retries with the
+    /// AS-issued nonce on a `use_dpop_nonce` 400), re-seals the rotated
+    /// `TokenSet` + DPoP keypair, and `UPDATE`s the row.
+    ///
+    /// The returned `DateTime<Utc>` is the session row's new
+    /// `expires_at` — callers re-emit the session cookie with this
+    /// value. The session token itself is NOT rotated here (the
+    /// Polaris-side opaque token is a separate primitive — see
+    /// [`SessionStore::refresh`] when cookie rotation is also desired).
+    ///
+    /// # Errors
+    ///
+    /// - [`AuthError::Storage`] / [`AuthError::SessionNotFound`] if the
+    ///   session row cannot be loaded (no row, DB failure).
+    /// - [`AuthError::Crypto`] if the stored sealed bundle fails AEAD
+    ///   authentication.
+    /// - [`AuthError::DpopBindingFailed`] if the JWK in the bundle is
+    ///   malformed (unsupported curve, missing fields).
+    /// - [`AuthError::OauthRefreshFailed`] if `proto-blue-oauth`'s
+    ///   refresh primitive rejects the call (AS returned an error
+    ///   response, network failure, malformed token response).
+    ///
+    /// [`DpopKey`]: proto_blue_oauth::DpopKey
+    /// [`OAuthSession`]: proto_blue_oauth::OAuthSession
+    /// [`OAuthSession::refresh`]: proto_blue_oauth::OAuthSession::refresh
+    /// [`SessionStore::refresh`]: crate::auth::session::SessionStore::refresh
+    pub async fn refresh_session(
+        &self,
+        session_token: &SessionToken,
+    ) -> Result<DateTime<Utc>, AuthError> {
+        // Step 1: load the session row + the sealed bundle. The
+        // `SELECT … FOR UPDATE` would lock the row across a refresh
+        // round-trip, which is over a network — we deliberately use a
+        // plain SELECT here and rely on the UPDATE at step 6 plus
+        // proto-blue's internal `refresh_lock` (a tokio mutex) to keep
+        // concurrent refreshes on the same session from racing the
+        // /token endpoint.
+        let row = sqlx::query!(
+            r"SELECT refresh_token_enc
+              FROM sessions
+              WHERE id = $1",
+            session_token.as_str(),
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AuthError::Storage {
+            source: crate::auth::session::SessionError::Database(e),
+        })?
+        .ok_or(AuthError::SessionNotFound)?;
+
+        // Step 2: unseal + decode the bundle. AEAD authentication
+        // happens here; a tampered ciphertext surfaces as
+        // `AuthError::Crypto` via the `From<CryptoError>` impl.
+        let sealed = crate::auth::crypto::SealedBytes::from_bytes(&row.refresh_token_enc)?;
+        let plaintext = self.crypto.open(&sealed)?;
+        let bundle = decode_bundle(&plaintext)?;
+
+        // Step 3: parse the JWK back from its JSON byte form and
+        // rebuild the DPoP key. The reconstruction also validates the
+        // JWK shape — a malformed JWK that survived sealing/unsealing
+        // surfaces here rather than reaching the AS as a malformed
+        // proof.
+        let dpop_jwk: serde_json::Value = serde_json::from_slice(&bundle.dpop_keypair_jwk_json)
+            .map_err(|e| AuthError::DpopBindingFailed {
+                source: Box::new(e),
+            })?;
+        let dpop_key = dpop_key_from_jwk(&dpop_jwk).map_err(|e| AuthError::DpopBindingFailed {
+            source: Box::new(e),
+        })?;
+
+        // Step 4: re-discover the AS metadata. The same rationale as
+        // `complete_login_impl` applies — re-fetching is cheap relative
+        // to persisting the metadata blob, and proto-blue caches the
+        // DPoP nonce per-origin on the `OAuthClient` so the second
+        // call within a refresh dance benefits from the cache without
+        // any extra plumbing here.
+        let server_metadata = self
+            .oauth_client
+            .discover_server(&bundle.token_set.issuer)
+            .await
+            .map_err(|e| AuthError::OauthRefreshFailed {
+                source: Box::new(e),
+            })?;
+
+        // Step 5: build the OAuthSession over the verifier's shared
+        // fetch handler, hand it the cached token set + DPoP key, and
+        // call refresh(). proto-blue's primitive:
+        //   - acquires its internal refresh_lock so concurrent
+        //     callers share a single /token round-trip,
+        //   - builds the DPoP proof JWT (no hand-rolled JWT here),
+        //   - retries automatically on `use_dpop_nonce` 400 with the
+        //     server-issued nonce.
+        //
+        // The fresh `DpopNonceCache` here is the cache for
+        // resource-server requests issued through the OAuthSession,
+        // not the /token endpoint — the latter uses the OAuthClient's
+        // own cache. We do not issue any resource-server requests
+        // here, so an empty cache is correct.
+        let oauth_session = OAuthSession::with_fetch_handler(
+            bundle.token_set.clone(),
+            dpop_key,
+            DpopNonceCache::new(),
+            Arc::clone(&self.fetcher),
+        );
+        oauth_session
+            .refresh(&self.oauth_client, &server_metadata)
+            .await
+            .map_err(|e| AuthError::OauthRefreshFailed {
+                source: Box::new(e),
+            })?;
+
+        // Step 6: read back the rotated token set. proto-blue's
+        // `OAuthSession::refresh` mutates the session's internal
+        // `Arc<Mutex<TokenSet>>` — `token_set()` returns a clone of
+        // the now-updated state. The DPoP keypair is NOT rotated by
+        // proto-blue's refresh primitive (the DPoP key binds the
+        // session to the resource server; refresh only rotates the
+        // bearer credential), so we re-seal the same JWK we loaded.
+        let new_token_set = oauth_session.token_set();
+        let new_bundle = SerializedSessionState {
+            dpop_keypair_jwk_json: bundle.dpop_keypair_jwk_json,
+            token_set: new_token_set,
+        };
+        let new_bundle_bytes = encode_bundle(&new_bundle)?;
+        let new_sealed = self.crypto.seal(&new_bundle_bytes)?;
+        let new_sealed_bytes = new_sealed.to_bytes();
+
+        // Step 7: extend `expires_at` by the session-store's TTL and
+        // persist. We deliberately use the SessionStore's TTL window
+        // rather than the upstream `TokenSet`'s `expires_at` — the
+        // Polaris session row's lifetime is a Polaris policy decision
+        // (operator's cookie-session window) and need not be coupled
+        // to the AS's access-token TTL.
+        let ttl_secs = i64::try_from(self.sessions.ttl().as_secs()).unwrap_or(i64::MAX);
+        let new_expires_at =
+            Utc::now() + ChronoDuration::try_seconds(ttl_secs).unwrap_or_else(ChronoDuration::zero);
+
+        let rows_affected = sqlx::query!(
+            r"UPDATE sessions
+              SET refresh_token_enc = $1,
+                  expires_at = $2,
+                  last_seen_at = now()
+              WHERE id = $3",
+            new_sealed_bytes,
+            new_expires_at,
+            session_token.as_str(),
+        )
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AuthError::Storage {
+            source: crate::auth::session::SessionError::Database(e),
+        })?
+        .rows_affected();
+
+        // The row existed at step 1 and the session token is a server-
+        // side opaque value; the DB only loses the row through a
+        // concurrent revoke. Surface that as SessionNotFound so the
+        // caller can mint a fresh login rather than presenting a
+        // half-rotated bundle.
+        if rows_affected == 0 {
+            return Err(AuthError::SessionNotFound);
+        }
+
+        Ok(new_expires_at)
     }
 }
 
@@ -406,23 +706,14 @@ impl ModeratorAuth for AtprotoOauthAuthVerifier {
 /// Read the operator's OAuth client-metadata JSON from disk and parse
 /// it into proto-blue-oauth's [`OAuthClientMetadata`] type.
 ///
-/// Issue #61 will consolidate this with the identical loader needed by
-/// `polaris-publish-labeler-record`; this copy lives next to the
-/// consumer (the verifier constructor above) so the read path stays
-/// auditable in isolation.
-///
-/// # Errors
-///
-/// - [`AuthError::Config`] if the file is unreadable or not valid JSON
-///   matching the [`OAuthClientMetadata`] shape.
-pub fn load_client_metadata(path: &Path) -> Result<OAuthClientMetadata, AuthError> {
-    let bytes = std::fs::read(path).map_err(|e| AuthError::Config {
-        message: format!("read client_metadata at {} failed: {e}", path.display()),
-    })?;
-    serde_json::from_slice(&bytes).map_err(|e| AuthError::Config {
-        message: format!("parse client_metadata at {} failed: {e}", path.display()),
-    })
-}
+/// Issue #61 consolidated this loader into `polaris-types::oauth_config`
+/// so both this verifier and `polaris-publish-labeler-record`'s `--oauth`
+/// flow share one read-and-parse path. This re-export keeps the
+/// `crate::auth::atproto::load_client_metadata` symbol stable for
+/// callers (the verifier constructor above, the integration test
+/// `tests/atproto_login.rs`) without forcing them to learn the new
+/// home.
+pub use polaris_types::oauth_config::load_client_metadata;
 
 /// Insert (or fetch the existing) moderator row for
 /// `(auth_backend='atproto', external_id=<did>)`. Updates `last_login_at`
@@ -474,10 +765,11 @@ async fn fetch_roles(
 
 /// A re-export tag so consumers of `crate::auth::atproto` can name the
 /// upstream metadata type without pulling in `proto_blue::oauth`
-/// directly. Keeps the proto-blue surface area visible at the use site
-/// (so a future swap is grep-able) without forcing every caller to add
-/// `proto_blue::oauth` to their own use list.
-pub use proto_blue::oauth::OAuthClientMetadata as ClientMetadata;
+/// directly. Forwarded from `polaris_types::oauth_config::ClientMetadata`
+/// after issue #61 consolidated the loader's home — the polaris-types
+/// re-export is the source of truth and this alias keeps the legacy
+/// `crate::auth::atproto::ClientMetadata` symbol stable.
+pub use polaris_types::oauth_config::ClientMetadata;
 
 const _: fn() = || {
     // Linker witness: ensure the OAuthServerMetadata type can be
@@ -497,48 +789,23 @@ const _: fn() = || {
 mod tests {
     use super::*;
 
-    fn fixture_metadata() -> OAuthClientMetadata {
-        OAuthClientMetadata {
-            client_id: "https://example.com/client-metadata.json".into(),
-            redirect_uris: vec!["https://example.com/callback".into()],
-            response_types: Some(vec!["code".into()]),
-            grant_types: Some(vec!["authorization_code".into(), "refresh_token".into()]),
-            scope: Some("atproto transition:generic".into()),
-            token_endpoint_auth_method: Some("none".into()),
-            token_endpoint_auth_signing_alg: None,
-            application_type: Some("web".into()),
-            dpop_bound_access_tokens: Some(true),
-            client_name: Some("Polaris".into()),
-            client_uri: None,
-            logo_uri: None,
-        }
-    }
-
+    /// Re-export witness for issue #61. The full read/parse coverage
+    /// lives in `polaris-types::oauth_config::tests`; this test pins the
+    /// integration contract: calling `crate::auth::atproto::
+    /// load_client_metadata` resolves to the polaris-types loader and
+    /// produces an `OauthConfigError` (not the old `AuthError::Config`)
+    /// on failure. The `from_paths` constructor adapts the error into
+    /// `AuthError::Config` for the verifier's public surface; that
+    /// mapping is exercised at the `from_paths` call site, not here.
     #[test]
-    fn load_client_metadata_round_trips() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("client.json");
-        let metadata = fixture_metadata();
-        let bytes = serde_json::to_vec(&metadata).unwrap();
-        std::fs::write(&path, bytes).unwrap();
-
-        let loaded = load_client_metadata(&path).unwrap();
-        assert_eq!(loaded.client_id, metadata.client_id);
-        assert_eq!(loaded.redirect_uris, metadata.redirect_uris);
-    }
-
-    #[test]
-    fn load_client_metadata_missing_file_yields_config_error() {
+    fn load_client_metadata_reexports_polaris_types_loader() {
         let err = load_client_metadata(Path::new("/nonexistent/path/x.json")).unwrap_err();
-        assert!(matches!(err, AuthError::Config { .. }));
-    }
-
-    #[test]
-    fn load_client_metadata_bad_json_yields_config_error() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("client.json");
-        std::fs::write(&path, b"not valid json").unwrap();
-        let err = load_client_metadata(&path).unwrap_err();
-        assert!(matches!(err, AuthError::Config { .. }));
+        assert!(
+            matches!(
+                err,
+                polaris_types::oauth_config::OauthConfigError::Read { .. }
+            ),
+            "expected OauthConfigError::Read, got {err:?}"
+        );
     }
 }

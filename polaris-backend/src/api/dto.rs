@@ -320,3 +320,68 @@ pub struct ModeratorLoad {
     /// Incidents currently in [`IncidentStatus::InReview`].
     pub in_review_count: i64,
 }
+
+// ── Live dashboard feed (issue #57) ─────────────────────────────────────
+
+/// Diff payload pushed to subscribers of `GET /api/dashboard/live`.
+///
+/// Each variant carries the same DTO shape the full
+/// [`DashboardSnapshot`] uses for the corresponding panel, so the frontend
+/// can patch its local snapshot signal without a second deserialisation
+/// step. The serde tag `kind` matches [`CoordinatedSignalKind`]'s
+/// convention — JSON looks like `{"kind": "new_cluster", "cluster": {…}}`,
+/// which is the wire shape the architect's pre-flight pins.
+///
+/// New variants are purely additive: the frontend's `match` on `kind`
+/// already ignores wire values it does not recognise (serde rejects an
+/// unknown tag with a typed error the WS task surfaces, falls back to
+/// polling, and the operator sees a structured tracing event). When a
+/// new dashboard panel ships, add a variant here and a matching arm on
+/// the frontend.
+///
+/// # Why diff and not snapshot
+///
+/// `GET /api/dashboard` already returns the whole snapshot — the live
+/// feed is a latency optimisation, not a transport. Sending the full
+/// snapshot on every event would bottleneck on the same SQL aggregate
+/// the polling endpoint guards against (incident counts + report-volume
+/// rollups). Diff payloads keep each WS frame O(1) in the data each
+/// detector contributed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DashboardEvent {
+    /// A new incident cluster is now in the top-clusters panel. Sent
+    /// when the pattern engine opens an incident whose
+    /// `severity × related_subject_count` ranks above the panel cut-off.
+    NewCluster {
+        /// The cluster summary — same shape as
+        /// [`DashboardSnapshot::clusters`] entries.
+        cluster: IncidentClusterSummary,
+    },
+    /// A new coordinated-action observation landed. Sent when a detector
+    /// (image-hash, account-cohort, reply-brigade, report-volume anomaly)
+    /// emits an observation that surfaces to the coordinated-signals
+    /// panel.
+    NewSignal {
+        /// The signal summary — same shape as
+        /// [`DashboardSnapshot::coordinated_signals`] entries.
+        signal: CoordinatedSignal,
+    },
+    /// One hourly report-volume bucket changed. Sent when a report
+    /// commits into a bucket the dashboard currently renders (typically
+    /// the trailing-most bucket); the frontend swaps the matching
+    /// `bucket_start` entry in its local `report_volume` vector.
+    VolumeBucketUpdated {
+        /// The replacement bucket — keyed by `bucket_start` against the
+        /// snapshot vector on the frontend.
+        bucket: ReportVolumeBucket,
+    },
+    /// The per-category queue depth changed. Sent when an incident
+    /// transitions through `Open` / `InReview` / closed so the
+    /// moderator-load panel reflects the new counts without a refetch.
+    ModeratorLoadDelta {
+        /// The replacement load row — keyed by `category` against the
+        /// snapshot vector on the frontend.
+        load: ModeratorLoad,
+    },
+}

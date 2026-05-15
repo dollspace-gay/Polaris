@@ -246,6 +246,45 @@ pub struct ModeratorLoad {
     pub in_review_count: i64,
 }
 
+// ── Live dashboard feed (issue #57) ─────────────────────────────────────
+
+/// Diff payload received from `GET /api/dashboard/live`.
+///
+/// Mirrors the backend's `polaris_backend::api::dto::DashboardEvent`
+/// shape. Each variant carries a DTO that matches the corresponding
+/// field on [`DashboardSnapshot`], so applying an event is a single
+/// `match` on `kind` + a swap on the local signal.
+///
+/// Serde tag `kind` (`snake_case`) matches the wire convention used by
+/// every other tagged enum in this module.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DashboardEvent {
+    /// A new incident cluster surfaces to the top-clusters panel.
+    NewCluster {
+        /// The cluster summary, ready to push onto `clusters`.
+        cluster: IncidentClusterSummary,
+    },
+    /// A new coordinated-action observation surfaces to the signals panel.
+    NewSignal {
+        /// The signal summary, ready to push onto `coordinated_signals`.
+        signal: CoordinatedSignal,
+    },
+    /// One hourly report-volume bucket changed. The frontend keys by
+    /// `bucket_start` against the local `report_volume` vector and
+    /// either replaces the matching row or pushes a new one.
+    VolumeBucketUpdated {
+        /// The replacement bucket.
+        bucket: ReportVolumeBucket,
+    },
+    /// The per-category queue depth changed. The frontend keys by
+    /// `category` against the local `moderator_load` vector.
+    ModeratorLoadDelta {
+        /// The replacement row.
+        load: ModeratorLoad,
+    },
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

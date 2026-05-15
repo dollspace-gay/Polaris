@@ -32,15 +32,20 @@ pub const SESSION_COOKIE: &str = "polaris_session";
 
 /// Routes that bypass the auth middleware.
 ///
-/// `/healthz` is a liveness probe; the OIDC routes are the entry point of
-/// the login flow and would themselves require a session if they were not
-/// exempt. The frontend's WASM bundle is served on a different prefix in
-/// production (an external file-server / CDN); we do not list a frontend
-/// route here because that boundary belongs to the operator's deployment.
+/// `/healthz` is a liveness probe; the OIDC and ATProto OAuth routes are
+/// the entry points of the login flow and would themselves require a
+/// session if they were not exempt. The frontend's WASM bundle is
+/// served on a different prefix in production (an external
+/// file-server / CDN); we do not list a frontend route here because
+/// that boundary belongs to the operator's deployment.
 fn is_exempt(path: &str) -> bool {
     matches!(
         path,
-        "/healthz" | "/auth/oidc/login" | "/auth/oidc/callback"
+        "/healthz"
+            | "/auth/oidc/login"
+            | "/auth/oidc/callback"
+            | "/auth/atproto/login"
+            | "/auth/atproto/callback"
     )
 }
 
@@ -105,8 +110,12 @@ mod tests {
         assert!(is_exempt("/healthz"));
         assert!(is_exempt("/auth/oidc/login"));
         assert!(is_exempt("/auth/oidc/callback"));
+        assert!(is_exempt("/auth/atproto/login"));
+        assert!(is_exempt("/auth/atproto/callback"));
         assert!(!is_exempt("/api/incidents"));
         assert!(!is_exempt("/healthz/extra"));
+        assert!(!is_exempt("/auth/atproto"));
+        assert!(!is_exempt("/auth/atproto/callback/extra"));
     }
 
     #[test]

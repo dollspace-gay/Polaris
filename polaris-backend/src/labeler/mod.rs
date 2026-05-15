@@ -27,8 +27,13 @@
 //! - **Framing** — atproto's subscription protocol concatenates two
 //!   DAG-CBOR values per binary WebSocket message: a header
 //!   `{op: 1, t: "#labels"}` and a body `{seq, labels: [...]}`. We
-//!   encode both via [`ciborium`] directly — the framing envelope is
-//!   plain CBOR, no IPLD link types needed at this layer.
+//!   encode both via [`proto_blue::ws::Frame::encode`] so the resulting
+//!   bytes are strict DAG-CBOR canonical (map keys ordered by byte-length
+//!   then lexicographically, shortest integer encodings, `bytes`-typed
+//!   `sig`). The reference decoder ATProto consumers reach for
+//!   (`MessageFrame::decode`) rejects any non-canonical encoding, so
+//!   #58's live WebSocket client harness uses it as the wire-format
+//!   conformance gate.
 //!
 //! Label signing is **not** done here; this issue ships the consumer
 //! endpoints and the persistence shape. The signed-bytes column (`sig`)
@@ -41,6 +46,7 @@
 //! auth-gated — downstream `AppViews` are the unauthenticated audience
 //! for the labeler service.
 
+pub mod canonicalize;
 pub mod emitter;
 pub mod rotation;
 pub mod server;

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO signing_key_history (public_key_did, custody_mode)\n        VALUES ($1, $2)\n        ON CONFLICT (public_key_did) DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cefcb936f43b676917cbcf43320bc9662a417d6fd45d6a19347bf6fe038b69ef"
+}

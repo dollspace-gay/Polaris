@@ -110,6 +110,46 @@ impl From<sqlx::Error> for AuditError {
     }
 }
 
+/// Names the preimage field at which a chain-tamper was detected.
+///
+/// The verifier can localise a tamper to one of two row-level checks
+/// — the row's `prev_hash` link (i.e. the row's claim about the
+/// previous row's `this_hash`) or the row's own `this_hash` (i.e. the
+/// SHA-256 of this row's preimage).
+///
+/// # Granularity caveat
+///
+/// True per-input localisation (which of `payload | ts | actor | kind`
+/// was mutated when [`TamperedField::ThisHash`] fires) is **not**
+/// expressible with the current schema. Each row stores only the
+/// final `this_hash`, so the verifier can prove "the recomputed digest
+/// disagrees with the stored digest" but cannot identify *which*
+/// input was tampered. Reaching finer granularity would require
+/// storing each preimage component's hash separately — a schema
+/// change explicitly out of scope for this issue (and arguably not
+/// worth the storage cost given the verifier's threat model is
+/// "detect any tamper", not "blame any tamper").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TamperedField {
+    /// The row's stored `prev_hash` does not match the previous row's
+    /// `this_hash`. The link between consecutive rows is broken.
+    PrevHash,
+    /// The row's recomputed `this_hash` (SHA-256 of its preimage) does
+    /// not match the row's stored `this_hash`. The row's own commitment
+    /// is invalid; the tamper is on one of `prev_hash | payload | ts
+    /// | actor | kind` — see [`TamperedField`]'s granularity caveat.
+    ThisHash,
+}
+
+impl std::fmt::Display for TamperedField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::PrevHash => f.write_str("prev_hash"),
+            Self::ThisHash => f.write_str("this_hash"),
+        }
+    }
+}
+
 /// Errors raised by [`verify_chain`].
 #[derive(Debug, thiserror::Error)]
 pub enum VerifyError {
@@ -128,11 +168,14 @@ pub enum VerifyError {
     /// A row's recorded hash does not match the recomputed hash, OR a
     /// row's `prev_hash` does not match the previous row's
     /// `this_hash`. The verifier reports the seq of the first offending
-    /// row plus the expected and found 32-byte hashes.
-    #[error("audit-log chain tampered at seq {at_seq}")]
+    /// row, which preimage field mismatched (see [`TamperedField`]),
+    /// and the expected and found 32-byte hashes.
+    #[error("audit-log chain tampered at seq {at_seq} (field: {field})")]
     Tampered {
         /// Seq number where the chain breaks.
         at_seq: i64,
+        /// Which preimage field the verifier detected as mismatched.
+        field: TamperedField,
         /// Hash the verifier expected (recomputed from preimage / prior
         /// row).
         expected: [u8; HASH_LEN],
@@ -326,12 +369,14 @@ pub async fn verify_chain(pool: &PgPool) -> Result<i64, VerifyError> {
                 .try_into()
                 .map_err(|_| VerifyError::Tampered {
                     at_seq: seq,
+                    field: TamperedField::PrevHash,
                     expected: expected_prev,
                     found: GENESIS_PREV,
                 })?;
         if stored_prev != expected_prev {
             return Err(VerifyError::Tampered {
                 at_seq: seq,
+                field: TamperedField::PrevHash,
                 expected: expected_prev,
                 found: stored_prev,
             });
@@ -343,6 +388,7 @@ pub async fn verify_chain(pool: &PgPool) -> Result<i64, VerifyError> {
                 .try_into()
                 .map_err(|_| VerifyError::Tampered {
                     at_seq: seq,
+                    field: TamperedField::ThisHash,
                     expected: expected_prev,
                     found: GENESIS_PREV,
                 })?;
@@ -368,6 +414,7 @@ pub async fn verify_chain(pool: &PgPool) -> Result<i64, VerifyError> {
         if recomputed != stored_this {
             return Err(VerifyError::Tampered {
                 at_seq: seq,
+                field: TamperedField::ThisHash,
                 expected: recomputed,
                 found: stored_this,
             });

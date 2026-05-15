@@ -1,0 +1,110 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO labels (\n                src, uri, cid, val, neg, exp, sig, action_id,\n                subject_did, label_cbor, signing_did\n            )\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)\n            RETURNING id, seq, src, uri, cid, val, neg, cts, exp, sig,\n                      subject_did, label_cbor, signing_did, signed_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "src",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "uri",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "cid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "val",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "neg",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "cts",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "exp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "sig",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 10,
+        "name": "subject_did",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "label_cbor",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 12,
+        "name": "signing_did",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "signed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Timestamptz",
+        "Bytea",
+        "Uuid",
+        "Text",
+        "Bytea",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0471b38b54b2d8572e4011f9835ea800515dab96927f12df7412118a63c0c05b"
+}

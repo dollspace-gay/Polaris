@@ -15,6 +15,7 @@
 //! - [`router`]: assembles both endpoints into a `Router<ApiState>`-style
 //!   tree the API router merges into its public subtree.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use axum::Router;
@@ -33,6 +34,8 @@ use axum::routing::get;
 use axum_extra::extract::Query;
 use chrono::{DateTime, Utc};
 use futures::{SinkExt as _, StreamExt as _};
+use proto_blue::lex_data::LexValue;
+use proto_blue::ws::{Frame, MessageFrame};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tokio::sync::broadcast;
@@ -83,10 +86,10 @@ pub struct Label {
     /// enforced by the `labels_signature_len` CHECK in migration 13.
     ///
     /// Serialises as a JSON array of bytes via `serde_json` (the
-    /// `queryLabels` response shape) and as a CBOR array under `ciborium`
-    /// (the `subscribeLabels` frame body). The on-the-wire `label_cbor`
-    /// column is the byte-identical canonical CBOR that produced this
-    /// signature — see [`Self::label_cbor`].
+    /// `queryLabels` response shape) and as DAG-CBOR `bytes` on the
+    /// `subscribeLabels` frame body (see [`label_to_lex`]). The on-the-wire
+    /// `label_cbor` column is the byte-identical canonical CBOR that
+    /// produced this signature — see [`Self::label_cbor`].
     pub sig: Vec<u8>,
     /// The subject DID denormalised from `action -> incident -> subject`.
     /// `subscribeLabels`-side operator queries ("labels emitted for this
@@ -636,30 +639,56 @@ async fn send_label_frame(
 /// Header: `{ op: 1, t: "#labels" }` — the message-frame opcode plus the
 /// atproto subscription type discriminator. Body: `{ seq, labels: [...] }`
 /// per the `com.atproto.label.subscribeLabels` lexicon.
+///
+/// Encoded via [`proto_blue::ws::Frame::encode`] so the resulting bytes
+/// are strict DAG-CBOR (canonical map-key ordering by byte-length then
+/// lexicographic, shortest integer / string encodings, `bytes`-typed
+/// `sig` not array-of-int). This is the same wire envelope ATProto
+/// reference consumers decode via `MessageFrame::decode`; #58's live
+/// WebSocket client harness exercises that decode against this encoder.
 fn encode_labels_frame(seq: i64, labels: &[Label]) -> Result<Vec<u8>, LabelerError> {
-    #[derive(Serialize)]
-    struct Header<'a> {
-        op: i64,
-        t: &'a str,
-    }
-    #[derive(Serialize)]
-    struct Body<'a> {
-        seq: i64,
-        labels: &'a [Label],
-    }
+    let mut body = BTreeMap::new();
+    body.insert("seq".to_owned(), LexValue::Integer(seq));
+    body.insert(
+        "labels".to_owned(),
+        LexValue::Array(labels.iter().map(label_to_lex).collect()),
+    );
 
-    let mut bytes = Vec::with_capacity(256);
-    ciborium::into_writer(
-        &Header {
-            op: 1,
-            t: "#labels",
-        },
-        &mut bytes,
-    )
-    .map_err(|_| LabelerError::FrameEncode)?;
-    ciborium::into_writer(&Body { seq, labels }, &mut bytes)
-        .map_err(|_| LabelerError::FrameEncode)?;
-    Ok(bytes)
+    let frame = Frame::Message(MessageFrame {
+        r#type: Some("#labels".to_owned()),
+        body: LexValue::Map(body),
+    });
+    frame.encode().map_err(|_| LabelerError::FrameEncode)
+}
+
+/// Project a persisted [`Label`] row into the on-the-wire
+/// `com.atproto.label.defs::Label` shape as a [`LexValue`].
+///
+/// Mirrors the proto-blue `com::atproto::label::defs::Label` field set:
+/// `cid?`, `cts`, `exp?`, `neg?`, `sig?`, `src`, `uri`, `val`. Fields
+/// the server table carries for internal use only (`id`, `subject_did`,
+/// `label_cbor`, `signing_did`, `signed_at`) are not part of the wire
+/// shape and never appear in the encoded frame.
+fn label_to_lex(label: &Label) -> LexValue {
+    let mut m = BTreeMap::new();
+    if let Some(cid) = &label.cid {
+        m.insert("cid".to_owned(), LexValue::String(cid.clone()));
+    }
+    m.insert("cts".to_owned(), LexValue::String(label.cts.to_rfc3339()));
+    if let Some(exp) = label.exp {
+        m.insert("exp".to_owned(), LexValue::String(exp.to_rfc3339()));
+    }
+    m.insert("neg".to_owned(), LexValue::Bool(label.neg));
+    // `sig` is bytes on the wire — `LexValue::Bytes` is the only shape
+    // DAG-CBOR will round-trip cleanly. A `LexValue::Array<Integer>`
+    // would technically encode but downstream verifiers (proto-blue's
+    // Label codec, the TS SDK) typecheck against the `bytes` lexicon
+    // and reject the array form.
+    m.insert("sig".to_owned(), LexValue::Bytes(label.sig.clone()));
+    m.insert("src".to_owned(), LexValue::String(label.src.clone()));
+    m.insert("uri".to_owned(), LexValue::String(label.uri.clone()));
+    m.insert("val".to_owned(), LexValue::String(label.val.clone()));
+    LexValue::Map(m)
 }
 
 // ── error → HTTP response adapter ───────────────────────────────────────
@@ -726,42 +755,44 @@ mod tests {
     }
 
     #[test]
-    fn encode_labels_frame_produces_two_concatenated_cbor_values() {
-        // The atproto subscription envelope is header || body, two
-        // back-to-back CBOR values. A decoder that consumes the first
-        // value should leave the second on the wire; ciborium exposes
-        // that contract via `from_reader` on a slice reader.
-        let frame = encode_labels_frame(7, &[sample_label(7)]).unwrap();
-        let mut reader = std::io::Cursor::new(frame.as_slice());
+    fn encode_labels_frame_round_trips_through_proto_blue() {
+        // The atproto subscription envelope is `header || body`, two
+        // back-to-back DAG-CBOR values; `proto_blue::ws::Frame::decode`
+        // is the reference decoder ATProto consumers reach for. A round
+        // trip through it asserts both the framing layer (op=1,
+        // t="#labels") and that the bytes are strict DAG-CBOR canonical
+        // (the decoder rejects any non-canonical encoding).
+        let bytes = encode_labels_frame(7, &[sample_label(7)]).unwrap();
+        let decoded = Frame::decode(&bytes).expect("MessageFrame::decode accepts our bytes");
 
-        let header: ciborium::Value = ciborium::from_reader(&mut reader).unwrap();
-        let body: ciborium::Value = ciborium::from_reader(&mut reader).unwrap();
-
-        // Header carries op=1, t=#labels.
-        let header_map = match header {
-            ciborium::Value::Map(pairs) => pairs,
-            other => panic!("expected CBOR map for header, got {other:?}"),
+        let message = match decoded {
+            Frame::Message(m) => m,
+            Frame::Error(e) => panic!("expected Message frame, got error: {e:?}"),
         };
-        assert!(header_map.iter().any(|(k, v)| {
-            matches!((k, v), (ciborium::Value::Text(k), ciborium::Value::Integer(_)) if k == "op")
-        }));
-        assert!(header_map.iter().any(|(k, v)| {
-            matches!((k, v), (ciborium::Value::Text(k), ciborium::Value::Text(t)) if k == "t" && t == "#labels")
-        }));
+        assert_eq!(message.r#type.as_deref(), Some("#labels"));
 
-        // Body carries seq=7 and a one-element labels array.
-        let body_map = match body {
-            ciborium::Value::Map(pairs) => pairs,
-            other => panic!("expected CBOR map for body, got {other:?}"),
-        };
-        assert!(
-            body_map
-                .iter()
-                .any(|(k, _)| { matches!(k, ciborium::Value::Text(k) if k == "seq") })
+        let body_map = message.body.as_map().expect("body is a CBOR map");
+        let seq = body_map
+            .get("seq")
+            .and_then(LexValue::as_integer)
+            .expect("body carries seq");
+        assert_eq!(seq, 7);
+        let labels = body_map
+            .get("labels")
+            .and_then(LexValue::as_array)
+            .expect("body carries labels array");
+        assert_eq!(labels.len(), 1);
+        let label_map = labels[0].as_map().expect("label is a map");
+        assert_eq!(
+            label_map.get("val").and_then(LexValue::as_str),
+            Some("spam"),
         );
-        assert!(body_map.iter().any(|(k, v)| {
-            matches!((k, v), (ciborium::Value::Text(k), ciborium::Value::Array(arr)) if k == "labels" && arr.len() == 1)
-        }));
+        assert!(
+            label_map
+                .get("sig")
+                .is_some_and(|v| matches!(v, LexValue::Bytes(_))),
+            "sig must encode as DAG-CBOR bytes, not an array of integers",
+        );
     }
 
     #[tokio::test]

@@ -42,6 +42,7 @@ use sqlx::PgPool;
 
 use super::RepoError;
 use crate::audit::{AuditEvent, AuditLog};
+use crate::pattern::moderator_anomaly::{self, ModeratorAnomalyConfig};
 use crate::reputation::PgReputationProvider;
 
 /// Caller-supplied fields for inserting a new [`Action`].
@@ -138,6 +139,13 @@ pub trait ActionRepo: Send + Sync {
 pub struct PgActionRepo {
     pool: PgPool,
     reputation: Option<Arc<PgReputationProvider>>,
+    /// Issue #73, T1 mitigation. When present, every successful
+    /// `insert` runs the moderator-behavior-anomaly detector inside the
+    /// same transaction: if the moderator's rolling-window action count
+    /// crosses the threshold an `ObservationKind::ModeratorBehaviorAnomaly`
+    /// is emitted alongside the action row. Absence of the config
+    /// disables the hook entirely.
+    moderator_anomaly: Option<ModeratorAnomalyConfig>,
 }
 
 impl PgActionRepo {
@@ -147,6 +155,7 @@ impl PgActionRepo {
         Self {
             pool,
             reputation: None,
+            moderator_anomaly: None,
         }
     }
 
@@ -156,6 +165,17 @@ impl PgActionRepo {
     #[must_use]
     pub fn with_reputation(mut self, reputation: Arc<PgReputationProvider>) -> Self {
         self.reputation = Some(reputation);
+        self
+    }
+
+    /// Attach a [`ModeratorAnomalyConfig`] so successful `insert`s run
+    /// the T1 moderator-behavior-anomaly check inside the same
+    /// transaction (issue #73). Absence of the config disables the
+    /// hook; tests that don't exercise the detector pass `None` by
+    /// omitting this builder step.
+    #[must_use]
+    pub fn with_moderator_anomaly(mut self, config: ModeratorAnomalyConfig) -> Self {
+        self.moderator_anomaly = Some(config);
         self
     }
 }
@@ -305,6 +325,15 @@ impl ActionRepo for PgActionRepo {
             },
         )
         .await?;
+
+        // Issue #73 / T1 mitigation. Run the moderator-behavior-anomaly
+        // detector inside the same transaction so a tripped detector
+        // emits its observation atomically with the action row. The
+        // hook is opt-in (`None` skips it) so tests that don't
+        // exercise the detector keep the action-insert path lean.
+        if let Some(cfg) = self.moderator_anomaly.as_ref() {
+            moderator_anomaly::check_and_emit(&mut tx, ModeratorId(row.moderator_id), cfg).await?;
+        }
 
         tx.commit().await?;
 

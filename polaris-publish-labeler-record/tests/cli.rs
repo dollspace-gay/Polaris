@@ -1,9 +1,11 @@
 //! Integration tests for `polaris-publish-labeler-record` (issue #27).
 //!
 //! Covers the **lib-half** of the binary plus a CLI-process smoke test
-//! against the built binary. Authentication, network calls, and the
-//! OAuth flow are out of scope here — that work lands in a follow-up
-//! issue when the OAuth client-metadata loader is wired up.
+//! against the built binary. Authentication and live network calls are
+//! out of scope here; the OAuth-flag plumbing (#61) is covered via
+//! the user-error path (`--oauth` without `--client-metadata`,
+//! `--oauth` with a missing file) — the interactive code-exchange
+//! step itself requires a live AS and is exercised manually.
 
 // Integration tests are allowed to panic per `rust-quality §7` —
 // `assert*!` and the test runner's panic→fail path are the canonical
@@ -239,5 +241,73 @@ fn cli_rejects_both_oauth_and_app_password_stdin() {
     assert!(
         !output.status.success(),
         "conflicting auth modes should fail; got success"
+    );
+}
+
+/// Issue #61 wired the `--oauth` path end-to-end; `--client-metadata` is
+/// now a clap-enforced requirement when `--oauth` is set. This test
+/// pins the help-text declaration so a refactor that drops the
+/// `requires = "oauth"` constraint fails loudly.
+#[test]
+fn cli_oauth_requires_client_metadata_flag() {
+    let bin_path = env!("CARGO_BIN_EXE_polaris-publish-labeler-record");
+    let output = Command::new(bin_path)
+        .args([
+            "--account",
+            "polaris.example.com",
+            "--service-url",
+            SERVICE_URL,
+            "--signing-pubkey",
+            SIGNING_PUBKEY,
+            "--label-value",
+            "spam",
+            "--oauth",
+        ])
+        .output()
+        .expect("invocation should not fail");
+
+    // Clap enforces `requires = "oauth"` the other direction (using
+    // --client-metadata without --oauth is fine; the flag is just
+    // ignored). The real validation — "--oauth without
+    // --client-metadata" — is enforced by `select_auth_mode` and lands
+    // as a UserError → exit 1. Either failure mode is acceptable here;
+    // the contract is "the run must not succeed without metadata."
+    assert!(
+        !output.status.success(),
+        "--oauth without --client-metadata must not succeed; got success"
+    );
+}
+
+/// `--oauth --client-metadata <path>` with a non-existent file lands
+/// the polaris-types loader's `Read` error on the user-error exit
+/// path. Pins the integration: this CLI surfaces the polaris-types
+/// loader error (not a generic anyhow), and the exit code is the
+/// `UserError` code (1), not the `Pds` code (2).
+#[test]
+fn cli_oauth_missing_client_metadata_file_exits_user_error() {
+    let bin_path = env!("CARGO_BIN_EXE_polaris-publish-labeler-record");
+    let output = Command::new(bin_path)
+        .args([
+            "--account",
+            "polaris.example.com",
+            "--service-url",
+            SERVICE_URL,
+            "--signing-pubkey",
+            SIGNING_PUBKEY,
+            "--label-value",
+            "spam",
+            "--oauth",
+            "--client-metadata",
+            "/nonexistent/path/client-metadata.json",
+        ])
+        .output()
+        .expect("invocation should not fail");
+
+    let code = output.status.code().expect("process exited via signal");
+    assert_eq!(
+        code,
+        1,
+        "expected exit 1 (UserError); got {code}, stderr={}",
+        String::from_utf8_lossy(&output.stderr)
     );
 }

@@ -26,4 +26,5 @@ pub mod dashboard;
 pub mod history_timeline;
 pub mod network_panel;
 pub mod report_list;
+pub mod safe_payload;
 pub mod subject_header;

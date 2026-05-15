@@ -175,16 +175,24 @@ async fn make_verifier(
         client_uri: None,
         logo_uri: None,
     };
+    let fetch_handle: Arc<dyn FetchHandler> = fetcher as Arc<dyn FetchHandler>;
     let oauth_client = Arc::new(OAuthClient::with_fetch_handler(
         metadata,
-        fetcher.clone() as Arc<dyn FetchHandler>,
+        Arc::clone(&fetch_handle),
     ));
     let id_resolver = Arc::new(IdResolver::with_fetch_handler(
         IdentityResolverOpts::default(),
         None,
-        fetcher as Arc<dyn FetchHandler>,
+        Arc::clone(&fetch_handle),
     ));
-    AtprotoOauthAuthVerifier::new(oauth_client, id_resolver, sessions, crypto, pool)
+    AtprotoOauthAuthVerifier::new(
+        oauth_client,
+        id_resolver,
+        fetch_handle,
+        sessions,
+        crypto,
+        pool,
+    )
 }
 
 /// Register the canned responses needed for the start_login → callback

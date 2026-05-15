@@ -34,10 +34,13 @@ path = "src/lib.rs"
 default = ["bus-nats"]
 bus-kafka = ["dep:rdkafka"]
 bus-nats = ["dep:async-nats"]
-# Evidence preservation (#33): S3-backed blob store. Off by default
-# (labeler profile uses LocalFsBlobStore). #69 wires the end-to-end
-# minio integration test under this gate.
-s3-blob-store = ["dep:aws-sdk-s3"]
+# Evidence preservation (#33, #68): S3-backed blob store. Off by
+# default (labeler profile uses LocalFsBlobStore). Pulls the AWS S3
+# SDK plus `aws-config` so the default credential chain (env vars /
+# IMDS / shared profile) is available; the `from_endpoint` constructor
+# in `evidence::blob_store` consumes the same `aws-config` builder to
+# point at a minio test container.
+s3-blob-store = ["dep:aws-sdk-s3", "dep:aws-config"]
 # Labeler signing-key custody — cloud KMS oracle mode (issue #29).
 #
 # The `cloud-kms-oracle` posture requires the AWS SDK to make a KMS RPC
@@ -45,7 +48,9 @@ s3-blob-store = ["dep:aws-sdk-s3"]
 # are heavy enough that a labeler-profile deployment without a KMS
 # integration should not pay the binary-size cost. Gated behind a Cargo
 # feature so the default `polaris-backend` build is unchanged. The
-# integration test against localstack lives behind the same gate.
+# integration test against localstack lives behind the same gate. Note
+# that `s3-blob-store` also opts into `aws-config` — both features
+# share the same SDK transport / credential plumbing.
 kms-integration = ["dep:aws-sdk-kms", "dep:aws-config"]
 
 [dependencies]
@@ -179,7 +184,15 @@ url = "2"
 # The pre-flight document quoted 0.23 / 0.11 — those are stale. The current
 # majors require Rust 1.88, which matches the workspace toolchain exactly.
 testcontainers = "0.27"
-testcontainers-modules = { version = "0.15", features = ["postgres"] }
+# `testcontainers-modules` 0.15.0: feature gates are purely additive (each
+# feature unlocks `pub mod <broker>` in the modules crate). The `postgres`
+# module backs `tests/db_smoke.rs` + co.; `kafka` + `nats` back the bus
+# integration tests added in #56 (`tests/bus_kafka_integration.rs` and
+# `tests/bus_nats_integration.rs`). The bus tests are themselves
+# `#[cfg(feature = "bus-kafka")]` / `#[cfg(feature = "bus-nats")]` gated, so
+# enabling the module crate's `kafka` + `nats` features unconditionally
+# costs only the compile-time of two extra small modules in dev builds.
+testcontainers-modules = { version = "0.15", features = ["postgres", "kafka", "nats", "minio"] }
 tokio = { workspace = true, features = ["test-util", "macros"] }
 
 # `tower` 0.5.3 (already in the lockfile via axum). The `util` feature

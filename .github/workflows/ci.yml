@@ -118,6 +118,14 @@ jobs:
         run: cargo xtask check-wasm-symbols
         env:
           SQLX_OFFLINE: "true"
+      - name: check-wasm-budget (#71)
+        # Raw-bytes ceiling on the release wasm artifact. Default 2 MiB.
+        # Operators may relax via POLARIS_WASM_BUDGET_BYTES if the bundle
+        # justifies it; the failure mode is loud (CI fails the PR with the
+        # actual size and the budget side-by-side).
+        run: cargo xtask check-wasm-budget
+        env:
+          SQLX_OFFLINE: "true"
 
   boundary:
     # AC-7: polaris-frontend must not import polaris_backend internals or

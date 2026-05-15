@@ -24,8 +24,10 @@
 //! routes — see [`crate::middleware::auth::auth_middleware`].
 
 pub mod appeals;
+pub mod auth_atproto;
 pub mod cases;
 pub mod dashboard;
+pub mod dashboard_ws;
 pub mod dto;
 pub mod error;
 pub mod healthz;
@@ -94,6 +96,14 @@ fn healthz_router(db: Db) -> Router {
 /// The auth middleware is therefore not applied here. IP rate-limiting
 /// is the per-route mitigation, applied inside
 /// [`appeals::submit_appeal`].
+///
+/// The two `/auth/atproto/{login,callback}` routes (issue #67) also live
+/// here: they operate in the pre-session-cookie window and would
+/// short-circuit on the missing cookie if they were mounted under the
+/// authed subtree. They are also listed in
+/// [`crate::middleware::auth::is_exempt`] so a future router
+/// reorganisation that pulls them back under a uniform layer remains
+/// safe.
 fn public_api_router(state: ApiState) -> Router {
     // The four `/api/auth/webauthn/*` endpoints (#40) live on the public
     // subtree: they operate in the post-OIDC / post-ATProto, pre-session-
@@ -120,6 +130,12 @@ fn public_api_router(state: ApiState) -> Router {
             "/api/auth/webauthn/assert/finish",
             post(webauthn::assert_finish),
         )
+        // Issue #67: ATProto OAuth login + callback. POST starts the
+        // dance and returns a 303 to the AS; GET completes the
+        // exchange, mints a Polaris session cookie, and 303s the
+        // browser back to `/`.
+        .route("/auth/atproto/login", post(auth_atproto::login))
+        .route("/auth/atproto/callback", get(auth_atproto::callback))
         .with_state(state)
 }
 
@@ -164,6 +180,7 @@ fn authed_router(state: ApiState) -> Router {
         .route("/api/threads/search", get(second_opinion::search_threads))
         .route("/api/threads/{thread_id}", get(second_opinion::get_thread))
         .route("/api/dashboard", get(dashboard::handler))
+        .route("/api/dashboard/live", get(dashboard_ws::live_handler))
         .route("/api/wellness/exposure/me", get(wellness::get_my_exposure))
         .route(
             "/api/wellness/exposure/me/cap",

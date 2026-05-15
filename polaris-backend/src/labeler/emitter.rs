@@ -69,8 +69,6 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use polaris_types::{Action, ActionId, ActionKind};
 use proto_blue::api::generated::com::atproto::label::defs::Label as ProtoLabel;
-use proto_blue::lex_cbor;
-use proto_blue::lex_json;
 use proto_blue::syntax::{Datetime as ProtoDatetime, Did as ProtoDid};
 use sqlx::PgPool;
 use tracing::warn;
@@ -533,16 +531,13 @@ fn build_proto_label(
     })
 }
 
-/// Canonicalise the unsigned Label as DAG-CBOR. The serialisation chain
-/// is: typed Label → `serde_json::Value` (via the generated type's
-/// Serialize impl, which drops `sig: None`) → `LexValue` (via
-/// `proto_blue_lex_json::json_to_lex`) → DAG-CBOR bytes (via
-/// `proto_blue_lex_cbor::encode`, which enforces sorted map keys and
-/// every other DAG-CBOR canonicality rule).
+/// Canonicalise the unsigned Label as DAG-CBOR. Thin shim over the shared
+/// implementation in [`crate::labeler::canonicalize::encode_canonical_label`]
+/// — both this signing path and the upstream-label verification path
+/// (`ingest/upstream_labels.rs`) must produce identical bytes, so the
+/// canonicalisation rule lives in one place (#78).
 fn encode_canonical(label: &ProtoLabel) -> Result<Vec<u8>, EmitterError> {
-    let json = serde_json::to_value(label).map_err(|_| EmitterError::Encode)?;
-    let lex = lex_json::json_to_lex(&json);
-    lex_cbor::encode(&lex).map_err(|_| EmitterError::Encode)
+    super::canonicalize::encode_canonical_label(label).map_err(|_| EmitterError::Encode)
 }
 
 /// Map a `sqlx::Error` from the INSERT path to the typed [`EmitterError`].
@@ -603,6 +598,7 @@ pub async fn emit_best_effort(
 )]
 mod tests {
     use proto_blue::crypto::{K256Keypair, Keypair as _, Signer as _, Verifier as _};
+    use proto_blue::lex_cbor;
 
     use super::*;
 

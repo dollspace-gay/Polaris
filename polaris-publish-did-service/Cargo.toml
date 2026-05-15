@@ -1,0 +1,38 @@
+[package]
+name = "polaris-publish-did-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Companion CLI for issue #60 — add or verify the operator DID document's `#atproto_labeler` service entry so the published `app.bsky.labeler.service` record is actually discoverable."
+
+[lib]
+name = "polaris_publish_did_service"
+path = "src/lib.rs"
+
+[[bin]]
+name = "polaris-publish-did-service"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+# Binary crate — `anyhow::Result` is the documented error type for `main.rs`
+# per the workspace's rust-quality discipline.
+anyhow.workspace = true
+# Library half uses a typed error enum via thiserror; deliberately kept off
+# the public API of any other crate.
+thiserror.workspace = true
+proto-blue.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde_json.workspace = true
+
+# URL parsing for the `--service-url` flag. Mirrors the workspace pin used
+# by polaris-publish-labeler-record so a typo on the operator's command
+# line is caught before any network call.
+url.workspace = true
+
+[lints]
+workspace = true

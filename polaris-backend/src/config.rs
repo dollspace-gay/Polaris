@@ -54,6 +54,14 @@ pub struct AppConfig {
     /// Reporter-reputation tunables (#37, design.md §9.3).
     #[serde(default)]
     pub reputation: ReputationConfig,
+    /// Moderator-behavior-anomaly detector tunables (#73, design.md
+    /// §9 #1 / threat-model T1).
+    #[serde(default)]
+    pub moderator_anomaly: ModeratorAnomalyEnvConfig,
+    /// Report-aggregation worker tunables (#75, design.md §9 #4 /
+    /// threat-model T4).
+    #[serde(default)]
+    pub aggregator: AggregatorEnvConfig,
 }
 
 /// Postgres connection and pool configuration.
@@ -159,6 +167,8 @@ impl AppConfig {
         let profile = Profile::from_env()?;
         let evidence = EvidenceConfig::from_env()?;
         let reputation = ReputationConfig::from_env()?;
+        let moderator_anomaly = ModeratorAnomalyEnvConfig::from_env()?;
+        let aggregator = AggregatorEnvConfig::from_env()?;
 
         Ok(Self {
             db,
@@ -170,6 +180,8 @@ impl AppConfig {
             profile,
             evidence,
             reputation,
+            moderator_anomaly,
+            aggregator,
         })
     }
 }
@@ -922,6 +934,15 @@ pub struct EvidenceConfig {
     /// Seconds between drain ticks when the queue is empty. Default 5.
     #[serde(default = "default_evidence_poll_interval_secs")]
     pub poll_interval_secs: u64,
+    /// Maximum number of attempts before a failure is permanent
+    /// (issue #69). Defaults to
+    /// [`crate::evidence::worker::DEFAULT_MAX_ATTEMPTS`] (= 8).
+    #[serde(default = "default_evidence_max_attempts")]
+    pub max_attempts: u32,
+    /// Base seconds for the exponential backoff (issue #69). Defaults
+    /// to [`crate::evidence::worker::DEFAULT_RETRY_BASE_SECS`] (= 30).
+    #[serde(default = "default_evidence_retry_base_secs")]
+    pub retry_base_secs: u64,
 }
 
 const fn default_evidence_concurrency() -> usize {
@@ -932,12 +953,22 @@ const fn default_evidence_poll_interval_secs() -> u64 {
     5
 }
 
+const fn default_evidence_max_attempts() -> u32 {
+    crate::evidence::worker::DEFAULT_MAX_ATTEMPTS
+}
+
+const fn default_evidence_retry_base_secs() -> u64 {
+    crate::evidence::worker::DEFAULT_RETRY_BASE_SECS
+}
+
 impl Default for EvidenceConfig {
     fn default() -> Self {
         Self {
             blob_store: BlobStoreKind::default(),
             worker_concurrency: default_evidence_concurrency(),
             poll_interval_secs: default_evidence_poll_interval_secs(),
+            max_attempts: default_evidence_max_attempts(),
+            retry_base_secs: default_evidence_retry_base_secs(),
         }
     }
 }
@@ -955,6 +986,8 @@ impl EvidenceConfig {
     /// | `POLARIS_EVIDENCE_S3_REGION`          | `BlobStoreKind::S3.region`               |
     /// | `POLARIS_EVIDENCE_WORKER_CONCURRENCY` | `worker_concurrency` (default 4)         |
     /// | `POLARIS_EVIDENCE_POLL_INTERVAL_SECS` | `poll_interval_secs` (default 5)         |
+    /// | `POLARIS_EVIDENCE_MAX_ATTEMPTS`       | `max_attempts` (issue #69, default 8)    |
+    /// | `POLARIS_EVIDENCE_RETRY_BASE_SECS`    | `retry_base_secs` (issue #69, default 30)|
     ///
     /// # Errors
     ///
@@ -1012,10 +1045,30 @@ impl EvidenceConfig {
                 })?,
             None => default_evidence_poll_interval_secs(),
         };
+        let max_attempts = match env::var("POLARIS_EVIDENCE_MAX_ATTEMPTS").ok() {
+            Some(raw) => raw
+                .parse::<u32>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_EVIDENCE_MAX_ATTEMPTS",
+                    source,
+                })?,
+            None => default_evidence_max_attempts(),
+        };
+        let retry_base_secs = match env::var("POLARIS_EVIDENCE_RETRY_BASE_SECS").ok() {
+            Some(raw) => raw
+                .parse::<u64>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_EVIDENCE_RETRY_BASE_SECS",
+                    source,
+                })?,
+            None => default_evidence_retry_base_secs(),
+        };
         Ok(Self {
             blob_store,
             worker_concurrency,
             poll_interval_secs,
+            max_attempts,
+            retry_base_secs,
         })
     }
 }
@@ -1132,6 +1185,182 @@ impl ReputationConfig {
             prior_actioned,
             prior_dismissed,
             half_life_days,
+        })
+    }
+}
+
+/// Moderator-behavior-anomaly detector configuration (#73).
+///
+/// Drives [`crate::pattern::moderator_anomaly::check_and_emit`] from the
+/// action-insert path. The threshold is the maximum action count the
+/// detector tolerates inside the rolling window; counts strictly above
+/// the threshold fire a
+/// [`polaris_types::ObservationKind::ModeratorBehaviorAnomaly`].
+///
+/// The wire form mirrors the `from_env` precedence rules — both fields
+/// fall back to the architect's pre-flight defaults (50 actions, 3600
+/// seconds) when unset, so a stock binary boots with the T1 detector
+/// active.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ModeratorAnomalyEnvConfig {
+    /// Emit when the moderator's action count in the rolling window
+    /// strictly exceeds this value. Default 50.
+    #[serde(default = "default_moderator_anomaly_threshold")]
+    pub threshold: u32,
+    /// Rolling-window size in seconds. Default 3600 (one hour).
+    #[serde(default = "default_moderator_anomaly_window_secs")]
+    pub window_secs: u32,
+}
+
+const fn default_moderator_anomaly_threshold() -> u32 {
+    50
+}
+
+const fn default_moderator_anomaly_window_secs() -> u32 {
+    3600
+}
+
+impl Default for ModeratorAnomalyEnvConfig {
+    fn default() -> Self {
+        Self {
+            threshold: default_moderator_anomaly_threshold(),
+            window_secs: default_moderator_anomaly_window_secs(),
+        }
+    }
+}
+
+impl ModeratorAnomalyEnvConfig {
+    /// Build from environment variables.
+    ///
+    /// Recognises:
+    ///
+    /// | Variable                                  | Field        |
+    /// |-------------------------------------------|--------------|
+    /// | `POLARIS_MODERATOR_ANOMALY_THRESHOLD`     | `threshold`  |
+    /// | `POLARIS_MODERATOR_ANOMALY_WINDOW_SECS`   | `window_secs`|
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidInt`] when either env value cannot
+    /// be parsed as a `u32`.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let threshold = match env::var("POLARIS_MODERATOR_ANOMALY_THRESHOLD").ok() {
+            Some(raw) => raw
+                .parse::<u32>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_MODERATOR_ANOMALY_THRESHOLD",
+                    source,
+                })?,
+            None => default_moderator_anomaly_threshold(),
+        };
+        let window_secs = match env::var("POLARIS_MODERATOR_ANOMALY_WINDOW_SECS").ok() {
+            Some(raw) => raw
+                .parse::<u32>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_MODERATOR_ANOMALY_WINDOW_SECS",
+                    source,
+                })?,
+            None => default_moderator_anomaly_window_secs(),
+        };
+        Ok(Self {
+            threshold,
+            window_secs,
+        })
+    }
+}
+
+/// Report-aggregator worker configuration (#75, design.md §9 #4).
+///
+/// Drives [`crate::ingest::ReportAggregator`] at startup: the per-tick
+/// batch size, the idle poll interval, and the "attach to existing
+/// incident" window. The defaults mirror the constants exposed by the
+/// [`crate::ingest::aggregator`] module so the env-form contract reads
+/// the same value an operator would see in `cargo doc`.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AggregatorEnvConfig {
+    /// Maximum number of un-aggregated reports to claim per tick.
+    /// Defaults to [`crate::ingest::DEFAULT_BATCH_SIZE`] (= 256).
+    #[serde(default = "default_aggregator_batch_size")]
+    pub batch_size: i64,
+    /// Idle wait between drain ticks, in seconds. Defaults to
+    /// [`crate::ingest::DEFAULT_POLL_INTERVAL_SECS`] (= 5).
+    #[serde(default = "default_aggregator_poll_interval_secs")]
+    pub poll_interval_secs: u64,
+    /// Width of the "attach to existing incident" window in seconds.
+    /// Defaults to [`crate::ingest::DEFAULT_WINDOW_SECS`] (= `86_400`).
+    #[serde(default = "default_aggregator_window_secs")]
+    pub window_secs: i64,
+}
+
+const fn default_aggregator_batch_size() -> i64 {
+    crate::ingest::DEFAULT_BATCH_SIZE
+}
+
+const fn default_aggregator_poll_interval_secs() -> u64 {
+    crate::ingest::DEFAULT_POLL_INTERVAL_SECS
+}
+
+const fn default_aggregator_window_secs() -> i64 {
+    crate::ingest::DEFAULT_WINDOW_SECS
+}
+
+impl Default for AggregatorEnvConfig {
+    fn default() -> Self {
+        Self {
+            batch_size: default_aggregator_batch_size(),
+            poll_interval_secs: default_aggregator_poll_interval_secs(),
+            window_secs: default_aggregator_window_secs(),
+        }
+    }
+}
+
+impl AggregatorEnvConfig {
+    /// Build from environment variables.
+    ///
+    /// Recognises:
+    ///
+    /// | Variable                              | Field                |
+    /// |---------------------------------------|----------------------|
+    /// | `POLARIS_AGGREGATOR_BATCH_SIZE`       | `batch_size`         |
+    /// | `POLARIS_AGGREGATOR_POLL_INTERVAL_SECS` | `poll_interval_secs` |
+    /// | `POLARIS_AGGREGATOR_WINDOW_SECS`      | `window_secs`        |
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidInt`] when any override cannot be
+    /// parsed as the documented integer type.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let batch_size = match env::var("POLARIS_AGGREGATOR_BATCH_SIZE").ok() {
+            Some(raw) => raw
+                .parse::<i64>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_AGGREGATOR_BATCH_SIZE",
+                    source,
+                })?,
+            None => default_aggregator_batch_size(),
+        };
+        let poll_interval_secs = match env::var("POLARIS_AGGREGATOR_POLL_INTERVAL_SECS").ok() {
+            Some(raw) => raw
+                .parse::<u64>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_AGGREGATOR_POLL_INTERVAL_SECS",
+                    source,
+                })?,
+            None => default_aggregator_poll_interval_secs(),
+        };
+        let window_secs = match env::var("POLARIS_AGGREGATOR_WINDOW_SECS").ok() {
+            Some(raw) => raw
+                .parse::<i64>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_AGGREGATOR_WINDOW_SECS",
+                    source,
+                })?,
+            None => default_aggregator_window_secs(),
+        };
+        Ok(Self {
+            batch_size,
+            poll_interval_secs,
+            window_secs,
         })
     }
 }

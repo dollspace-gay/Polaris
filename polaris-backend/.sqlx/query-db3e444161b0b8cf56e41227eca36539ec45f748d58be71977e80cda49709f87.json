@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE reports SET incident_id = $1 WHERE id = $2 AND created_at = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "db3e444161b0b8cf56e41227eca36539ec45f748d58be71977e80cda49709f87"
+}

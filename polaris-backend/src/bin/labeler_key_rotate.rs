@@ -19,9 +19,15 @@
 //! # Supported modes
 //!
 //! - `file-plain` — full implementation.
-//! - `passphrase-sealed` / `os-keychain` / `cloud-kms-oracle` — clap
-//!   parses them but the state machine short-circuits with
-//!   `RotationError::Unsupported`. Follow-up tracked as #64.
+//! - `passphrase-sealed` — full implementation (`POLARIS_SIGNING_PASSPHRASE`
+//!   env-sourced; the staged file is replaced with the AES-256-GCM
+//!   sealed blob in-place at the configured path).
+//! - `os-keychain` — full implementation (`--account <name>` required;
+//!   the new key lands in the OS-native secret store and the staged
+//!   plaintext file is deleted).
+//! - `cloud-kms-oracle` — full implementation for AWS
+//!   (`--kms-region <r> --kms-alias <a>` required); GCP / Azure
+//!   provider variants surface as `RotationError::Unsupported`.
 //!
 //! # Flags
 //!
@@ -42,9 +48,11 @@ use std::process::ExitCode;
 
 use clap::{Parser, ValueEnum};
 use polaris_backend::config::DbConfig;
+use polaris_backend::config::KmsProvider;
 use polaris_backend::db;
 use polaris_backend::labeler::rotation::{
-    CustodyMode, NextStep, RotationContext, RotationError, RotationPlan, RotationStep, next_step,
+    CustodyMode, NextStep, RotationContext, RotationCustodyParams, RotationError, RotationPlan,
+    RotationStep, next_step,
 };
 use tracing::info;
 use uuid::Uuid;
@@ -86,10 +94,10 @@ impl From<CliMode> for CustodyMode {
         idempotent; a crash mid-rotation can be picked up with --resume \
         <rotation_id>.\n\n\
         Supported modes:\n  \
-        file-plain          — implemented (issue #30)\n  \
-        passphrase-sealed   — stub (issue #64)\n  \
-        os-keychain         — stub (issue #64)\n  \
-        cloud-kms-oracle    — stub (issue #64)\n\n\
+        file-plain          — implemented (#30)\n  \
+        passphrase-sealed   — implemented (#64); requires POLARIS_SIGNING_PASSPHRASE\n  \
+        os-keychain         — implemented (#64); requires --account\n  \
+        cloud-kms-oracle    — implemented for AWS (#64); requires --kms-region + --kms-alias\n\n\
         Exit codes:\n  \
         0 — success\n  \
         1 — user error (bad flags, unsupported mode)\n  \
@@ -114,6 +122,22 @@ struct Cli {
     /// Required for `--mode file-plain`.
     #[arg(long, value_name = "PATH")]
     new_key_path: Option<PathBuf>,
+
+    /// `--mode os-keychain` only: keychain account name (operator
+    /// domain, etc.) under the `polaris.labeler` service.
+    #[arg(long, value_name = "ACCOUNT")]
+    account: Option<String>,
+
+    /// `--mode cloud-kms-oracle` only: KMS region.
+    #[arg(long, value_name = "REGION")]
+    kms_region: Option<String>,
+
+    /// `--mode cloud-kms-oracle` only: KMS alias to re-point at the new
+    /// key (e.g. `alias/polaris-labeler`). The alias swap is the
+    /// rotation primitive — the alias keeps stable while the underlying
+    /// key id changes.
+    #[arg(long, value_name = "ALIAS")]
+    kms_alias: Option<String>,
 
     /// Operator-supplied human-readable reason for the rotation
     /// (logged at INFO).
@@ -207,20 +231,22 @@ async fn run(cli: Cli) -> Result<(), AppError> {
         .map_err(|e| AppError::Internal(anyhow::Error::new(e).context("connecting to Postgres")))?;
     let pool = db.pool().clone();
 
+    let params = build_custody_params(&cli, custody_mode)?;
+
     let mut ctx = if let Some(rotation_id) = cli.resume {
         info!(rotation_id = %rotation_id, "resuming in-flight rotation");
-        RotationContext::resume(pool, rotation_id, custody_mode).await?
+        RotationContext::resume(pool, rotation_id, custody_mode, params).await?
     } else {
         let new_key_path = cli.new_key_path.clone().ok_or_else(|| {
             AppError::User(
-                "--new-key-path is required for a fresh --mode file-plain rotation".to_owned(),
+                "--new-key-path is required for a fresh rotation (used as the staging path for non-file-plain modes)".to_owned(),
             )
         })?;
         info!(
             new_key_path = %new_key_path.display(),
             "seeding a fresh rotation"
         );
-        RotationContext::new_rotation(pool, custody_mode, new_key_path).await?
+        RotationContext::new_rotation(pool, custody_mode, new_key_path, params).await?
     };
 
     ctx.run().await?;
@@ -232,6 +258,59 @@ async fn run(cli: Cli) -> Result<(), AppError> {
         "labeler-key-rotate completed; live server will reload on its next poll tick"
     );
     Ok(())
+}
+
+/// Environment variable the rotation CLI reads for the
+/// passphrase-sealed mode's seal-time passphrase. Mirrors the variable
+/// the signer module reads on unseal so a single operator-side
+/// convention covers both halves of the rotation.
+const PASSPHRASE_ENV: &str = "POLARIS_SIGNING_PASSPHRASE";
+
+/// Assemble the per-mode parameter carrier from CLI flags and env.
+///
+/// Centralises the "which inputs does each mode need?" mapping so the
+/// missing-flag errors surface uniformly as `AppError::User` before
+/// the rotation state machine starts. Passphrase comes from env only
+/// (never argv) per the same threat-model rationale as the read-path
+/// `read_passphrase`.
+fn build_custody_params(cli: &Cli, mode: CustodyMode) -> Result<RotationCustodyParams, AppError> {
+    match mode {
+        CustodyMode::FilePlain => Ok(RotationCustodyParams::FilePlain),
+        CustodyMode::PassphraseSealed => {
+            let passphrase = std::env::var(PASSPHRASE_ENV).map_err(|_| {
+                AppError::User(format!(
+                    "--mode passphrase-sealed requires the {PASSPHRASE_ENV} env var",
+                ))
+            })?;
+            if passphrase.is_empty() {
+                return Err(AppError::User(format!(
+                    "--mode passphrase-sealed: {PASSPHRASE_ENV} is set but empty",
+                )));
+            }
+            Ok(RotationCustodyParams::PassphraseSealed { passphrase })
+        }
+        CustodyMode::OsKeychain => {
+            let account = cli.account.clone().ok_or_else(|| {
+                AppError::User("--mode os-keychain requires --account".to_owned())
+            })?;
+            Ok(RotationCustodyParams::OsKeychain { account })
+        }
+        CustodyMode::CloudKms => {
+            let region = cli.kms_region.clone().ok_or_else(|| {
+                AppError::User("--mode cloud-kms-oracle requires --kms-region".to_owned())
+            })?;
+            let current_alias = cli.kms_alias.clone().ok_or_else(|| {
+                AppError::User("--mode cloud-kms-oracle requires --kms-alias".to_owned())
+            })?;
+            // Only AWS is wired today; GCP/Azure variants surface as
+            // RotationError::Unsupported from the dispatch helper.
+            Ok(RotationCustodyParams::CloudKms {
+                provider: KmsProvider::Aws,
+                region,
+                current_alias,
+            })
+        }
+    }
 }
 
 /// Print every step's intended action for a clean-room plan; do not
@@ -277,10 +356,21 @@ fn print_dry_run(cli: &Cli, mode: CustodyMode) {
     if !matches!(mode, CustodyMode::FilePlain) {
         println!();
         println!(
-            "NOTE: --mode {} is not yet supported in #30; \
-             this dry-run printed the abstract sequence only.",
+            "NOTE: --mode {} requires additional runtime inputs:",
             mode.as_str()
         );
-        println!("      Implementation follow-up tracked as #64.");
+        match mode {
+            CustodyMode::PassphraseSealed => {
+                println!("      POLARIS_SIGNING_PASSPHRASE env var must be set.");
+            }
+            CustodyMode::OsKeychain => {
+                println!("      --account <name> must be supplied.");
+            }
+            CustodyMode::CloudKms => {
+                println!("      --kms-region <r> and --kms-alias <a> must be supplied;");
+                println!("      AWS only — GCP / Azure provider variants are stubs.");
+            }
+            CustodyMode::FilePlain => {}
+        }
     }
 }

@@ -9,7 +9,7 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::ids::{Did, LabelValue, ObservationId, SubjectId};
+use crate::ids::{Did, LabelValue, ModeratorId, ObservationId, SubjectId};
 
 /// The discriminator-with-evidence enum for observations.
 ///
@@ -76,6 +76,31 @@ pub enum ObservationKind {
         /// 0.0–1.0 classifier confidence.
         confidence: f32,
     },
+    /// Moderator-behavior anomaly (`design.md` §9 #1, threat-model T1).
+    ///
+    /// Fires when a moderator's labeled-action count exceeds a configured
+    /// rolling-window threshold — a moderator suddenly labeling 1000
+    /// accounts at 3am is itself an incident. The detector lives in
+    /// `polaris_backend::pattern::moderator_anomaly` and the hook into
+    /// the action-insert path in `polaris_backend::repo::action`.
+    ///
+    /// The observation is attached to a *synthetic subject* whose DID is
+    /// `did:polaris:moderator-anomaly:<moderator_uuid>` (one row per
+    /// moderator). The payload here carries the moderator id verbatim
+    /// so consumers do not need to parse the DID to recover it.
+    ModeratorBehaviorAnomaly {
+        /// Moderator whose behaviour tripped the detector.
+        moderator_id: ModeratorId,
+        /// Count of actions the moderator submitted in the rolling
+        /// window. Carried as `i64` so the wire form matches the
+        /// `count(*)` shape Postgres returns; values are always
+        /// non-negative.
+        action_count: i64,
+        /// Rolling-window size used by the detector when the anomaly
+        /// fired. Carried as `i64` for symmetry with `action_count`
+        /// and to keep the wire form JSON-numeric.
+        window_secs: i64,
+    },
 }
 
 impl ObservationKind {
@@ -89,6 +114,7 @@ impl ObservationKind {
             Self::ReportVolumeAnomaly { .. } => "report_volume_anomaly",
             Self::ExternalLabel { .. } => "external_label",
             Self::ClassifierSignal { .. } => "classifier_signal",
+            Self::ModeratorBehaviorAnomaly { .. } => "moderator_behavior_anomaly",
         }
     }
 }
@@ -161,6 +187,23 @@ mod tests {
         let json = serde_json::to_string(&ok).expect("serialize");
         let back: ObservationKind = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(ok, back);
+    }
+
+    #[test]
+    fn observation_kind_moderator_behavior_anomaly_round_trips_through_serde() {
+        let ok = ObservationKind::ModeratorBehaviorAnomaly {
+            moderator_id: ModeratorId::new(),
+            action_count: 73,
+            window_secs: 3600,
+        };
+        let json = serde_json::to_string(&ok).expect("serialize");
+        assert!(
+            json.contains("\"kind\":\"moderator_behavior_anomaly\""),
+            "expected discriminator in wire form, got {json}",
+        );
+        let back: ObservationKind = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(ok, back);
+        assert_eq!(ok.discriminator(), "moderator_behavior_anomaly");
     }
 
     #[test]

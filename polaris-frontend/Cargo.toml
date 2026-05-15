@@ -74,6 +74,11 @@ reqwest = { workspace = true }
 console_error_panic_hook.workspace = true
 gloo-net.workspace = true
 wasm-bindgen-futures.workspace = true
+# `futures` is workspace-pinned (0.3) and already in the lockfile via leptos;
+# we declare it explicitly here so the dashboard's WebSocket subscription
+# (issue #57) can reach `SinkExt`/`StreamExt` and `channel::oneshot` without
+# leaning on a transitive re-export.
+futures.workspace = true
 # `uuid` (pulled in transitively via `polaris-types`) reaches `getrandom`
 # under wasm32, and `getrandom` 0.3+ refuses to compile for
 # `wasm32-unknown-unknown` without an explicit backend selection. Three

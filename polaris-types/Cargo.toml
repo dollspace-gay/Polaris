@@ -7,9 +7,27 @@ license.workspace = true
 repository.workspace = true
 description = "Polaris-internal types: Subject, Incident, Action, Observation, Report, Moderator."
 
-# INVARIANT (AC-8): polaris-types MUST NOT depend on proto-blue, directly or
-# transitively. These types are plain Rust + serde; ATProto wire types live in
-# polaris-backend and polaris-frontend, not here.
+# DEP POLICY (was AC-8 strict invariant; relaxed by issue #61):
+#
+# Before #61, polaris-types had a hard "no proto-blue, direct or transitive"
+# rule so the domain types (Subject / Incident / Action / Observation /
+# Report) stayed plain-serde and the frontend's dependency graph didn't pull
+# ATProto machinery through this crate.
+#
+# Issue #61 lands one carve-out: the `oauth_config` module hosts the shared
+# `load_client_metadata` loader consumed by both `polaris-backend`'s
+# AtprotoOauthAuthVerifier (#31) and `polaris-publish-labeler-record`'s
+# --oauth flow (#27). The loader returns a `proto_blue::oauth::ClientMetadata`
+# value, so polaris-types takes a direct dep on `proto-blue`. This is *not*
+# a regression in practice: `polaris-frontend` already depends on `proto-blue`
+# at the workspace level for public-read XRPC, so the frontend's dependency
+# graph is unchanged by this edit. The domain types (Subject / Incident /
+# Action / …) still hold no ATProto wire shapes.
+#
+# Reviewer rule for future edits: do not add proto-blue types to any module
+# in this crate other than `oauth_config`. The domain types must stay
+# plain-serde so a future "lift polaris-types onto a target without proto-blue"
+# move (e.g. a no_std embedded build) remains a single-module refactor.
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
@@ -19,9 +37,20 @@ chrono.workspace = true
 # so the `AppealStatus::transition_to` rejection is typed and `Display`-printable
 # without re-implementing the boilerplate. `thiserror` 2.x has no transitive
 # dependencies beyond `proc-macro2` / `quote` / `syn` — all already in the
-# lockfile via the rest of the workspace — so the AC-8 invariant
-# (`polaris-types` must not depend on `proto-blue`) is unaffected.
+# lockfile via the rest of the workspace.
 thiserror.workspace = true
+# Issue #61: shared OAuth client-metadata loader. The `oauth_config` module
+# returns `proto_blue::oauth::ClientMetadata` so the two consumers
+# (polaris-backend's ATProto verifier and the publish-labeler-record CLI)
+# call into a single typed surface. See the DEP POLICY block above for the
+# carve-out rationale.
+proto-blue.workspace = true
+
+[dev-dependencies]
+# `oauth_config` round-trip tests write a JSON fixture to a disposable
+# tempfile and read it back through `load_client_metadata`. Already in the
+# lockfile transitively via testcontainers / proto-blue.
+tempfile = "3"
 
 [lints]
 workspace = true

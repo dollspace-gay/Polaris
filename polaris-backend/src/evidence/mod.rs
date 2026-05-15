@@ -23,10 +23,15 @@
 //!   abstraction the tests mock around.
 
 pub mod blob_store;
+pub mod live_fetcher;
 pub mod worker;
 
+#[cfg(feature = "s3-blob-store")]
+pub use blob_store::S3BlobStore;
 pub use blob_store::{BlobStore, BlobStoreError, InMemoryBlobStore, LocalFsBlobStore};
+pub use live_fetcher::LiveEvidenceFetcher;
 pub use worker::{
-    EvidenceFetcher, EvidenceFetcherError, EvidenceWorker, EvidenceWorkerError, FetchedEvidence,
-    blob_key_for_cid, parse_subject_uri,
+    DEFAULT_MAX_ATTEMPTS, DEFAULT_RETRY_BASE_SECS, EvidenceFetcher, EvidenceFetcherError,
+    EvidenceWorker, EvidenceWorkerError, FetchedEvidence, blob_key_for_cid, parse_subject_uri,
+    retry_delay,
 };
