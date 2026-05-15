@@ -1,0 +1,10 @@
+{
+  "uuid": "47f1038c-6b9b-447b-9aae-e8db9ffb6fc3",
+  "issue_uuid": "93ca336c-b206-49dd-9132-5dc8dbde696b",
+  "author": "TeIq",
+  "content": "Standing-open. Per-commit recheck: aes-gcm 0.11 still 0.11.0-rc.3 on crates.io as of 2026-05-15. Stopgap (6× #[allow(deprecated)] in passphrase_sealed.rs) remains correct. This issue is the only open item after the v1 + follow-up sweep; not actionable until upstream ships stable.",
+  "created_at": "2026-05-15T06:03:09.235287352Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAZ4EmOFWS2pXcmJIwbdkQa8MOVcMUindDR3GiK6b51hOTd1EZRGK4027En7FWAmogeUzx82S3iZB5y30vYyHrBQ=="
+}
