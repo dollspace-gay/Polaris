@@ -1,0 +1,10 @@
+{
+  "uuid": "63be2ce2-a10c-4741-b523-9518d4603554",
+  "issue_uuid": "60248efe-f8bc-41e9-9318-5890504ca02a",
+  "author": "TeIq",
+  "content": "APPROVE-WITH-FOLLOW-UP. Build + clippy + fmt all clean. 5/5 oauth_config tests pass; 13/13 publish-labeler-record integration tests pass. OauthNotYetWired stub fully removed (grep --include='*.rs' returns empty). OAuth path end-to-end: load metadata → OAuthClient::authorize → paste-back URL → callback_with_iss_and_aud → OAuthSession::post putRecord. AC-8 invariant relaxed with documented one-module carve-out in polaris-types for the oauth_config module (alternative was a tiny dedicated crate; carve-out is simpler, narrow, and the domain modules remain plain-serde). Watch in next dispatches: source-of-truth for shared types now permits proto-blue references in policy-scoped modules of polaris-types but NOT in the domain modules.",
+  "created_at": "2026-05-15T02:40:41.336472416Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAy2wXIM3kntU+gQA80s4zC24NL4pAHew1n7zm21fvoHIhFyBFJRBMu1FjfrtIhlBujGgKInCLaCxDLibKDEmJBA=="
+}
