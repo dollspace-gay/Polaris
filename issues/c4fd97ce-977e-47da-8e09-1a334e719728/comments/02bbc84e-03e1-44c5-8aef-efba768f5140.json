@@ -1,0 +1,10 @@
+{
+  "uuid": "02bbc84e-03e1-44c5-8aef-efba768f5140",
+  "issue_uuid": "c4fd97ce-977e-47da-8e09-1a334e719728",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** Extend EvidenceWorker::run loop: in addition to draining 'pending', also drain 'failed' rows where attempt_count < MAX_ATTEMPTS (config) AND enqueued_at + backoff(attempt_count) < now(). Backoff: 2^attempt * 30s base, capped at 24h, ±25% jitter. Need migration 21 to add last_attempt_at TIMESTAMPTZ + max_attempts INT to evidence_jobs (or just compute attempt_count-driven schedule from enqueued_at). Tests: failed job becomes due after backoff window; retry succeeds → status=done; max-attempts reached → status stays failed permanently.",
+  "created_at": "2026-05-15T03:56:34.626101106Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAdrNta0z1uQLDKokDIfI52SgNTiw/i/c4r32IgZhkZecrpWzXdJVOZGISI2RxhdT8NDCLVnh7SKlsAQ8qDR6FDg=="
+}
