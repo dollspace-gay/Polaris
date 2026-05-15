@@ -1,0 +1,10 @@
+{
+  "uuid": "07e2aece-7830-4c30-a3fe-51e6af7de842",
+  "issue_uuid": "bf2f155f-68a5-42fb-8514-9467e95864a1",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** New polaris-frontend/src/pages/login.rs Leptos page: handle input + Continue button + helpful copy. Uses a REAL <form method='POST' action='/auth/atproto/login'> — NOT a fetch() call — so the backend's 303 from #67 redirects the browser through bsky.social and back. Body: { handle: <input value> } as application/x-www-form-urlencoded OR application/json — backend handler expects JSON Body per #67's handler. Need a tiny form-data → JSON shim OR just use a fetch() that follows redirects manually. Check #67's actual signature.",
+  "created_at": "2026-05-15T12:37:37.668331398Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAKbpyCO9ecTBaKyJ1aC2pZyjSwJGtcup2emhQwN93eJMNkLrW+k7E1MDPboHPTNmzgX44i2aZiDptbF+jStOsBQ=="
+}
