@@ -1,0 +1,10 @@
+{
+  "uuid": "2a2a80d4-4d29-4bf2-b192-9343fb66f65a",
+  "issue_uuid": "645224d9-e3f8-49a0-ba14-f98d6a05f6ce",
+  "author": "TeIq",
+  "content": "Closed. New xtask command 'cargo xtask check-wasm-budget' asserts release wasm raw-bytes ≤ POLARIS_WASM_BUDGET_BYTES (default 2 MiB). Current baseline: 1.4 MB raw (66% of budget). Live run output: 'check-wasm-budget: 1393307 bytes raw (66% of 2097152)'. 3 unit tests cover under-budget pass, over-budget error, missing-artifact error-with-hint. Gzip-side gate dropped — operator CDN compression is environment-dependent. CI step wired into wasm-build job after check-wasm-symbols. Build + clippy + fmt clean.",
+  "created_at": "2026-05-15T04:50:22.555971927Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASLQ0MSswn6+Mpd6brEuAgikcpEHAALC+AgxZL9j+jUGsDXL5ieV4+V7KcmHRhhx3cZi2Ztg+hYqZk7aUiV/FAg=="
+}
