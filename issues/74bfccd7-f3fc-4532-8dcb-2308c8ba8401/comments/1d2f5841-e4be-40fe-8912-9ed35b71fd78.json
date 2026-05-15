@@ -1,0 +1,10 @@
+{
+  "uuid": "1d2f5841-e4be-40fe-8912-9ed35b71fd78",
+  "issue_uuid": "74bfccd7-f3fc-4532-8dcb-2308c8ba8401",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence: NotWiredEvidenceFetcher stub fully removed (grep returns empty). 4/4 evidence::live_fetcher::tests pass. Build + clippy clean. Subagent chose single proto_blue::api::com::atproto::sync::get_record call (returns CAR directly with signed-commit root + record + MST proof path) instead of describeRepo+getRecord pair — cleaner. read_car_with_root enforces single-root semantics. $bytes envelope handled in extract_car_bytes seam covered by 3 unit tests (round-trip, missing wrapper, non-base64). IdResolver shares Arc<dyn FetchHandler> with XrpcClient for connection pooling. Existing evidence_worker integration tests unaffected (use SyntheticFetcher).",
+  "created_at": "2026-05-15T04:27:01.567443899Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA4DChIu24qIDGZxAFDfc1cwKJNOnFLL5VjGw48PQsEKUJmFtI9SGsvqDztyN40+kMVm/2m/g1NW4tahxbY78KDA=="
+}
