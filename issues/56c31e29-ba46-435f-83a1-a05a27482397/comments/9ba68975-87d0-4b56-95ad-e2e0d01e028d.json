@@ -1,0 +1,10 @@
+{
+  "uuid": "9ba68975-87d0-4b56-95ad-e2e0d01e028d",
+  "issue_uuid": "56c31e29-ba46-435f-83a1-a05a27482397",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** No existing click-to-reveal/iframe-sandbox component on disk. Ship two pieces: (1) polaris-frontend/src/components/safe_payload.rs — SafePayload component: by default renders a click-to-reveal placeholder; on click reveals content as text (no innerHTML) with explicit guards against auto-load. Embedded URLs that look like images render as text URLs only (no <img> tag), iframes if any are rendered as sandboxed (sandbox='' = strict). (2) polaris-frontend/tests/safe_payload_t5.rs wasm-bindgen-test asserting the three properties. Pure-function predicates extracted as in #54.",
+  "created_at": "2026-05-15T05:36:13.378739132Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAZACLAobsiRC3Q/Y1crS4kFrvXy8f1a7KrYPU+OwuzfSi1oIc8H8YZZ80goE6WmG2n7Ae4mpqAEAyjpP7axggDg=="
+}
