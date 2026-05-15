@@ -1,0 +1,10 @@
+{
+  "uuid": "33bdc6da-9172-4ef1-a402-6b368dc2c0be",
+  "display_id": 78,
+  "title": "Consolidate duplicate canonical-CBOR encoders (emitter.rs + upstream_labels.rs)",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "TeIq",
+  "created_at": "2026-05-15T01:01:02.526650971Z",
+  "updated_at": "2026-05-15T01:01:02.526650971Z"
+}
