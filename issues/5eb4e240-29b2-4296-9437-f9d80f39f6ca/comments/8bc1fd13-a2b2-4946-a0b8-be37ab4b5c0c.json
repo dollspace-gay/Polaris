@@ -1,0 +1,10 @@
+{
+  "uuid": "8bc1fd13-a2b2-4946-a0b8-be37ab4b5c0c",
+  "issue_uuid": "5eb4e240-29b2-4296-9437-f9d80f39f6ca",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** proto_blue_oauth::OAuthSession::refresh() handles DPoP-nonce-rotation internally — consume that primitive, don't rebuild the flow. Implementation: extend AtprotoOauthAuthVerifier with refresh_session(session_token) that loads sessions.refresh_token_enc, unseals via Crypto, deserializes DPoP keypair + refresh_token, builds OAuthSession with OAuthClient + DPoP key, calls .refresh(), re-seals the new token + (possibly rotated) DPoP keypair, UPDATE sessions row. New AuthError variants if needed for OAuth refresh failure. Test: insert sealed session, drive refresh against a wiremock token endpoint that returns DPoP-Nonce header, assert sessions row has updated bytes + last_seen_at.",
+  "created_at": "2026-05-15T02:49:59.991766260Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAIqeuhA/kGvWJTO+m9+DL0N8Kbt4U4tXy7W/2sS6N1AhMA3b2dmISpJHoegbh12DxdB6B4bMENXJmcf8e+fwcBg=="
+}
