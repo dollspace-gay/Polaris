@@ -1,0 +1,10 @@
+{
+  "uuid": "bf630d29-d29d-4e4b-9f51-1d95f26180f1",
+  "display_id": 85,
+  "title": "Backend: /api/setup/* endpoints reusing moderator OAuth session",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-15T12:36:37.470410346Z",
+  "updated_at": "2026-05-15T12:36:37.470410346Z"
+}
