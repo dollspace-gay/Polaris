@@ -1,0 +1,10 @@
+{
+  "uuid": "38a4d123-c363-4165-951c-050e56a115ff",
+  "issue_uuid": "bf630d29-d29d-4e4b-9f51-1d95f26180f1",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** New polaris-backend/src/api/setup.rs. All 4 endpoints authed + require admin role. Reuse moderator's OAuth session by unsealing sessions.refresh_token_enc (SerializedSessionState bundle: dpop_keypair_jwk_json + TokenSet) per call, reconstruct OAuthSession, drive via session.post. generate-key writes K-256 to operator-configured path + records in new polaris_setup_state migration. publish-labeler-record reuses build_labeler_service_record from polaris-publish-labeler-record::lib. submit-plc reuses build_did_web_document → service+verificationMethods builders from polaris-publish-did-service::lib. Integration tests with MockFetcher mirroring tests/atproto_refresh.rs pattern.",
+  "created_at": "2026-05-15T13:23:10.541215208Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABArRC4cD/NZw4iZ+FOR8kAkjhJcFhcsRKPidvYpIcmOp6SgAeUuSVmynsIc5GFpyxk6VISHoobh2m0Lqo/0xtoBw=="
+}
