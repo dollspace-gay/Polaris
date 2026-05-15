@@ -1,0 +1,10 @@
+{
+  "uuid": "f74153e8-1c0f-476c-81b4-e773eb5c6a8a",
+  "issue_uuid": "5eb4e240-29b2-4296-9437-f9d80f39f6ca",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence: build + clippy + fmt clean. 3/3 atproto_refresh tests pass: rotates_bundle_and_extends_expiry (DPoP-nonce-rotation retry path proven via MockFetcher 400-then-200 queue), unknown_token_returns_session_not_found, tampered_bundle_returns_crypto_error. proto_blue_oauth::OAuthSession::refresh() owns the DPoP-nonce dance internally — no hand-rolled JWT. Sealed bundle now carries (dpop_keypair_jwk_json + TokenSet); re-sealed atomically on refresh. SessionStore::ttl() accessor introduced for the Polaris-vs-AS-token-TTL decoupling. New AuthError::OauthRefreshFailed variant.",
+  "created_at": "2026-05-15T03:09:01.448320252Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAyHR9wO1adw1BnlPzWoH5k5wZ5Jbe35jcaQUTmNyw99fezNhgqjLdn/Z6sEgxG3yumx6uIsMg34TEOrrVnsv4CA=="
+}
