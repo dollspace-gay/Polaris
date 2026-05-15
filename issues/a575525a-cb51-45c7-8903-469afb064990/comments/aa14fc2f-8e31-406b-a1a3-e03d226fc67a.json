@@ -1,0 +1,10 @@
+{
+  "uuid": "aa14fc2f-8e31-406b-a1a3-e03d226fc67a",
+  "issue_uuid": "a575525a-cb51-45c7-8903-469afb064990",
+  "author": "TeIq",
+  "content": "APPROVE. OAuth path landed; 9/9 lib + 5/5 main unit + 9/9 integration tests pass including the two new cli_oauth_* assertions. select_auth_mode mirrors polaris-publish-labeler-record exactly. AuthMode::AppPassword now carries SecretString (zeroized + redacted Debug). Three PDS posts via OAuthSession::post against {pds}/xrpc/com.atproto.identity.{requestPlcOperationSignature,signPlcOperation,submitPlcOperation}. Build + clippy + fmt clean.",
+  "created_at": "2026-05-15T12:05:50.136847489Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABADt2+DEhlWsZf6IuePZsJzDrmvU7yW+uR7pK+gT0n8PGIn4ophBZTHphdyBFfxA801Rc/3kpzShUmZVEmLUsaAw=="
+}
