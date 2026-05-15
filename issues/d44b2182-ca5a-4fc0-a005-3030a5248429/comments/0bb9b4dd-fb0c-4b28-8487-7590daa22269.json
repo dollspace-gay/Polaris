@@ -1,0 +1,10 @@
+{
+  "uuid": "0bb9b4dd-fb0c-4b28-8487-7590daa22269",
+  "issue_uuid": "d44b2182-ca5a-4fc0-a005-3030a5248429",
+  "author": "TeIq",
+  "content": "APPROVE. 13/13 pages::setup unit tests pass (advance state machine, parse_label_values, default_service_url, handle_api_error, all step structures build clean). Native+wasm32 build/clippy clean. fmt exit 0. Boundary 0/30. SetupWizard mounted at /setup; / now routes via RootRoute consulting /api/whoami. 5 new client methods (whoami + 4 setup endpoints); 7 new DTOs in dto.rs with 8/8 serde round-trip tests pass.",
+  "created_at": "2026-05-15T13:22:41.445573966Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA7SGDUJD54vPyihj69LlQzlXY58Ok2tybELNdDnPN6QXKbWz6rI+XevGIuKBa30sKu/xe+GyKjKHFMziYgvjqBA=="
+}
