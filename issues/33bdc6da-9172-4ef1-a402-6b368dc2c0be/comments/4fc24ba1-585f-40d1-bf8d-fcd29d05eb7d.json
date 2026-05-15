@@ -1,0 +1,10 @@
+{
+  "uuid": "4fc24ba1-585f-40d1-bf8d-fcd29d05eb7d",
+  "issue_uuid": "33bdc6da-9172-4ef1-a402-6b368dc2c0be",
+  "author": "TeIq",
+  "content": "Closed. Mechanical extract-and-merge per architect-skill 'When to skip' (refactor with no design choice). New polaris-backend/src/labeler/canonicalize.rs is the single source of truth for signature-canonical Label DAG-CBOR bytes; both producer (labeler/emitter.rs::encode_canonical) and consumer (ingest/upstream_labels.rs::encode_label_canonical) now thin-shim to it. Public CanonicalizeError type kept opaque so each caller converts to its own typed error (EmitterError::Encode / HandleError::CanonicalEncode). 2/2 new canonicalize tests pass (encode_is_deterministic, encode_omits_sig_field). 8/8 emitter regression tests pass. Build + clippy + fmt clean.",
+  "created_at": "2026-05-15T06:02:33.157664411Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAhVkuFaWtYKE+YLVfRQUsPYWsx+dp8V4VDJk2EvWFPr4wfd74wGv2ip85JWjTFZCCJyGHMhiYIe6jV/47b9yOAg=="
+}
