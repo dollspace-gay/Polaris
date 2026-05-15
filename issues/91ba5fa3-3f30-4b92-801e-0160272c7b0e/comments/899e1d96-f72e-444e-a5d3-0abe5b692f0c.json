@@ -1,0 +1,10 @@
+{
+  "uuid": "899e1d96-f72e-444e-a5d3-0abe5b692f0c",
+  "issue_uuid": "91ba5fa3-3f30-4b92-801e-0160272c7b0e",
+  "author": "TeIq",
+  "content": "APPROVE-WITH-FINDING. Independent evidence: 3/3 labels_xrpc_live pass in 2.84s (backfill_delivers_seeded_labels_in_seq_order, live_fan_out_delivers_post_connect_emit, lagged_consumer_recovers_via_db_walk_forward), 2/2 labels_xrpc regression pass, clippy clean, fmt exit 0, xtask boundary 0 violations. CRITICAL PRODUCTION FINDING surfaced by proto-blue primitive check: encode_labels_frame was emitting non-canonical DAG-CBOR (wrong key order + sig as array<int> not bytes). External AppViews using proto-blue or @atproto TS SDK would have FAILED to decode Polaris labels. Migrated to proto_blue::ws::Frame::encode + LexValue::Map — proven canonical via round-trip through Frame::decode. This invalidates earlier proto-blue audit's 'architecturally justified deviation' on labeler/server.rs:639 — it was a real interop bug. Lagged-consumer behavior pinned: recover via DB walk-forward (not drop), matching production design at server.rs:593.",
+  "created_at": "2026-05-15T02:09:31.919959938Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA1NsfHsOQee6LsqkjQsaACfKBH/PEoplwd6Yrtnn1oqrZMnq8iqBoo5i94rGCu3UOSgKWVGXSclDiIhxh6S6/DQ=="
+}
