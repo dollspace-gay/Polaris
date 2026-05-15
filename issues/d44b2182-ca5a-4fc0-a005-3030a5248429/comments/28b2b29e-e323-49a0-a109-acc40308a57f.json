@@ -1,0 +1,10 @@
+{
+  "uuid": "28b2b29e-e323-49a0-a109-acc40308a57f",
+  "issue_uuid": "d44b2182-ca5a-4fc0-a005-3030a5248429",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** polaris-frontend/src/pages/setup.rs with 3 step components: 1) generate-key (button → POST /api/setup/generate-key, displays did:key on success), 2) publish-labeler-record (form: service-url + label-values input → POST /api/setup/publish-labeler-record), 3) publish-did-service (button → POST /api/setup/request-plc-signature, displays 'check email', text input for token, button → POST /api/setup/submit-plc-operation). Step transitions in Leptos signal. /api/setup/* endpoints land in #85 — frontend defines DTO shapes in api_client/dto.rs to align. Route added to app.rs. /  redirects to /setup when whoami.first_run.",
+  "created_at": "2026-05-15T13:10:45.358649522Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAL421VT+qrU71/szfItyM2ZP3AxhkbAIykput0KYVS1DA1gKY80B+HwfZ3GgY6m9GqafE93rSPv41SJf939IIDw=="
+}
