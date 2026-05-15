@@ -1,0 +1,10 @@
+{
+  "uuid": "b2fa490f-dcf8-497a-b64e-05a6f7c53e42",
+  "issue_uuid": "dfbd7f51-cc87-48fd-a72c-7b1f3bd43a5a",
+  "author": "TeIq",
+  "content": "Implementation complete (issue #60).\n\nCrate: polaris-publish-did-service (new workspace member).\n\nLibrary surface (src/lib.rs):\n- build_did_web_document(handle, did_pds_endpoint, signing_pubkey_did, service_url) -> Result<serde_json::Value, BuildError>\n- validate_did_document(doc, expected_service_url, expected_signing_pubkey_did) -> Result<(), ValidationError>\n- Typed error enums (thiserror). 9 unit tests covering happy path + negative cases.\n\nBinary surface (src/main.rs): clap CLI with --account, --service-url, --signing-key, --did-method=plc|web. did:web emits .well-known/did.json JSON to stdout; did:plc walks the proto-blue PLC operation triad (request_plc_operation_signature -> emailed token via stdin/--token/POLARIS_PLC_TOKEN -> sign_plc_operation -> submit_plc_operation) using generated types only. Tracing routed to stderr.\n\nEvidence floor (all pass): build, clippy -D warnings, fmt --check, 16 tests, --help documents flag values, xtask check-frontend-boundary 0 violations.\n\nForbidden patterns: no unwrap/expect outside cfg(test), no hand-rolled PLC JSON, no secrets in argv, no commits.",
+  "created_at": "2026-05-15T02:20:47.584575842Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAhSrbThL7+TOxyqcNPlngNUmvXn0Oftc+qDNQTjx17UVMsWvn4mCB01HfBpdKBt2F2LGIfDOhSJcaqoHJIT83AQ=="
+}
