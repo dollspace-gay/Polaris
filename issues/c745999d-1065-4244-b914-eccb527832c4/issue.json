@@ -1,0 +1,10 @@
+{
+  "uuid": "c745999d-1065-4244-b914-eccb527832c4",
+  "display_id": 81,
+  "title": "Serve OAuth client_metadata.json from Polaris itself",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-15T12:06:28.107934984Z",
+  "updated_at": "2026-05-15T12:06:28.107934984Z"
+}
