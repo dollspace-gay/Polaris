@@ -1,0 +1,10 @@
+{
+  "uuid": "ebcbfaf3-d828-46a6-afe6-ce07056d6d13",
+  "issue_uuid": "c127d627-33ff-44d3-b4f9-f2636c772864",
+  "author": "TeIq",
+  "content": "APPROVE. 2/2 first_run_admin pass: first_atproto_oauth_login_grants_admin_role + second_oauth_login_does_not_grant_admin (audit count stays 1 after second login). 3/3 whoami pass: 401 without session, first_run=true on empty DB with admin role, first_run=false after action row. Build/clippy/fmt clean. maybe_grant_first_user_admin helper inside complete_login_impl tx + audit log entry atomic.",
+  "created_at": "2026-05-15T13:10:14.672163878Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAya8FS3UXp8+yENUuA8xYBS/FueAUQ4Ot3VoiZKwNRv2Fo+WWdjdDivn3MUZVJXta0xum34aARuc12KZuugAbBA=="
+}
