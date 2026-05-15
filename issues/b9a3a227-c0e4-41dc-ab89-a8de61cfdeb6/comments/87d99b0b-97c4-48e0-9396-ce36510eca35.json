@@ -1,0 +1,10 @@
+{
+  "uuid": "87d99b0b-97c4-48e0-9396-ce36510eca35",
+  "issue_uuid": "b9a3a227-c0e4-41dc-ab89-a8de61cfdeb6",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence: 14/14 pattern::anomaly lib tests pass (weighted_equivalence_unit_weight_vs_half_weight + low_rep_flood_does_not_emit_legit_burst_does prove the binding T3-mitigation contract; existing Welford-stability + dedup + proptest cases preserved). Native + wasm32 clippy clean. Welford running stats reshape u64→f64 preserved verbatim. AnomalyObservation.weighted_volume: f64 replaces current_count: u64. Hook opt-in via PgReportRepo::with_anomaly_detector + with_reputation builders. score_for_observe centralises 0.5 neutral-prior fallback. Non-finite/negative weights silently dropped (defense-in-depth).",
+  "created_at": "2026-05-15T05:57:05.108690552Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA79/IkiY4oog3dqbu5gAd5S6ivgfYPzjUlhHIBqFFrbFRrIOSZBmeSi6Cf8RkrwnWWXS0kzWW0byu/MGT36QcAA=="
+}
