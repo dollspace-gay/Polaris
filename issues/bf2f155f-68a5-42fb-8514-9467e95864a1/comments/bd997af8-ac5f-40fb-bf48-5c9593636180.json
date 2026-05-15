@@ -1,0 +1,10 @@
+{
+  "uuid": "bd997af8-ac5f-40fb-bf48-5c9593636180",
+  "issue_uuid": "bf2f155f-68a5-42fb-8514-9467e95864a1",
+  "author": "TeIq",
+  "content": "APPROVE. Login page + 401-redirect wiring + form-urlencoded backend extractor. Build/clippy/fmt clean. 4/4 auth_atproto_http tests pass with form bodies. 29 files boundary-clean. /login route registered.",
+  "created_at": "2026-05-15T12:46:57.825419847Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAqu1mKSBudcxKlKF5q+4cay0+06jNGMZ0ga3Zvl4ocMWvTAFi58P05XKlfY5ZlUbHVbZXnJ6xR1x5EtpKx7TmCQ=="
+}
