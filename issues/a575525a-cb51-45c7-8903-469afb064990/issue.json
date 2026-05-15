@@ -2,11 +2,12 @@
   "uuid": "a575525a-cb51-45c7-8903-469afb064990",
   "display_id": 80,
   "title": "polaris-publish-did-service needs OAuth path — PLC ops reject app-password scope",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-15T11:23:25.457282747Z",
-  "updated_at": "2026-05-15T11:23:26.823179557Z",
+  "updated_at": "2026-05-15T12:05:51.727343827Z",
+  "closed_at": "2026-05-15T12:05:51.727343827Z",
   "labels": [
     "bug"
   ]
