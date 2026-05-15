@@ -2,11 +2,12 @@
   "uuid": "e2e18a5e-932f-4511-a047-29bae7746d63",
   "display_id": 67,
   "title": "HTTP handlers for /auth/atproto/{login,callback}",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-14T19:51:18.434913523Z",
-  "updated_at": "2026-05-14T19:51:19.611006218Z",
+  "updated_at": "2026-05-15T03:23:02.159710470Z",
+  "closed_at": "2026-05-15T03:23:02.159710470Z",
   "labels": [
     "enhancement"
   ]
