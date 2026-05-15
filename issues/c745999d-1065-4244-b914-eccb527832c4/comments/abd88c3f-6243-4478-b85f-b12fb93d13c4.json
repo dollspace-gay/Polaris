@@ -1,0 +1,10 @@
+{
+  "uuid": "abd88c3f-6243-4478-b85f-b12fb93d13c4",
+  "issue_uuid": "c745999d-1065-4244-b914-eccb527832c4",
+  "author": "TeIq",
+  "content": "Closed. /oauth/client-metadata.json route landed in commit 0ffede1 (this turn): ClientMetadataState in polaris-backend/src/api/oauth_metadata.rs, FromRef impl on ApiState, with_oauth_client_metadata builder, main.rs loads via polaris_types::oauth_config::load_client_metadata at startup. 2/2 unit tests pass. Verified end-to-end: curl http://127.0.0.1:8080/oauth/client-metadata.json returns 200 with full JSON. Build clean.",
+  "created_at": "2026-05-15T14:07:31.621673811Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAVWoFGG4B2sf5QJouIH61MVa4nTNSa96FNTrrWmqY5K35RTogEZ3hbJn6taymmr1adiQ8UZDPjAYDhknBCAvGBQ=="
+}
