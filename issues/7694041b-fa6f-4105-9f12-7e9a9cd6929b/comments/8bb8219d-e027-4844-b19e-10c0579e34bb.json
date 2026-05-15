@@ -1,0 +1,10 @@
+{
+  "uuid": "8bb8219d-e027-4844-b19e-10c0579e34bb",
+  "issue_uuid": "7694041b-fa6f-4105-9f12-7e9a9cd6929b",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence floor green: 4/4 firehose_reconnect tests pass in 4.38s (well under 30s AC-9 budget). Critical production-code finding: FirehoseWorker's main select! had a latent cancel-safety bug — firehose.next_event() is not cancel-safe during connect-phase backoff. The 100ms flush cadence dropped the connect sleep on every poll, starving the connection forever. Fix: pump-task pattern (proto-blue Firehose owned by spawned task, events forwarded over bounded mpsc; worker's select! now over cancel-safe channel recv + flush timer + cancel token). AC-9 binding now holds: post-reconnect events all carry seq > 8, persisted cursor matches disconnect point, exactly 2 connections in 4.38s. Fixture uses proto_blue_ws::frame::MessageFrame::encode() correctly — the original 0-events symptom was the worker-side starvation, not the wire format.",
+  "created_at": "2026-05-15T00:58:47.114096385Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAnLfoHIEx6ZWB8b9dl0HoZp8uXiK8tBAmy4ARWr/7XGi9T+BoNMGs/R9FGfmxp5KOYeAmqdI3claJ8Iu9fI8vCQ=="
+}
