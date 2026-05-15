@@ -1,0 +1,10 @@
+{
+  "uuid": "6f27324d-6b44-4a1b-b8b9-5d45d9107463",
+  "issue_uuid": "6154a496-bd79-4d57-ab74-018a31ae5f52",
+  "author": "TeIq",
+  "content": "APPROVE. Independent evidence floor green: workspace build clean, wasm32 build clean, clippy clean, fmt exit 0 (6 trivial line-wraps applied via cargo fmt), 12/12 dashboard lib tests pass (incl. new dashboard_ws::publish_dashboard_event_goes_through_bus), xtask boundary 0 violations. Backend dashboard_ws.rs + DashboardEvent enum + EventBus subscription with RAII drop on WS close. Frontend gloo-net WebSocket subscription with onclose fallback to existing polling LocalResource, exponential backoff. Proto-blue check: not applicable — internal Polaris dashboard, not ATProto subscription wire-format; proto-blue-ws would be wrong tool.",
+  "created_at": "2026-05-15T01:51:41.635186638Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAznYV7X9asB6dIxPXrzGhyrzNTh/M1736ePNXTnEhZlUO61KP7ih3dzc9W8lecir12hsBxiSpyFzIyKsd8K6PBg=="
+}
