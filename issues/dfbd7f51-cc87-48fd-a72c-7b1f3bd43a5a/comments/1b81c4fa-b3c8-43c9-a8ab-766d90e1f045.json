@@ -1,0 +1,10 @@
+{
+  "uuid": "1b81c4fa-b3c8-43c9-a8ab-766d90e1f045",
+  "issue_uuid": "dfbd7f51-cc87-48fd-a72c-7b1f3bd43a5a",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** Proto-blue check: proto_blue_api::generated::com::atproto::identity::{signPlcOperation, submitPlcOperation, requestPlcOperationSignature} provide the full PLC operation surface. New binary polaris-publish-did-service in workspace. CLI: --account <handle/did> --service-url --signing-key <did:key:> --did-method <plc|web>. For did:plc: request signature via requestPlcOperationSignature → fetch from operator's email → signPlcOperation → submitPlcOperation. For did:web: print the well-known/.well-known/did.json JSON for the operator to host. Validates the resulting DID document contains a verification entry for #atproto_labeler pointing at the service_url.",
+  "created_at": "2026-05-15T02:12:31.337966829Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAL85bjySc//nB01txczHm+MDIdLIq0TxLddyyOVU73JabUzOHKchjipJZOG3/qXSfJx8Qvza0u5DzKW06CAHxCg=="
+}
