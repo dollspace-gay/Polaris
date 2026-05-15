@@ -1,0 +1,10 @@
+{
+  "uuid": "605733a8-4c59-49f4-b6a6-22c6650d7b51",
+  "issue_uuid": "13910b53-5fd6-4c17-b0ee-3ff5e4f0cb9d",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect).** Two integration test files: bus_kafka_integration.rs + bus_nats_integration.rs. Each spawns testcontainers broker, instantiates the bus backend, publishes N envelopes, subscribes, asserts bincode round-trip + bounded backpressure. Feature-gated. Kafka image takes 30-60s to come ready — wall-budget 60s. Module-level test-code allows for unwrap/expect.",
+  "created_at": "2026-05-15T01:19:45.343063127Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABATJ8ZnQqQ8DqEg8cEHhJm5LNJE3uqM+Iy0Ly8+/BWYGR11akpFb1ZHUg6KwyVrn60OPtNtzHIMt83tktWrzURDg=="
+}
