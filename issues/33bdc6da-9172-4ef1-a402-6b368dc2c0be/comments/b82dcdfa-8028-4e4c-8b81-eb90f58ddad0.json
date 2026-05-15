@@ -1,0 +1,10 @@
+{
+  "uuid": "b82dcdfa-8028-4e4c-8b81-eb90f58ddad0",
+  "issue_uuid": "33bdc6da-9172-4ef1-a402-6b368dc2c0be",
+  "author": "TeIq",
+  "content": "Origin: proto-blue reuse audit during #51. Two functions perform identical ProtoLabel → serde_json::Value → lex_json::LexValue → lex_cbor bytes transformation: polaris-backend/src/labeler/emitter.rs:542 (encode_canonical) and polaris-backend/src/ingest/upstream_labels.rs:727 (encode_label_canonical). Both are on the signature-canonicality path; if one drifts, signed labels could fail to verify against externally-signed labels. Fix: extract to polaris-backend/src/labeler/canonicalize.rs as the single source of truth; both consumers import. No public API change.",
+  "created_at": "2026-05-15T01:01:18.843851220Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAI/2BuBsyoHT6qf+Y/Yj7ZUObzkLcygfFr7QNW3itLqlget1GB9W7dV+PkI1UyQXS9FnmYkZzzYAUqi/2GYhWCg=="
+}
