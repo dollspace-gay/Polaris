@@ -1,0 +1,10 @@
+{
+  "uuid": "c48dff9f-eec6-438b-b588-39c65b985ce7",
+  "issue_uuid": "2b58dfbd-2ddb-4c4d-806c-dbfe59f3776d",
+  "author": "TeIq",
+  "content": "**Pre-flight (architect, rust-quality applied).** Complete S3BlobStore stub at polaris-backend/src/evidence/blob_store.rs: implement put via PutObjectFluentBuilder, get via GetObjectFluentBuilder, exists via HeadObjectFluentBuilder. Path prefix: bucket-relative 'evidence/{hash[0..2]}/{full-hash}'. Integration test via testcontainers-modules MinIO (s3-compatible); feature-gated #[cfg(feature = \"s3-blob-store\")]. Errors → BlobStoreError::S3 with source preserved.",
+  "created_at": "2026-05-15T03:23:30.803125168Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAqNwtPP3JM5ZQ2o0qbnN+oLtO8iRhbJ6gRFUUzUPfB9OqJaBr+w3W0qhbmXcDqOMbDrx7wQu0DLWrmjzVjjxRBA=="
+}
