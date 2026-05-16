@@ -1,0 +1,10 @@
+{
+  "uuid": "5d014ece-75af-4596-8639-2424cc4a6954",
+  "issue_uuid": "3396aa3a-f82e-4479-b8a2-f301724beed7",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/46-ozone-migration.md — REQ-7, AC-5 + decomposition PR 5.\n\n## Surface\n- `polaris-ozone-import/src/verify.rs`\n- New subcommand: `polaris-ozone-import verify --source <dump> --target <db>`\n- Reports per-table row counts and per-table SHA-256 over a deterministic sample of fields.\n\n## Rust-quality notes\n- The deterministic sample is `ORDER BY id LIMIT 10000` per source table — guarantees identical sample selection on source and target.\n- SHA-256 via `sha2` crate (workspace dep verify before adding).\n- Per rust-quality §3: verify subcommand returns `Result<VerifyReport, VerifyError>`; the main reports `VerifyReport::has_discrepancies()` as the exit code.\n- The report struct is `Serialize`-derived so `--format json` outputs machine-readable for CI/ops scripting.\n- Per rust-quality §7: integration test deliberately tampers a row in the target post-import; verify subcommand catches it.\n\n## External references\n- sha2 crate: https://docs.rs/sha2/latest/sha2/\n- Deterministic ordering in Postgres: ORDER BY id is stable iff id is monotonically inserted\n\n## Acceptance (AC-5)\n- [ ] `polaris-ozone-import verify` on a clean migration exits 0 with `discrepancies: 0`.\n- [ ] Tampered target: verify exits non-zero with the row ID + column name of the first discrepancy.\n\n## Blocks / blocked-by\n- Blocked by #138.\n- Blocks #140 (audit-log integration runs after a successful import + verify).",
+  "created_at": "2026-05-16T13:50:42.147479095Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAiNFtsOkj1dcB223miRbawxpmQ6gvn6T1WrJEtMNAwnv/FTAoS5fYla5794SNYO7M2Z0p61f2lhu3v54HGrgcCw=="
+}
