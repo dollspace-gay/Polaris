@@ -1,0 +1,10 @@
+{
+  "uuid": "f83bd195-1cc1-4f84-9fb3-344bc67aace4",
+  "issue_uuid": "97241043-51d9-4069-b424-cd97a6fb536e",
+  "author": "TeIq",
+  "content": "CLOSED as DOCUMENTED-ARCHITECTURAL. call-senior OS dialer + oncall_schedule lookup depends on the mobile shell (#117). The schema additions (oncall_schedule table + moderators.phone_e164 column) are tracked for when operator-side shell development starts; the PhoneE164 newtype + privacy boundary (drop at federation mapping per #103) is the type-system contract. Resume when the shell is up.",
+  "created_at": "2026-05-16T20:06:18.732364828Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABABjyQutDYdKPf7DLDpJC1ClqKWNGud4psWfPnj+10wyWToSjDdenpwQKl/ck2xALlRXGSqwe7Ntk3Oc86yHLDBg=="
+}
