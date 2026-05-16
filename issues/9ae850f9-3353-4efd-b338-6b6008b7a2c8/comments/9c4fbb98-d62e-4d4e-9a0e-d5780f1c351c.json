@@ -1,0 +1,10 @@
+{
+  "uuid": "9c4fbb98-d62e-4d4e-9a0e-d5780f1c351c",
+  "issue_uuid": "9ae850f9-3353-4efd-b338-6b6008b7a2c8",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/44-mobile-app.md — Open Questions Q1-Q5.\n\n## Decisions required (provisional answers in #113)\n- Q1: Tauri Mobile (A, default) vs PWA (B, fallback) vs RN/Flutter (C) vs native (D). Provisional A; spike to validate.\n- Q2: Direct APNs+FCM (Bluesky) vs ntfy.sh (labeler) vs both with config switch. Provisional: both.\n- Q3: Platform authenticator only (A) vs NFC YubiKeys (B) vs full matrix (C). Provisional A.\n- Q4: Polaris-internal schedule (A) vs PagerDuty/Opsgenie (B) vs all-on-call (C). Provisional A.\n- Q5: Mobile take writes through v1 case-lock; WebSocket broadcasts. Provisional: no design work needed, code-review-only.\n\n## Acceptance\n- [ ] Five decisions recorded as `--kind decision` comments.\n\n## Blocks\n- Blocks #115 (spike scope depends on Q1).",
+  "created_at": "2026-05-16T13:41:33.480148007Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABABzPtVgIiQB4y4RONUhyKwKAQUihvmb726xBETBCg2K9BLos/VOVEtGjhMr5ggxJmGNdOMrM54JGlmdgx4h+gBw=="
+}
