@@ -3,6 +3,7 @@ members = [
     "polaris-types",
     "polaris-backend",
     "polaris-frontend",
+    "polaris-lexicons",
     "polaris-publish-labeler-record",
     "polaris-publish-did-service",
     "xtask",
@@ -50,7 +51,13 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7"
 
 # Frontend
-leptos = "0.8"
+# `csr` enables `reactive_graph/effects` and the `leptos_macro/csr` arm,
+# which together let reactive components like `<Router>`, `<Routes>`,
+# `<Suspense>`, `<Show>`, and any `LocalResource` consumer mount their
+# children. Leptos 0.8 ships NO default features, so without this the
+# bundle renders only static DOM and every dynamic subtree stays empty —
+# the symptom is a blank page with a single static parent element.
+leptos = { version = "0.8", features = ["csr"] }
 
 # Frontend: client-side routing (matches leptos major).
 # leptos_router 0.8.13 (crates.io 2026-05-14): MIT, depends on leptos 0.8.
@@ -87,6 +94,12 @@ web-sys = { version = "0.3", features = [
     "RequestInit",
     "RequestCredentials",
     "Response",
+    # `Storage` powers the per-tab exposure-counter persistence used by
+    # `polaris_frontend::components::exposure_counter` (issue #95 / mod-
+    # workstation feature #5). The counter writes a small JSON blob to
+    # `sessionStorage` so a tab refresh does not reset accumulated
+    # exposure, but a tab close (= end of moderation session) does.
+    "Storage",
 ] }
 
 # Frontend: browser `fetch()` wrapper used by `PolarisApiClient` on wasm.
@@ -249,7 +262,7 @@ secrecy = { version = "0.10", features = ["serde"] }
 # tower-http 0.6.10 (crates.io 2026-05-14) is already in the lockfile via
 # axum-extra; declaring it at the workspace level lets the backend opt into
 # the `trace` and `auth` feature subsets directly.
-tower-http = { version = "0.6", features = ["trace", "auth"] }
+tower-http = { version = "0.6", features = ["trace", "auth", "fs"] }
 
 # Event bus (#16). The bus is the seam between event producers (firehose
 # ingest, upstream-labeler consumer) and consumers (pattern engine, evidence
@@ -379,6 +392,30 @@ aws-sdk-s3 = { version = "1", default-features = false, features = [
     "rt-tokio",
     "behavior-version-latest",
 ] }
+
+# Observability — metrics surface (Workstream D, REQ-D2).
+#
+# `metrics` 0.24.x (crates.io 2026-05-15): MIT/Apache-2.0. The de-facto Rust
+# metrics facade — handlers emit through `metrics::counter!` / `metrics::gauge!`
+# macros and the recorder (set once at process startup) routes the samples to
+# the configured backend. Workspace-pinned so the producer-slice business
+# counters (`polaris_actions_total`, `polaris_labels_emitted_total`, …) and
+# the auto-instrumented HTTP-level series from `axum-prometheus` share one
+# recorder.
+metrics = "0.24"
+
+# `metrics-exporter-prometheus` 0.18.x (crates.io 2026-05-15): MIT/Apache-2.0.
+# The Prometheus text-exposition backend for the `metrics` facade. We install
+# the recorder once at boot via `PrometheusBuilder::new().install_recorder()`
+# (NOT `.install()` which spawns its own HTTP server) and serve the handle's
+# `.render()` output from `/metrics` ourselves.
+metrics-exporter-prometheus = "0.18"
+
+# `axum-prometheus` 0.10.x (crates.io 2026-05-15): MIT. The tower middleware
+# that auto-instruments every HTTP request with `axum_http_requests_total` +
+# `axum_http_requests_duration_seconds` series. Layered on the merged router
+# in `main.rs` so the recorder installed above sees every request.
+axum-prometheus = "0.10"
 
 # Hardware-key (WebAuthn / FIDO2) gate (issue #40, design.md §6 + §9.1).
 # `webauthn-rs` 0.5.5 (crates.io 2026-05-14): MPL-2.0. 0.5 is the stable

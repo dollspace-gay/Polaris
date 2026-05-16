@@ -1,0 +1,3 @@
+# polaris-lexicons
+
+Generated Rust types for the `gay.dollspace.polaris.*` AT Protocol Lexicons. Every type in `src/generated/` is produced by [`proto-blue-codegen`](https://github.com/dollspace-gay/proto-blue) from the JSON sources in `lexicons/polaris/` — do not edit the generated files by hand; a CI diff gate enforces this. To regenerate after editing a Lexicon JSON, run `cargo xtask gen-lexicons` from the workspace root. See [`lexicons/README.md`](../lexicons/README.md) for the wire-format policy, the privacy boundary rules, and the design decisions that govern which fields may cross Polaris instance boundaries.

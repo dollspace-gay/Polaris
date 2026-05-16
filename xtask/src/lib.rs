@@ -13,3 +13,6 @@ pub mod audit_verify;
 pub mod check_frontend_boundary;
 pub mod check_wasm_budget;
 pub mod check_wasm_symbols;
+pub mod gen_lexicons;
+pub mod lexicon_contract;
+pub mod smoke_local;

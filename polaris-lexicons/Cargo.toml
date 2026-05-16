@@ -1,0 +1,16 @@
+[package]
+name = "polaris-lexicons"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Generated Rust types for the gay.dollspace.polaris.* AT Protocol Lexicons."
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+
+[lints]
+workspace = true
