@@ -54,6 +54,11 @@ pub mod evidence;
 /// signatures, and materialises records into `federation_quarantine`.
 pub mod federation;
 pub mod ingest;
+/// Mobile push-notification subsystem (issue #116 / M5 #44 PR 2).
+///
+/// APNs / FCM / ntfy.sh dispatchers behind the [`notifications::PushProvider`]
+/// trait. Push payloads carry NO PII per AC-8 / REQ-8.
+pub mod notifications;
 pub mod labeler;
 pub mod middleware;
 pub mod pattern;
