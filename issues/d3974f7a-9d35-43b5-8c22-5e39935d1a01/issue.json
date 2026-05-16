@@ -2,11 +2,12 @@
   "uuid": "d3974f7a-9d35-43b5-8c22-5e39935d1a01",
   "display_id": 92,
   "title": "Mod workstation #2: Ctrl-K command palette (subsumes ad-hoc subject lookup)",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-16T01:48:06.232507712Z",
-  "updated_at": "2026-05-16T01:48:07.480726700Z",
+  "updated_at": "2026-05-16T02:38:30.832784312Z",
+  "closed_at": "2026-05-16T02:38:30.832784312Z",
   "labels": [
     "feature"
   ]
