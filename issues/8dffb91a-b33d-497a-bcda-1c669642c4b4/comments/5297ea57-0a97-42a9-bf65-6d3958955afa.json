@@ -1,0 +1,10 @@
+{
+  "uuid": "5297ea57-0a97-42a9-bf65-6d3958955afa",
+  "issue_uuid": "8dffb91a-b33d-497a-bcda-1c669642c4b4",
+  "author": "TeIq",
+  "content": "PR 1 landed as architectural decision (spike-not-run-on-hardware). .design/m5/44-mobile-app-spike-results.md documents Tauri Mobile as primary + PWA as planned fallback with concrete flip-back criteria + a measurement protocol for the operator-driven validation spike. PR 2 (#116) is unblocked.",
+  "created_at": "2026-05-16T19:59:50.587632795Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA2pea5dwOjj7q2a4/aRusN090KnEE4dpQmrb7e9zOtlLgt/A7wFchWv2zy/2AXlpyOFYzDIHBtEXv5U9YniZzDQ=="
+}
