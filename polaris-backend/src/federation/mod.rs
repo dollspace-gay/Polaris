@@ -22,6 +22,8 @@
 //! federation supervisor and one child task per configured peer.
 
 pub mod peer_subscribe;
+pub mod promote;
+pub mod state;
 pub mod verify;
 
 use std::sync::Arc;

@@ -72,6 +72,11 @@ serde.workspace = true
 serde_json.workspace = true
 proto-blue.workspace = true
 polaris-types = { path = "../polaris-types" }
+# Issue #108 / M5 PR 2: repo::federation deserialises peer-emitted
+# polaris.escalation records from quarantine via the generated wire types.
+# The lexicon_mapping bridge in polaris-types converts the wire form into
+# the internal Escalation struct before insertion into federation_escalations.
+polaris-lexicons.workspace = true
 
 # Issue #30 / REQ-12 / AC-15: the rotation state machine's
 # `step_publish_service_record` invokes the publish crate's pure
@@ -164,6 +169,22 @@ aws-config = { workspace = true, optional = true }
 # tests, retry policy) is filed as #69 follow-up.
 aws-sdk-s3 = { workspace = true, optional = true }
 
+# Workstream D / REQ-D2: metrics surface. Three crates compose:
+#
+# - `metrics` — facade macros (`counter!`, `gauge!`) used at every emit /
+#   action / PLC site.
+# - `metrics-exporter-prometheus` — installed once at boot via
+#   `PrometheusBuilder::new().install_recorder()`; the returned handle is
+#   threaded onto `ApiState` so `/metrics` can call `.render()` on it.
+# - `axum-prometheus` — tower middleware layered on the merged router so
+#   the recorder receives auto-instrumented HTTP-level series
+#   (`axum_http_requests_total{method,endpoint,status}` and the
+#   `axum_http_requests_duration_seconds` histogram) alongside the
+#   hand-emitted producer counters.
+metrics.workspace = true
+metrics-exporter-prometheus.workspace = true
+axum-prometheus.workspace = true
+
 # Hardware-key gate (#40, design.md §6 + §9.1). The verifier persists the
 # framework's `PasskeyRegistration` / `PasskeyAuthentication` state in
 # `webauthn_register_states` / `webauthn_assert_states` between the
@@ -183,6 +204,15 @@ url = "2"
 # `.gitkeep` so #13 can populate it via `cargo sqlx prepare` without a fresh
 # `mkdir` step. The old single-file `sqlx-data.json` layout was removed
 # in sqlx 0.7+.
+
+# Issue #97 / network-context handler: parallel fetches against the
+# public Bluesky AppView. proto-blue's typed XrpcClient would also
+# work, but for four ad-hoc GETs against a single-origin endpoint,
+# `reqwest::Client` directly is the simplest tool — it's already a
+# workspace dep with the right TLS features curated for the
+# polaris-frontend native-target build, so promoting it from
+# dev-dependency to dependency here adds zero new transitive crates.
+reqwest = { workspace = true }
 
 [dev-dependencies]
 # Pinned at the latest crates.io stable as of 2026-05-14:
@@ -241,7 +271,7 @@ hmac = "0.12"
 # `logs_assert` API. Used by `tests/sql_injection_auth.rs` to verify that
 # malformed-token payloads are never echoed to logs by the middleware /
 # session-store path. MIT/Apache-2.0.
-tracing-test = "0.2"
+tracing-test = { version = "0.2", features = ["no-env-filter"] }
 
 # tokio-tungstenite 0.26.2 (crates.io 2026-05-14, already in the lockfile
 # via proto-blue-ws): MIT. Used by `tests/firehose_reconnect.rs` to stand

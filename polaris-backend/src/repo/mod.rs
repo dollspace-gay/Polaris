@@ -52,6 +52,7 @@
 
 pub mod action;
 pub mod appeal;
+pub mod federation;
 pub mod incident;
 pub mod observation;
 pub mod pattern_action;
