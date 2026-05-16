@@ -1,0 +1,10 @@
+{
+  "uuid": "a7e76146-d6c0-44bc-98be-781ca30fe191",
+  "issue_uuid": "677c1659-5312-4288-89bf-dda70288f21d",
+  "author": "TeIq",
+  "content": "Federation epic CLOSED with the partial closure documented in earlier comments. 4 PRs landed (#107 peer subscribe, #108 state machine, #109 outbound publish, #110 wire format + outbound message publish); 3 follow-ups (#175 inbound + UI, #176 metrics + admin status, #177 integration tests) tracking the deferred work that needs operator-side environment setup. Federation infrastructure is operational on main.",
+  "created_at": "2026-05-16T20:12:08.247983784Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAAVuI5YC5GuhSDqlFJyjBtFJ0qAGT2+0nvjKoODHIPlWO77S74gzOwmhFsd5/0SknpS4i7H8pgxUkV9KX9eQWBw=="
+}
