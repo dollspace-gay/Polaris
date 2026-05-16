@@ -1,0 +1,10 @@
+{
+  "uuid": "3f19e0cb-fd76-47d8-80a8-83519a22c941",
+  "issue_uuid": "75743145-ac1c-4fcc-bd8c-0d689f00c832",
+  "author": "TeIq",
+  "content": "Q3 (PIN UX): A for PKCS#11 (PIN entered once at daemon startup, secrecy::SecretString for lifetime) + D for FIDO2 (touch instead of PIN, where the token supports it). Per-signature PIN (B) is unusable for non-trivial volume.",
+  "created_at": "2026-05-16T17:28:13.663029839Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAoYFSIxed/dr9E8oVf9Z0o4tb4A7UZKF/5d1KsBbFGhW0IugJBnE3gohykeIsE31KnpI/xC8haHlO1i63NQL6Bg=="
+}
