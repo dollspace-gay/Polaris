@@ -1,0 +1,11 @@
+{
+  "uuid": "7cc9633b-79e6-43e3-bead-52182ad08455",
+  "display_id": 160,
+  "title": "M5 #48 / PR 6: polaris labeler-key reseal-after-update + offline sealing-auth token (Q3-A); AC-5",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "a6ecf6ea-2598-44bf-a377-4bfbe1cda397",
+  "created_by": "TeIq",
+  "created_at": "2026-05-16T13:54:57.141607463Z",
+  "updated_at": "2026-05-16T13:54:57.141607463Z"
+}
