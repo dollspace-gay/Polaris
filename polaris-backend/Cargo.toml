@@ -29,6 +29,14 @@ path = "src/bin/labeler_key_rotate.rs"
 name = "polaris-federation-escalate"
 path = "src/bin/polaris_federation_escalate.rs"
 
+# Issue #131 / M5 #45 PR 7: polaris-sample-classifier — rule-based
+# fixture classifier server. Operators run this for end-to-end gRPC
+# plumbing validation before pointing polaris-backend at a real
+# classifier service.
+[[bin]]
+name = "polaris-sample-classifier"
+path = "src/bin/polaris_sample_classifier.rs"
+
 [lib]
 name = "polaris_backend"
 path = "src/lib.rs"
@@ -98,6 +106,10 @@ tonic.workspace = true
 # (issue #130 / PR 6). The generated proto types in
 # polaris-classifier-proto don't re-export the Message trait.
 prost.workspace = true
+# async-stream: used by the polaris-sample-classifier binary's
+# bidirectional-streaming RPC impl to construct the response stream
+# from inbound requests.
+async-stream = "0.3"
 # async-trait + dashmap are workspace-deps below; the classifier module is
 # the additional consumer — verify both pins are unchanged.
 dashmap = "6"
