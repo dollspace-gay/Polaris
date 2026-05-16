@@ -1,0 +1,10 @@
+{
+  "uuid": "4db980a6-f5b6-4a91-9276-57db765e62cb",
+  "issue_uuid": "a6ecf6ea-2598-44bf-a377-4bfbe1cda397",
+  "author": "TeIq",
+  "content": "TPM signing epic CLOSED as DOCUMENTED-ARCHITECTURAL. All 8 PRs closed with documented rationale; implementation requires TPM 2.0 hardware access for spike + integration testing. Design captured in .design/m5/48-tpm-signing.md + per-PR sub-issue bodies. The #164 (PR 1 of the parallel HW-token epic) shipped the SigningError trait variants that the TPM impl will reuse.",
+  "created_at": "2026-05-16T20:10:44.228291474Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABApp7v02HbCRv5P3cE/HJFhyysMY1CoxjOeNyFt96jFiv2ZiheBH2+xLvfXfA6EXel+h3+lp/HOrXCc137ih5CDA=="
+}
