@@ -1,0 +1,10 @@
+{
+  "uuid": "bfe515e0-be5d-4eac-a20a-76429877e6a5",
+  "issue_uuid": "f7eca4aa-85b8-45e3-96b1-362259451518",
+  "author": "TeIq",
+  "content": "Q1 (Model type): model-agnostic v2 default. 500ms timeout suits BERT-class (A) and rule engine (C); LLM (B) operators set per-classifier higher timeout. Proto allows arbitrary model identifiers.",
+  "created_at": "2026-05-16T17:27:13.435141046Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAssJpzMcZmwf7nId+KOvrmgDKBNlET5Zpz3ep15JtAzE4EumjgandIt0jeY0i83Hq/NCtPdxtp0RSkX5GpbGOBw=="
+}
