@@ -20,6 +20,15 @@ path = "src/main.rs"
 name = "labeler-key-rotate"
 path = "src/bin/labeler_key_rotate.rs"
 
+# Issue #109 / M5 #43 PR 3: polaris-federation-escalate admin binary —
+# `--incident <UUID> --to <DID> --reason <TEXT>`. Looks up the incident,
+# constructs the federation-safe Escalation (internal-only fields
+# excluded at construction), and publishes via OutboundPublisher to the
+# operator's ATProto repo under gay.dollspace.polaris.escalation.
+[[bin]]
+name = "polaris-federation-escalate"
+path = "src/bin/polaris_federation_escalate.rs"
+
 [lib]
 name = "polaris_backend"
 path = "src/lib.rs"

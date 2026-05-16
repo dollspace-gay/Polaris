@@ -23,6 +23,7 @@
 
 pub mod peer_subscribe;
 pub mod promote;
+pub mod publish;
 pub mod state;
 pub mod verify;
 
