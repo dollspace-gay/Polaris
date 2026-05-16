@@ -2,11 +2,12 @@
   "uuid": "a6ecf6ea-2598-44bf-a377-4bfbe1cda397",
   "display_id": 152,
   "title": "M5 #48 epic: TPM-sealed SigningKey impl (PCR-bound, fifth signer mode, defends T1-T3 + partial T4)",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:53:29.721560154Z",
-  "updated_at": "2026-05-16T13:59:46.785194810Z",
+  "updated_at": "2026-05-16T20:10:45.463379546Z",
+  "closed_at": "2026-05-16T20:10:45.463379546Z",
   "related": [
     "73d79671-ead8-4d76-bf3c-3913bfcba2d1"
   ]
