@@ -1,0 +1,10 @@
+{
+  "uuid": "b30f8256-5fcf-404d-a33b-7f4550b48321",
+  "issue_uuid": "0e10332f-c85b-4a44-8556-c9a0232c0a95",
+  "author": "TeIq",
+  "content": "CLOSED as DOCUMENTED-ARCHITECTURAL. Hardware-token signing depends on a real PKCS#11 token (YubiKey PIV or YubiHSM) + softhsm2 for CI fixture testing. The issue body's spec (HwTokenSigningKey impl + signature_status schema + sign-pending CLI + polaris-signer daemon + FIDO2 PRF + rotation + audit) is the implementation guide for an operator with hardware-token access who picks this up. Design captured in .design/m5/49-hardware-token-signing.md.\n\nPR 1 (#164 — SigningError::WouldBlock + PhysicalPresenceTimeout + TokenDisconnected variants) and PR 3 (#166 — labels.signature_status + signed_at + pending_label_queue view migration 0029) shipped in-session as the additive foundation.",
+  "created_at": "2026-05-16T20:10:52.367277090Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAEEAWyLn6o9ZWu1/jKL5+Oocf5T4iyg3l4Ni9ewEzswPPtBP4kI/CbFQqQy+oveoIFxfapzBINj/u14Wmq1/0Aw=="
+}
