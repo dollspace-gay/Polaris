@@ -2,12 +2,13 @@
   "uuid": "8dffb91a-b33d-497a-bcda-1c669642c4b4",
   "display_id": 115,
   "title": "M5 #44 / PR 1: 1-week prototype spike (Tauri Mobile vs PWA) — measure iOS push latency + Android build path, pick on evidence",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "ce753212-18c3-432e-a31d-9356ed775ace",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:40:44.833549612Z",
-  "updated_at": "2026-05-16T13:43:23.804032799Z",
+  "updated_at": "2026-05-16T19:59:51.951510808Z",
+  "closed_at": "2026-05-16T19:59:51.951510808Z",
   "blockers": [
     "9ae850f9-3353-4efd-b338-6b6008b7a2c8"
   ]
