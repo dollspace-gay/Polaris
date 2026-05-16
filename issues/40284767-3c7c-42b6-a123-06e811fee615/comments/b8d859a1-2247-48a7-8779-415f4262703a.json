@@ -1,0 +1,10 @@
+{
+  "uuid": "b8d859a1-2247-48a7-8779-415f4262703a",
+  "issue_uuid": "40284767-3c7c-42b6-a123-06e811fee615",
+  "author": "TeIq",
+  "content": "Q4 (HA story): A — single-host-TPM only. Operators needing HA pick cloud-kms-oracle. TPM mode is for operators who chose unattended-strong-custody over HA.",
+  "created_at": "2026-05-16T17:28:01.492409956Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAK4X8GyyEKkLt7Vg71ss9ugGdvDxD9GCSX8MyIhG8p7N0af3XmTx/XsvoaP1bJECWFffTsZkwsaHNse5Hy8SwBA=="
+}
