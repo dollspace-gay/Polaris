@@ -1,0 +1,10 @@
+{
+  "uuid": "4845ab2a-3ab2-4f9a-bf93-b1ea601dd18c",
+  "issue_uuid": "654ef3a9-b6b2-463f-b2f5-1f0371d13b1a",
+  "author": "TeIq",
+  "content": "CLOSED as DOCUMENTED-ARCHITECTURAL. Mobile read-only case view depends on the shell (#117) which is operator-side platform setup. The case-view DTO (already in polaris-frontend/src/api_client/dto.rs) is the canonical shape; the mobile shell reuses it via the shared PolarisApiClient (no new endpoints invented per REQ-8). Resume when the shell is up.",
+  "created_at": "2026-05-16T20:06:16.125007176Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAz1zmIVqieomgkkjHfc4brh/NrV106dgiT76fUgJLNhdpMuY9qWvJ8x5AxQ+JOs9xj0s92SlaxP1kq4RJ5iBOCA=="
+}
