@@ -1,0 +1,10 @@
+{
+  "uuid": "356ff381-72e7-4ab9-80fa-91636e487f7a",
+  "issue_uuid": "83fa0b96-b270-4d2a-836b-3722f08f5f07",
+  "author": "TeIq",
+  "content": "Q3 (v2 record scope): B — polaris.escalation + embedded observation + evidence-pointer; polaris.incident deferred. Federation use cases need escalation only; lexicons are not lightly evolved; narrow surface is a feature. polaris.incident becomes a follow-up if a richer cross-instance UX demand appears.",
+  "created_at": "2026-05-16T14:16:45.171444332Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAZnN6ZK7B9GjagtMfHQhvDAhIEEOUVRDIGkeB33z1Nc9B7CVUGJXv9bvBr07Bo0K/A+LB67hky+1gKIHHzYrMBQ=="
+}
