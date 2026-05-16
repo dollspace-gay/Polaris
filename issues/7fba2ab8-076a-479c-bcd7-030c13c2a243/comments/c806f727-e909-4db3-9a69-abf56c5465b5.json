@@ -1,0 +1,8 @@
+{
+  "uuid": "c806f727-e909-4db3-9a69-abf56c5465b5",
+  "issue_uuid": "7fba2ab8-076a-479c-bcd7-030c13c2a243",
+  "author": "anon-e0ae8c29",
+  "content": "Observation: proto-blue-codegen skips lexicons with 'number' type fields (observation.json and escalation.json use 'type: number'). Only evidencePointer.json was successfully loaded — it generates 1 doc / 5 files. The 'number' type is not in proto-blue-lexicon's type set (uses integer/float distinction). This is the actual state of codegen output — we include what generated, escalation+observation are skipped by the codegen tool. Will note this in the README and flag it in the report.",
+  "created_at": "2026-05-16T14:30:58.602346367Z",
+  "kind": "observation"
+}
