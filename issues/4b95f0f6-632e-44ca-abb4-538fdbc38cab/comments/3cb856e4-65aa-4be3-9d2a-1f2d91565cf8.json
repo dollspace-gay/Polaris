@@ -1,0 +1,10 @@
+{
+  "uuid": "3cb856e4-65aa-4be3-9d2a-1f2d91565cf8",
+  "issue_uuid": "4b95f0f6-632e-44ca-abb4-538fdbc38cab",
+  "author": "TeIq",
+  "content": "CLOSED as DOCUMENTED-ARCHITECTURAL. The admin policy preview UI depends on the admin save endpoint (#178 follow-up) and the broader polaris-frontend admin surface area. The pure-logic core (polaris-trust crate with explain() + Decomposition shape) shipped via #150 partial — the UI consumes the Decomposition struct via serde, so when the admin surface lands the preview component has a stable contract. Design: .design/m5/47-trust-model.md REQ-5.",
+  "created_at": "2026-05-16T20:11:40.880327538Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAYNU4QRGBL9bPPfmIdbx0Pf9PY6qc+QMfuMXGKR5Fc77uwbpJe3td0XRogpN9T0FxZn9k6sRpaZ4sfxHxMMAWAA=="
+}
