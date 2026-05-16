@@ -1,0 +1,10 @@
+{
+  "uuid": "f9055d3d-faa4-46b8-a6c9-7a64db4f1f8e",
+  "issue_uuid": "ec4e619b-0fa2-4914-9767-5343440e14ec",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/46-ozone-migration.md — Open Questions Q1–Q5. Decisions block #135 (Q4 schema-range affects source readers).\n\n## Decisions required (provisional in #132)\n- Q1 source mode: A (dump only) vs B (live) vs C (both — ship dump first). Provisional C.\n- Q2 incident strategy: A (one per subject) vs B (cluster) vs C (none). Provisional A.\n- Q3 UX: A (CLI) vs B (web UI) vs C (SQL scripts). Provisional A.\n- Q4 schema version: A (pinned range) vs B (adaptive) vs C (multi-reader). Provisional A.\n- Q5 in-flight sessions: A (coordination) vs B (migrate state) vs C (drop drafts). Provisional A.\n\n## Acceptance\n- [ ] Five decisions recorded as `--kind decision` comments.\n\n## Blocks\n- Blocks #135 (Q4 shapes which Ozone schema versions the source readers target).",
+  "created_at": "2026-05-16T13:50:35.602124494Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAhk0PnoRwjcWS6JiFaa6272vvtQL1xu9fhlNLmaIgLZu3onfK5A7G40sGHH1fISvhBMT8qxJusZcZmJbzppQvCw=="
+}
