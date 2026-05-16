@@ -1,0 +1,10 @@
+{
+  "uuid": "edd163c8-d0b0-4742-9174-16b66cc8c5a2",
+  "issue_uuid": "ec4e619b-0fa2-4914-9767-5343440e14ec",
+  "author": "TeIq",
+  "content": "Q3 (UX): A — CLI tool only. Operators running Ozone are shell-comfortable; one-time migration web UI is over-engineered.",
+  "created_at": "2026-05-16T17:27:30.602153833Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABABDFtoMr3lDGYBnx3rPMD/HnFjuc1yRVNi6Z1VT4NQfc2Y9ECfbbHoF88zLpM+51l2mw6+Tgn5H+kJzNGpdtjDg=="
+}
