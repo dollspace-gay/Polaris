@@ -1,0 +1,10 @@
+{
+  "uuid": "d830c026-1eb6-46ed-b671-1756d7c9ae4d",
+  "issue_uuid": "b88ee64a-2f29-47a4-9dd6-6b0883e9e282",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/43-federation.md — Open Questions Q1–Q5.\n\n## Decisions required (with provisional answers in #105)\n- **Q1 transport**: firehose-subscription (A) vs direct push (B) vs hybrid (C). Provisional: A.\n- **Q2 trust model**: pairwise allowlist (A) vs web-of-trust (B) vs PKI (C). Provisional: A.\n- **Q3 conflict policy**: surface-only (A) vs auto-resolve by trust (B) vs escalate to senior (C). Provisional: A.\n- **Q4 context level**: minimal (A) vs +public observations (B) vs +report metadata (C) vs +reasoning text (D). Provisional: B.\n- **Q5 withdrawal**: mark-and-lock (A) vs delete-entirely (B) vs allow-continue (C). Provisional: A.\n\n## Rust-quality notes\n- Decision issue; no code lands.\n- Each decision becomes a `--kind decision` comment on this issue.\n\n## Acceptance\n- [ ] All five decisions recorded; this issue closes; PR 1 (#107) unblocks.\n\n## Blocks\n- Blocks #107 (Q1 + Q2 shape the transport layer).",
+  "created_at": "2026-05-16T13:38:10.477776934Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAWWTvBuAUUVqJQ4b3aQB1v7YJVRC7rGhJmc+oLnjEiLOVBFO2LLjpxwA7cqOdo2dZZRdWTRumB0feky23Y/y8Dg=="
+}
