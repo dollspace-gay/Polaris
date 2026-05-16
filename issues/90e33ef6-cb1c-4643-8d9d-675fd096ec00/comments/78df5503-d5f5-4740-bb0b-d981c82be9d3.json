@@ -1,0 +1,8 @@
+{
+  "uuid": "78df5503-d5f5-4740-bb0b-d981c82be9d3",
+  "issue_uuid": "90e33ef6-cb1c-4643-8d9d-675fd096ec00",
+  "author": "anon-94f2f640",
+  "content": "Starting implementation. Plan: 1) Copy polaris-lexicons from main into worktree (PRs 1+2 not yet merged here), 2) Add polaris-lexicons to workspace and polaris-types deps, 3) Create escalation.rs, evidence.rs, lexicon_mapping.rs modules, 4) Add EscalationId to ids.rs, 5) Add proptest and privacy tests, 6) Run verification commands",
+  "created_at": "2026-05-16T14:46:18.918606427Z",
+  "kind": "plan"
+}
