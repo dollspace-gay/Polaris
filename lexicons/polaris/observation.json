@@ -31,8 +31,10 @@
           "maxLength": 256
         },
         "similarityScore": {
-          "type": "number",
-          "description": "Similarity score of this account within the cohort, in the range [0.0, 1.0]. 1.0 means the account is a perfect match to the cohort centroid; values closer to 0.0 indicate peripheral members."
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "Similarity score of this account within the cohort, encoded as scaled-integer in [0, 1000] (divide by 1000.0 to recover the float in [0.0, 1.0]). ATProto Lexicons have no native float type; scaled-integer is the standard encoding. 1000 means the account is a perfect match to the cohort centroid; values closer to 0 indicate peripheral members."
         }
       }
     },
@@ -64,8 +66,10 @@
           "maxLength": 128
         },
         "weight": {
-          "type": "number",
-          "description": "Operator-configured trust weight for this upstream labeler at the time the observation was recorded, in the range [0.0, 1.0]. This reflects the *originating* labeler's calibration and is informational for the receiver — the receiver applies its own weight."
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "Operator-configured trust weight for this upstream labeler at the time the observation was recorded, encoded as scaled-integer in [0, 1000] (divide by 1000.0 to recover the float in [0.0, 1.0]). ATProto Lexicons have no native float type; scaled-integer is the standard encoding. This reflects the *originating* labeler's calibration and is informational for the receiver — the receiver applies its own weight."
         }
       }
     },
@@ -85,8 +89,10 @@
           "maxLength": 128
         },
         "confidence": {
-          "type": "number",
-          "description": "Classifier's confidence in the label, in the range [0.0, 1.0]. 1.0 means maximum confidence. This is the model's raw output confidence, not Polaris's cross-detector calibrated confidence (which is on the parent escalation's observation entry)."
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "Classifier's confidence in the label, encoded as scaled-integer in [0, 1000] (divide by 1000.0 to recover the float in [0.0, 1.0]). ATProto Lexicons have no native float type; scaled-integer is the standard encoding. 1000 means maximum confidence. This is the model's raw output confidence, not Polaris's cross-detector calibrated confidence (which is on the parent escalation's observation entry)."
         }
       }
     },

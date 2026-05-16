@@ -104,8 +104,10 @@
       "required": ["confidence", "observation"],
       "properties": {
         "confidence": {
-          "type": "number",
-          "description": "Cross-detector calibrated confidence the source labeler's pattern engine assigned to this observation, in the range [0.0, 1.0]. Distinct from per-variant confidence fields (e.g. classifierSignal.confidence) — those are the detector's raw output; this is the calibrated composite score the pattern engine assigned after cross-detector weighting. Receivers use this value to weight observations when making their own moderation decision."
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000,
+          "description": "Cross-detector calibrated confidence the source labeler's pattern engine assigned to this observation, encoded as scaled-integer in [0, 1000] (divide by 1000.0 to recover the float in [0.0, 1.0]). ATProto Lexicons have no native float type; scaled-integer is the standard encoding. Distinct from per-variant confidence fields (e.g. classifierSignal.confidence) — those are the detector's raw output; this is the calibrated composite score the pattern engine assigned after cross-detector weighting. Receivers use this value to weight observations when making their own moderation decision."
         },
         "observation": {
           "type": "union",
