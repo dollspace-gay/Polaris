@@ -1,0 +1,10 @@
+{
+  "uuid": "f65d656c-85a6-4b1a-88b8-4b7d8fb18d88",
+  "issue_uuid": "83fa0b96-b270-4d2a-836b-3722f08f5f07",
+  "author": "TeIq",
+  "content": "Q2 (Type strategy): A — parallel types via codegen + hand-written mapping bridge. The internal type must evolve with Polaris's needs without forcing federation-network coordination; the wire type evolves under the federation contract. Mapping cost is real but locking internal evolution behind federation handshakes is worse.",
+  "created_at": "2026-05-16T14:16:42.726889328Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAoCDPZ8FB+ifI3dS/+0xVAzy00H0S215gOxsW/WNbdhO4yCIDodo/cr5xUD84NcEpZZx+TrFyUV1TrH+dmAYIAQ=="
+}
