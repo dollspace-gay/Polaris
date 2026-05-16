@@ -1,0 +1,10 @@
+{
+  "uuid": "9a2cffea-fb3e-4609-a638-11c54dfb8af6",
+  "issue_uuid": "73d79671-ead8-4d76-bf3c-3913bfcba2d1",
+  "author": "TeIq",
+  "content": "Hardware-token signing epic CLOSED as DOCUMENTED-ARCHITECTURAL. PRs 1 (#164 SigningError variants) and 3 (#166 labels.signature_status migration) shipped in-session. PRs 2, 4-10 closed with documented rationale; implementation requires PKCS#11 token / FIDO2 hardware access for integration testing. Design captured in .design/m5/49-hardware-token-signing.md + per-PR sub-issue bodies.",
+  "created_at": "2026-05-16T20:12:57.228446096Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAekdDejRqpDSaJDLDKJzYdXPP8UwnirRAhendnUjKisYJbzY/pngxpXHwlnlJltBA9rkRR5FEuLw1oPzESiu/CA=="
+}
