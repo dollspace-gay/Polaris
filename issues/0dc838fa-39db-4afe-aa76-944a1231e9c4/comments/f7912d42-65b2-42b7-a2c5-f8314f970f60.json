@@ -1,0 +1,10 @@
+{
+  "uuid": "f7912d42-65b2-42b7-a2c5-f8314f970f60",
+  "issue_uuid": "0dc838fa-39db-4afe-aa76-944a1231e9c4",
+  "author": "TeIq",
+  "content": "PR 3 landed. TimeDecay struct + half_life_days exponential decay + InvalidHalfLife error variant + validate() guard. AC-4 verified (t0: 1.0, half-life: 0.5, 2x half-life: 0.25 within 1e-3 tolerance). Future-dated observations clamp to 1.0 (security default). 3 new tests on top of #145's 15 (18 total).",
+  "created_at": "2026-05-16T19:38:30.407969357Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAydrdZx77OyqonHwJNkLm6A1+bP9vOXWgnAdxs5RAT1TU0Ac9fI/+NauJ9uoN+S79ZCteEawF+oJmgSlpz1IwDg=="
+}
