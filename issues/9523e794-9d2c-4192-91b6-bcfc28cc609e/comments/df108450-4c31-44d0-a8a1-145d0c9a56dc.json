@@ -1,0 +1,10 @@
+{
+  "uuid": "df108450-4c31-44d0-a8a1-145d0c9a56dc",
+  "issue_uuid": "9523e794-9d2c-4192-91b6-bcfc28cc609e",
+  "author": "TeIq",
+  "content": "Q2 (Decay model): A — exponential half-life. Mathematically clean; \"half-life\" is intuitive via radioactive-decay analogy.",
+  "created_at": "2026-05-16T17:27:43.791081457Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAIAmXgU+u78jD/V9DnxsQqSwkKh58jj66nT2VwlDNEJKZYHf4rOytpXeRby/I3sAV2JyfbJVz9fU2vc2DwPBOBA=="
+}
