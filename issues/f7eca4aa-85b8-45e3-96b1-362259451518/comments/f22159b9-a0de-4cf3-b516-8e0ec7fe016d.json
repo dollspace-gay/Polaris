@@ -1,0 +1,10 @@
+{
+  "uuid": "f22159b9-a0de-4cf3-b516-8e0ec7fe016d",
+  "issue_uuid": "f7eca4aa-85b8-45e3-96b1-362259451518",
+  "author": "TeIq",
+  "content": "Q2 (Self vs cloud): C — both with operator transparency. Self-hosted default; cloud-API per-classifier opt-in with case-view banner naming the external provider. Per-jurisdiction operator decision.",
+  "created_at": "2026-05-16T17:27:14.884573235Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA8OAgEAP9h2KT2B0wI/aaAvziXDQkUusu77HdfeGIryV8xnvwkqCIs3aGfhLi6/x1e92wXhzc5z4xUZ7DUYXcAQ=="
+}
