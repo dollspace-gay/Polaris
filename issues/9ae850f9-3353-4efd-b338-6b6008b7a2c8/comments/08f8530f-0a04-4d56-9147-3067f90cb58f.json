@@ -1,0 +1,10 @@
+{
+  "uuid": "08f8530f-0a04-4d56-9147-3067f90cb58f",
+  "issue_uuid": "9ae850f9-3353-4efd-b338-6b6008b7a2c8",
+  "author": "TeIq",
+  "content": "Q2 (Push infrastructure): C — direct APNs+FCM for Bluesky profile + ntfy.sh-compatible for labeler profile, switched via config. Each profile picks the right cost/operations posture; both are supported in the backend .",
+  "created_at": "2026-05-16T17:25:58.935444475Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAGNsFLWnxYcKV57dqWoyPlxUBANElAIGpBU719up4TrAw3XvCbRA4RWLuNghHYpdiWTnjcPqyINMJcnXaurjsDg=="
+}
