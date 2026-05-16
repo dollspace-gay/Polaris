@@ -55,9 +55,11 @@
 )]
 
 pub mod error;
+pub mod explain;
 pub mod templates;
 
 pub use error::TrustPolicyError;
+pub use explain::{explain, Decomposition, ExplanationInputs};
 
 /// Discriminated-union representation of a trust policy. Serialises
 /// via serde's tagged-enum form to the `upstream_labelers.weights`
@@ -346,7 +348,7 @@ pub fn validate(policy: &TrustPolicy) -> Result<(), TrustPolicyError> {
 ///   inputs don't produce NaN/Inf weights).
 /// - Overflow (very old observation) → clamp to 0.0 at the
 ///   compose-then-clamp boundary in weight().
-fn compute_decay_factor(
+pub(crate) fn compute_decay_factor(
     decay: TimeDecay,
     created_at: chrono::DateTime<chrono::Utc>,
     now: chrono::DateTime<chrono::Utc>,
