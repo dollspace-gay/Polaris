@@ -1,0 +1,10 @@
+{
+  "uuid": "bb460b42-f1ce-4bb0-936c-10bb71af6a2b",
+  "issue_uuid": "3bc264b8-3cd9-4516-81aa-3392f6221828",
+  "author": "TeIq",
+  "content": "PR 4 landed. Closes the M5 #42 NSIDs epic chain (#99 → #100, #101, #102, #103, #104 — all done).\n\n## Deliverables\n- `.github/workflows/ci.yml` — new `polaris-types-wasm-build` job mirroring `lexicon-wasm-build`\n- `lexicons/mapping-matrix.md` — 200+ line field-by-field reference, privacy-boundary consolidated list, maintainer playbook\n- `lexicons/README.md` — Contents table now includes mapping-matrix row\n\n## Verification (architect-run)\n- `cargo build --target wasm32-unknown-unknown -p polaris-lexicons -p polaris-types` — clean\n- CI yaml parses; 8 jobs registered (was 7)\n\n## AC results\n- [x] AC-4 (closure): wasm32 CI green for both polaris-lexicons (existing) and polaris-types (new)\n- [x] `lexicons/README.md` carries the two worked examples (PR 1 deliverable)\n- [x] `lexicons/mapping-matrix.md` covers every field on every record type with rule annotation",
+  "created_at": "2026-05-16T15:09:36.708378024Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAuuRhB4dk0hht9Qf3koNAZHBn+wO1jpKnid5zrcXB/RaF+Fwf1veS48N7Zw4Br/vx6DlW6OctsF3IMLKbjCqkBg=="
+}
