@@ -1,0 +1,10 @@
+{
+  "uuid": "5662a1a3-efb2-4ce1-b230-73301f1a8dbd",
+  "issue_uuid": "2d182631-10fe-4086-becf-62f275a055e5",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/48-tpm-signing.md — operator docs.\n\n## Surface\n- New file: `docs/operations/tpm-signing.md`\n- Sections:\n  1. Hardware prerequisites (Linux 6.x+, TPM 2.0 device, libtss2-esys, libtss2-tcti)\n  2. PCR choice rationale (default PCR0/4/7; when to add PCR8 kernel)\n  3. Init walkthrough (init CLI + publish flow)\n  4. Daily ops (no operator action required; restart-zero-touch story)\n  5. Firmware-update procedure (PCR change → reseal flow with offline token)\n  6. Key rotation (TPM-specific notes)\n  7. Multi-tenant host considerations (Q5 — TPM hierarchy allocation)\n  8. Recovery procedures (lost offline token → re-init from scratch; TPM hardware failure → key migration is impossible by design, rotate to new TPM)\n  9. Troubleshooting (PCR mismatch errors, tss-esapi version compatibility)\n\n## Rust-quality notes\n- Per rust-quality §8: every CLI invocation copy-pasteable; one runnable example per section.\n- The docs explicitly call out: lost offline token = unrecoverable key. Operators MUST store securely (the docs include a brief storage-discipline section: paper in safe + USB stick in different location, etc.).\n\n## External references\n- v1 ops runbook (style reference): `docs/ops/runbook.md`\n- TCG Linux TPM PCR documentation: https://uapi-group.org/specifications/specs/linux_tpm_pcr_registry/\n\n## Acceptance\n- [ ] `docs/operations/tpm-signing.md` exists; ≥250 lines; covers all 9 sections.\n- [ ] CI markdown-lint passes.\n\n## Blocks / blocked-by\n- Blocked by #160.\n- Blocks #162 (final audit confirms unsafe/miri compliance).",
+  "created_at": "2026-05-16T13:57:02.507537441Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAtm9iJXHC15AX/RNC9Bu7vj6W6HaJX6fl95DNQVGpjW7X9YKsHOoo3p9vOu1gkjCMzBfaeheVD2o2iHd6rnOCAw=="
+}
