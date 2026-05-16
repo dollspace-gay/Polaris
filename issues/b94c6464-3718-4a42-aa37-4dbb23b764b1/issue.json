@@ -2,12 +2,13 @@
   "uuid": "b94c6464-3718-4a42-aa37-4dbb23b764b1",
   "display_id": 168,
   "title": "M5 #49 / PR 5: polaris-signer daemon (new workspace binary) + gRPC over TLS-mutual-auth (Q6-A)",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "73d79671-ead8-4d76-bf3c-3913bfcba2d1",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:55:07.556670648Z",
-  "updated_at": "2026-05-16T13:59:37.382994818Z",
+  "updated_at": "2026-05-16T20:11:09.897901654Z",
+  "closed_at": "2026-05-16T20:11:09.897901654Z",
   "blockers": [
     "1e063b49-8954-455c-887c-b487590de7e2"
   ]
