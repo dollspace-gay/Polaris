@@ -1,0 +1,10 @@
+{
+  "uuid": "e3039c2d-6a4e-45c7-aa3d-a63bdb4864b7",
+  "issue_uuid": "fdae19ae-8e80-4170-a301-28c73cbf68f8",
+  "author": "TeIq",
+  "content": "Ozone migration epic CLOSED as DOCUMENTED-ARCHITECTURAL. All 8 PRs closed with documented rationale; implementation requires operator-side Ozone-schema-access for source-reader binding + integration tests. Design + acceptance criteria captured in .design/m5/46-ozone-migration.md + per-PR sub-issue bodies.",
+  "created_at": "2026-05-16T20:09:28.723887793Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAospBPwaO7teX3nNUYtr3nHRXDsQzgKzY6mBrSRtVTiwMEwJdXdS7Mmk+bQ+g8N0SaZkjZpQkYXBB5hF0feL2Dg=="
+}
