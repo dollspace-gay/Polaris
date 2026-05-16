@@ -1,0 +1,10 @@
+{
+  "uuid": "7f660315-4b58-4237-bd67-853bd9bf7382",
+  "issue_uuid": "a42e3b54-53cc-4c32-9277-a4e224fd1ee1",
+  "author": "TeIq",
+  "content": "PR 4 landed. BreakerRegistry + BudgetRegistry in classifier/{circuit,budget}.rs. 10 new tests on top of the 12 from #125-#127 (24 classifier tests total). Threshold/cooldown/HalfOpen state machine + per-classifier semaphore. Architect verification: build PASS, clippy CLEAN (file-level allows on poison-branch expect_used + missing_panics_doc, justified per rust-quality §4), 24 tests pass. PR 5 (#129 — disagreement UI) is unblocked but is a frontend-only PR; deferring to focus on higher-leverage backend work first. PR 6 (#130 — feedback RPC) is also unblocked.",
+  "created_at": "2026-05-16T19:13:07.879968873Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAE+8AYy7msU8uI73tFHPS5IiDsHpaB7Mhw4q8psURgAO++Me1eK0Laaz4iws+PdCHNFUAkK73S25sLHu6g2HvCw=="
+}
