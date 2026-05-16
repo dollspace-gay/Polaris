@@ -38,6 +38,13 @@ pub mod audit;
 pub mod auth;
 pub mod bus;
 pub mod config;
+/// ML classifier integration (issue #126 / M5 #45 PR 2 foundational).
+///
+/// Polaris consumes classifier output via gRPC as another Observation
+/// source. NEVER an autonomous actor — a human moderator always takes
+/// the action. The fan-out worker, circuit breaker, and opt-in feedback
+/// path land in #127, #128, #130 respectively.
+pub mod classifier;
 pub mod db;
 pub mod evidence;
 /// Cross-instance federation (issue #107 / M5 PR 1).

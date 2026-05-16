@@ -87,6 +87,16 @@ polaris-types = { path = "../polaris-types" }
 # the internal Escalation struct before insertion into federation_escalations.
 polaris-lexicons.workspace = true
 
+# Issue #126 / M5 #45 PR 2: ML classifier integration. The `classifier`
+# module wraps `polaris-classifier-proto`'s generated tonic types with
+# the ClassifierClient trait + production/fixture impls. tonic provides
+# the runtime gRPC client; async-trait + dashmap power the fixture impl.
+polaris-classifier-proto.workspace = true
+tonic.workspace = true
+# async-trait + dashmap are workspace-deps below; the classifier module is
+# the additional consumer — verify both pins are unchanged.
+dashmap = "6"
+
 # Issue #30 / REQ-12 / AC-15: the rotation state machine's
 # `step_publish_service_record` invokes the publish crate's pure
 # `build_labeler_service_record` constructor to catch a misconfigured
