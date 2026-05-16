@@ -93,6 +93,11 @@ polaris-lexicons.workspace = true
 # the runtime gRPC client; async-trait + dashmap power the fixture impl.
 polaris-classifier-proto.workspace = true
 tonic.workspace = true
+# prost: required at runtime for the `Message::encode_to_vec` method
+# used by the classifier feedback module's privacy-boundary tests
+# (issue #130 / PR 6). The generated proto types in
+# polaris-classifier-proto don't re-export the Message trait.
+prost.workspace = true
 # async-trait + dashmap are workspace-deps below; the classifier module is
 # the additional consumer — verify both pins are unchanged.
 dashmap = "6"

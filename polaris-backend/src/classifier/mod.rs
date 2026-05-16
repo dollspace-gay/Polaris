@@ -24,9 +24,11 @@ pub mod circuit;
 pub mod client;
 pub mod error;
 pub mod fanout;
+pub mod feedback;
 
 pub use budget::{BudgetRegistry, DEFAULT_MAX_IN_FLIGHT};
 pub use circuit::{BreakerConfig, BreakerRegistry, BreakerVerdict};
 pub use client::{ClassifierClient, FixtureClassifierClient, TonicClassifierClient};
 pub use error::ClassifierError;
 pub use fanout::{ClassifierFanout, ClassifyEvent, ConfiguredClassifier};
+pub use feedback::{action_kind_wire_string, build_feedback, spawn_feedback};
