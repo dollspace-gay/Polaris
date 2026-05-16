@@ -1,0 +1,8 @@
+{
+  "uuid": "9aa18e4e-a7b3-4d23-a2c3-bc5bcab2a09e",
+  "issue_uuid": "411e421a-e37f-4e7b-a34b-c6a3a5892346",
+  "author": "anon-16838310",
+  "content": "Committed: Add escalationMessage lexicon, types, mapping, federation layer, and thread UI (issue #110 PR 4) | Files: 24 files changed, 2470 insertions(+), 4 deletions(-)",
+  "created_at": "2026-05-16T16:56:26.115913067Z",
+  "kind": "result"
+}
