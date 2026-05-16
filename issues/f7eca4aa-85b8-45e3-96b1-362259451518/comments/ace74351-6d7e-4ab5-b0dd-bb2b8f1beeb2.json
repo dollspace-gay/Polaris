@@ -1,0 +1,10 @@
+{
+  "uuid": "ace74351-6d7e-4ab5-b0dd-bb2b8f1beeb2",
+  "issue_uuid": "f7eca4aa-85b8-45e3-96b1-362259451518",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/45-ml-classifier.md — Open Questions Q1-Q5.\n\n## Decisions required (provisional in #123)\n- Q1 model type: A (BERT-class) vs B (LLM) vs C (rule). Default 500ms timeout suits A and C; B needs per-classifier higher timeout.\n- Q2 self vs cloud: A (self-hosted only) vs B (cloud with consent) vs C (both with transparency). Provisional C.\n- Q3 accuracy tracking: A (track + surface) vs B (UI add-on) vs C (auto-decay weights). Provisional A. C is dangerous (cascade risk).\n- Q4 transport: A (gRPC) vs B (WebSocket) vs C (HTTP). Provisional A. Cloud providers without gRPC get wrapped in tonic-bridge adapters.\n- Q5 disagreement UX: A (side-by-side) vs B (aggregate + side-by-side) vs C (separate Disagreement observation). Provisional A; talk to moderators before locking in B/C.\n\n## Acceptance\n- [ ] Five decisions recorded as `--kind decision` comments.\n\n## Blocks\n- Blocks #125 (Q4 shapes the transport choice).",
+  "created_at": "2026-05-16T13:46:33.437719853Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA4KpyZ+OKEo9XADkL6VuC4ymGB3Kynejv3HQ9up2zsFSWXq57dNJNeNxjSzV8INFVKVfV8te1dXQVNULrIMMSBQ=="
+}
