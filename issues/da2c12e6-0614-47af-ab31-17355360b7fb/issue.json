@@ -2,12 +2,13 @@
   "uuid": "da2c12e6-0614-47af-ab31-17355360b7fb",
   "display_id": 156,
   "title": "M5 #48 / PR 2: TpmSigningKey impl skeleton + TpmError enum + swtpm fixture integration test; AC-1",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "a6ecf6ea-2598-44bf-a377-4bfbe1cda397",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:54:52.121908303Z",
-  "updated_at": "2026-05-16T13:57:06.657374558Z",
+  "updated_at": "2026-05-16T20:09:46.229740330Z",
+  "closed_at": "2026-05-16T20:09:46.229740330Z",
   "blockers": [
     "dd303366-9ec0-4464-8701-7f6e734cd00e"
   ]
