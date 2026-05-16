@@ -1,0 +1,11 @@
+{
+  "uuid": "add9ff85-b927-4bdf-895d-9c230606c756",
+  "display_id": 127,
+  "title": "M5 #45 / PR 3: fan-out subscriber + Observation::ClassifierSignal materialization + classifier_signals table",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "a29c02bc-f94b-4159-a450-afdf32f11d55",
+  "created_by": "TeIq",
+  "created_at": "2026-05-16T13:44:25.733761435Z",
+  "updated_at": "2026-05-16T13:44:25.733761435Z"
+}
