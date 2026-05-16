@@ -1,0 +1,10 @@
+{
+  "uuid": "f42fea4b-758a-4384-8917-ab46aa906142",
+  "issue_uuid": "83fa0b96-b270-4d2a-836b-3722f08f5f07",
+  "author": "TeIq",
+  "content": "Q4 (Subject identity): A — ATProto-shaped subjects only (DID / AT-URI). Federation that targets non-ATProto subjects (lists, feeds, internal aggregates) is a much larger problem and out of v2 scope. Tied to #43 conflict-resolution design which assumes ATProto-shaped subjects.",
+  "created_at": "2026-05-16T14:16:48.303333707Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAUcYYaTkU/Nfg0e2G6B2T/AljDxewB/maiF5/IP6aLRQzSSJLVB1JIeSR2VJn339gqg1mlsCBsQ9Xndk0xEoYAA=="
+}
