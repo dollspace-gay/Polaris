@@ -103,9 +103,30 @@ pub struct V2Body {
     /// to suppress).
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub per_category: std::collections::HashMap<String, f32>,
-    // PR 3 (#146) extends with `time_decay: Option<TimeDecay>`.
+    /// Time-decay parameters (PR 3 / #146 / Q2-A exponential half-life).
+    /// `None` means no time decay (factor 1.0).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time_decay: Option<TimeDecay>,
     // PR 4 (#147) extends with `per_subject_class:
     // HashMap<SubjectKind, f32>`.
+}
+
+/// Exponential half-life decay parameters (PR 3 / #146).
+///
+/// Decay shape: `factor = exp(-ln(2) * age_days / half_life_days)`.
+/// Mathematically clean (Q2-A); operators understand "half-life" via
+/// the radioactive-decay analogy.
+///
+/// - At `age = 0` → factor = 1.0 (no decay).
+/// - At `age = half_life_days` → factor = 0.5.
+/// - At `age = 2 * half_life_days` → factor = 0.25.
+///
+/// Future-dated observations (`age < 0`) clamp to factor = 1.0 so
+/// claims from-the-future can't gain extra trust (security default).
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct TimeDecay {
+    /// Half-life in days. Must be `> 0` and finite.
+    pub half_life_days: f32,
 }
 
 impl TrustPolicy {
@@ -117,6 +138,7 @@ impl TrustPolicy {
         Self::V2(V2Body {
             flat: Some(flat),
             per_category: std::collections::HashMap::new(),
+            time_decay: None,
         })
     }
 }
@@ -163,15 +185,14 @@ impl Default for TrustPolicy {
 pub fn weight(
     observation: &impl Observation,
     policy: &TrustPolicy,
-    _now: chrono::DateTime<chrono::Utc>,
+    now: chrono::DateTime<chrono::Utc>,
 ) -> f32 {
-    let _ = observation; // Reserved for future factors (PR 2-4).
-
-    let (flat_factor, per_category_factor) = match policy {
-        TrustPolicy::V1 { flat } => (*flat, 1.0),
+    let (flat_factor, per_category_factor, time_decay_factor) = match policy {
+        TrustPolicy::V1 { flat } => (*flat, 1.0, 1.0),
         TrustPolicy::V2(V2Body {
             flat,
             per_category,
+            time_decay,
         }) => {
             let flat_factor = flat.unwrap_or(1.0);
             // Missing-category → multiplicative identity 1.0 per Q-resolution
@@ -181,13 +202,15 @@ pub fn weight(
                 .get(observation.category())
                 .copied()
                 .unwrap_or(1.0);
-            (flat_factor, per_category_factor)
+            let time_decay_factor = time_decay
+                .map_or(1.0, |d| compute_decay_factor(d, observation.created_at(), now));
+            (flat_factor, per_category_factor, time_decay_factor)
         }
     };
 
-    // Composition: multiplicative across factors. PR 3/4 multiply in
-    // time_decay and per_subject_class before the final clamp.
-    let raw = flat_factor * per_category_factor;
+    // Composition: multiplicative across factors. PR 4 multiplies in
+    // per_subject_class before the final clamp.
+    let raw = flat_factor * per_category_factor * time_decay_factor;
 
     // Defense-in-depth clamp per Q6 + REQ-7. Ensures the type
     // invariant `weight ∈ [0.0, 1.0]` holds even if validate() was
@@ -220,12 +243,13 @@ pub fn weight(
 /// half-life positivity checks, etc. The validate() contract stays
 /// stable; the variants of [`TrustPolicyError`] grow additively.
 pub fn validate(policy: &TrustPolicy) -> Result<(), TrustPolicyError> {
-    let (flat, per_category) = match policy {
-        TrustPolicy::V1 { flat } => (Some(*flat), None),
+    let (flat, per_category, time_decay) = match policy {
+        TrustPolicy::V1 { flat } => (Some(*flat), None, None),
         TrustPolicy::V2(V2Body {
             flat,
             per_category,
-        }) => (*flat, Some(per_category)),
+            time_decay,
+        }) => (*flat, Some(per_category), time_decay.as_ref()),
     };
 
     if let Some(f) = flat {
@@ -259,7 +283,69 @@ pub fn validate(policy: &TrustPolicy) -> Result<(), TrustPolicyError> {
         }
     }
 
+    // PR 3: validate time_decay half_life_days is finite and > 0.
+    if let Some(decay) = time_decay {
+        if !decay.half_life_days.is_finite() || decay.half_life_days <= 0.0 {
+            return Err(TrustPolicyError::InvalidHalfLife(decay.half_life_days));
+        }
+    }
+
     Ok(())
+}
+
+/// Compute the exponential half-life decay factor for an observation
+/// (PR 3 / #146 / Q2-A).
+///
+/// `factor = exp(-ln(2) * age_days / half_life_days)`.
+///
+/// Edge cases:
+/// - `age < 0` (future-dated observation) → factor = 1.0 (no boost).
+/// - `half_life_days <= 0` or non-finite → factor = 1.0 (treated as
+///   "no decay configured"; validate() would have rejected this at
+///   save time, but the defense-in-depth check ensures malformed
+///   inputs don't produce NaN/Inf weights).
+/// - Overflow (very old observation) → clamp to 0.0 at the
+///   compose-then-clamp boundary in weight().
+fn compute_decay_factor(
+    decay: TimeDecay,
+    created_at: chrono::DateTime<chrono::Utc>,
+    now: chrono::DateTime<chrono::Utc>,
+) -> f32 {
+    if !decay.half_life_days.is_finite() || decay.half_life_days <= 0.0 {
+        return 1.0;
+    }
+    // num_seconds() returns i64. The cast to f64 is precision-safe
+    // for any wall-clock duration the application could plausibly
+    // see: i64 seconds covers ±292 billion years, while f64 retains
+    // 53 bits of mantissa (~9 quadrillion exact integers). The
+    // moderation context cares about durations in days-to-years; the
+    // cast is far from the precision-loss boundary.
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "i64 seconds → f64 days is precision-safe at the scales \
+                  this function sees (≤ centuries of wall-clock age)."
+    )]
+    let age_seconds_f64 = (now - created_at).num_seconds() as f64;
+    let age_days = age_seconds_f64 / 86_400.0;
+    if age_days <= 0.0 {
+        // Future-dated observation: don't grant extra trust.
+        return 1.0;
+    }
+    let exponent = -std::f64::consts::LN_2 * age_days / f64::from(decay.half_life_days);
+    // f64 → f32 truncation: the function returns f32 to match the
+    // workspace's weight() signature; the exponent computation runs
+    // in f64 for headroom against the long tail (age in centuries
+    // for ancient observations) but the downstream consumer is f32.
+    #[allow(
+        clippy::cast_possible_truncation,
+        reason = "factor ∈ (0, 1] by construction; f32 has plenty of \
+                  precision in that range."
+    )]
+    let factor = exponent.exp() as f32;
+    if !factor.is_finite() {
+        return 0.0;
+    }
+    factor.clamp(0.0, 1.0)
 }
 
 /// Opaque observation reference. PR 1 doesn't consume any fields;
@@ -346,6 +432,7 @@ mod tests {
                 assert_eq!(field, "flat");
                 assert!((value - 1.5).abs() < f32::EPSILON);
             }
+            TrustPolicyError::InvalidHalfLife(_) => panic!("expected WeightOutOfRange, got InvalidHalfLife"),
         }
     }
 
@@ -382,7 +469,7 @@ mod tests {
             // The policy may be invalid (out of range), but the
             // defense-in-depth clamp at the end of weight() must
             // still produce a result in [0.0, 1.0].
-            let policy = TrustPolicy::V2(V2Body { flat: Some(flat), per_category: std::collections::HashMap::new() });
+            let policy = TrustPolicy::V2(V2Body { flat: Some(flat), per_category: std::collections::HashMap::new(), time_decay: None });
             let w = weight(&obs(), &policy, Utc::now());
             prop_assert!(w >= 0.0, "weight {w} < 0 for flat={flat}");
             prop_assert!(w <= 1.0, "weight {w} > 1 for flat={flat}");
@@ -397,7 +484,7 @@ mod tests {
     /// the clamp.
     #[test]
     fn weight_floors_nan_input_to_zero() {
-        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::NAN), per_category: std::collections::HashMap::new() });
+        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::NAN), per_category: std::collections::HashMap::new(), time_decay: None });
         let w = weight(&obs(), &policy, Utc::now());
         assert!(w.is_finite());
         assert_eq!(w, 0.0);
@@ -406,7 +493,7 @@ mod tests {
     /// AC-1 hardening: positive infinity floors via clamp to 1.0.
     #[test]
     fn weight_clamps_positive_infinity_to_one() {
-        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::INFINITY), per_category: std::collections::HashMap::new() });
+        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::INFINITY), per_category: std::collections::HashMap::new(), time_decay: None });
         let w = weight(&obs(), &policy, Utc::now());
         assert!(w.is_finite());
         assert_eq!(w, 1.0);
@@ -417,7 +504,7 @@ mod tests {
     fn weight_clamps_negative_infinity_to_zero() {
         let policy = TrustPolicy::V2(V2Body {
             flat: Some(f32::NEG_INFINITY),
-            per_category: std::collections::HashMap::new(),
+            per_category: std::collections::HashMap::new(), time_decay: None,
         });
         let w = weight(&obs(), &policy, Utc::now());
         assert!(w.is_finite());
@@ -435,6 +522,7 @@ mod tests {
         let policy = TrustPolicy::V2(V2Body {
             flat: None,
             per_category,
+            time_decay: None,
         });
 
         let spam = StubObservation {
@@ -468,6 +556,7 @@ mod tests {
         let policy = TrustPolicy::V2(V2Body {
             flat: Some(0.5),
             per_category,
+            time_decay: None,
         });
 
         let spam = StubObservation {
@@ -488,6 +577,7 @@ mod tests {
         let policy = TrustPolicy::V2(V2Body {
             flat: None,
             per_category,
+            time_decay: None,
         });
         let err = validate(&policy).unwrap_err();
         match err {
@@ -495,6 +585,7 @@ mod tests {
                 assert_eq!(field, "per_category");
                 assert!((value - 1.5).abs() < f32::EPSILON);
             }
+            TrustPolicyError::InvalidHalfLife(_) => panic!("expected WeightOutOfRange, got InvalidHalfLife"),
         }
     }
 
@@ -515,6 +606,7 @@ mod tests {
             let policy = TrustPolicy::V2(V2Body {
                 flat: Some(0.5),
                 per_category,
+            time_decay: None,
             });
 
             let observation = StubObservation {
@@ -524,6 +616,83 @@ mod tests {
             let w = weight(&observation, &policy, Utc::now());
             prop_assert!((0.0..=1.0).contains(&w), "weight {w} outside [0,1]");
             prop_assert!(w.is_finite());
+        }
+    }
+
+    /// AC-4: with a 30-day half-life policy, weight at t0 is the
+    /// flat value; at t0+30d it's half.
+    #[test]
+    fn time_decay_halves_at_half_life() {
+        use chrono::Duration;
+        let policy = TrustPolicy::V2(V2Body {
+            flat: Some(1.0),
+            per_category: std::collections::HashMap::new(),
+            time_decay: Some(TimeDecay {
+                half_life_days: 30.0,
+            }),
+        });
+        let t0 = Utc::now();
+        let obs = StubObservation {
+            category: "spam".to_owned(),
+            created_at: t0,
+        };
+
+        // At t0: factor = 1.0.
+        let w0 = weight(&obs, &policy, t0);
+        assert!((w0 - 1.0).abs() < 1e-3, "expected ~1.0 at t0, got {w0}");
+
+        // At t0 + 30 days: factor = 0.5.
+        let t30 = t0 + Duration::days(30);
+        let w30 = weight(&obs, &policy, t30);
+        assert!((w30 - 0.5).abs() < 1e-3, "expected ~0.5 at half-life, got {w30}");
+
+        // At t0 + 60 days (two half-lives): factor = 0.25.
+        let t60 = t0 + Duration::days(60);
+        let w60 = weight(&obs, &policy, t60);
+        assert!((w60 - 0.25).abs() < 1e-3, "expected ~0.25 at 2x half-life, got {w60}");
+    }
+
+    /// Future-dated observation doesn't get boosted past 1.0.
+    #[test]
+    fn time_decay_future_observation_clamps_to_identity() {
+        use chrono::Duration;
+        let policy = TrustPolicy::V2(V2Body {
+            flat: Some(1.0),
+            per_category: std::collections::HashMap::new(),
+            time_decay: Some(TimeDecay {
+                half_life_days: 30.0,
+            }),
+        });
+        let now = Utc::now();
+        let future_obs = StubObservation {
+            category: "spam".to_owned(),
+            created_at: now + Duration::days(10),
+        };
+        let w = weight(&future_obs, &policy, now);
+        assert!((w - 1.0).abs() < f32::EPSILON, "future obs should not boost: got {w}");
+    }
+
+    /// validate() rejects invalid half_life_days values.
+    #[test]
+    fn validate_rejects_invalid_half_life() {
+        for bad in [0.0_f32, -1.0, f32::NAN, f32::INFINITY] {
+            let policy = TrustPolicy::V2(V2Body {
+                flat: None,
+                per_category: std::collections::HashMap::new(),
+                time_decay: Some(TimeDecay { half_life_days: bad }),
+            });
+            let err = validate(&policy).unwrap_err();
+            match err {
+                TrustPolicyError::InvalidHalfLife(v) => {
+                    assert!(
+                        (v.is_nan() && bad.is_nan())
+                            || (v.is_infinite() && bad.is_infinite())
+                            || (v - bad).abs() < f32::EPSILON,
+                        "expected matching half-life value, got {v} for bad={bad}"
+                    );
+                }
+                TrustPolicyError::WeightOutOfRange { .. } => panic!("expected InvalidHalfLife for {bad}, got WeightOutOfRange"),
+            }
         }
     }
 }

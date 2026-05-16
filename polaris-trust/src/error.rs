@@ -25,8 +25,7 @@ use thiserror::Error;
 pub enum TrustPolicyError {
     /// A weight field is outside the legal `[0.0, 1.0]` range, or is
     /// `NaN` / infinite. `field` names the path
-    /// (e.g. `"flat"`, `"per_category[spam]"`); `value` is the
-    /// offending float.
+    /// (e.g. `"flat"`, `"per_category"`); `value` is the offending float.
     #[error("weight `{field}` out of range: {value} (must be finite in [0.0, 1.0])")]
     WeightOutOfRange {
         /// Logical path of the offending field.
@@ -34,4 +33,8 @@ pub enum TrustPolicyError {
         /// The bad value.
         value: f32,
     },
+
+    /// TimeDecay::half_life_days is not finite, or is `<= 0` (PR 3 / #146).
+    #[error("invalid time-decay half_life_days: {0} (must be finite and > 0)")]
+    InvalidHalfLife(f32),
 }
