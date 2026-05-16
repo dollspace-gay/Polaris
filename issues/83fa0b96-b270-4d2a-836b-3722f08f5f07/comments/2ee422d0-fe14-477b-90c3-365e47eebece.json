@@ -1,0 +1,10 @@
+{
+  "uuid": "2ee422d0-fe14-477b-90c3-365e47eebece",
+  "issue_uuid": "83fa0b96-b270-4d2a-836b-3722f08f5f07",
+  "author": "TeIq",
+  "content": "Q1 (NSID namespace): A — gay.dollspace.polaris.* — codegen makes renames cheap up until the first federation handshake; ship and revisit only if the project-vs-operator governance question forces a change before federation activates.",
+  "created_at": "2026-05-16T14:16:40.484965106Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA6ciUZJVFLho98rSZqub6bHpLdRqtIR0umxJF4pNVVQ8eERa9c9wVZltbuB+MSa4ojIlk4qFa5XpUimjfPXCiCw=="
+}
