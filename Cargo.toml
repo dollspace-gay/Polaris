@@ -20,6 +20,13 @@ repository = "https://github.com/dollspace-gay/polaris"
 [workspace.dependencies]
 # ATProto SDK
 proto-blue = "0.3"
+# proto-blue-syntax sub-crate: typed format newtypes (`Did`, `AtUri`, `Cid`,
+# `Datetime`, `Handle`, …) emitted by proto-blue-codegen for format-tagged
+# Lexicon string fields. polaris-lexicons's generated tree references this
+# crate directly by path (`proto_blue_syntax::Did`), so it must be declared
+# as a workspace dependency in its own right rather than relying on the
+# umbrella re-export. Pin to the same semver line as the umbrella.
+proto-blue-syntax = "0.3"
 
 # Web framework
 axum = "0.8"

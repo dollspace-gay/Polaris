@@ -11,6 +11,10 @@ description = "Generated Rust types for the gay.dollspace.polaris.* AT Protocol 
 serde.workspace = true
 serde_json.workspace = true
 chrono.workspace = true
+# proto-blue-syntax: typed format newtypes that the codegen output references
+# for Lexicon string fields with `format` hints (`did`, `at-uri`, `cid`,
+# `datetime`, …). Required for the generated tree to compile.
+proto-blue-syntax.workspace = true
 
 [lints]
 workspace = true

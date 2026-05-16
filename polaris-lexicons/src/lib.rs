@@ -30,3 +30,12 @@
 /// will reject any manual edits.
 #[allow(missing_docs)]
 pub mod generated;
+
+// Re-export the top-level NSID namespace at crate root so the generated
+// tree's internal cross-references (`crate::gay::dollspace::polaris::…`)
+// resolve correctly. proto-blue-codegen emits absolute `crate::…` paths
+// rooted at the top-level NSID segment (matches proto-blue-api's
+// convention: `pub use generated::com;` etc.), so consumers can import
+// either `polaris_lexicons::gay::…` or `polaris_lexicons::generated::gay::…`
+// — both resolve to the same items.
+pub use generated::gay;
