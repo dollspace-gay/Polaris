@@ -1,0 +1,10 @@
+{
+  "uuid": "f3de9e35-c1fe-4123-ba2c-48b6104e10db",
+  "issue_uuid": "6dfeb78d-1d4a-4562-89cc-5ed4d124eb7b",
+  "author": "TeIq",
+  "content": "PR 6 landed. classifier/feedback.rs delivers build_feedback() with privacy boundary at the signature, action_kind_wire_string() with explicit Reverse→no_action mapping, spawn_feedback() fire-and-forget delivery. 4 new tests (28 classifier-module tests total). AC-7 covered: prost-encoded wire form contains no moderator_id / audit_chain / reporter_did / exposure / reasoning substrings. Wiring the send_feedback config flag into cases::submit_action is a thin glue change tracked as part of #131 (sample classifier + docs) so operators have a runnable end-to-end demo.",
+  "created_at": "2026-05-16T19:19:21.387357372Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAVXYcTGh1gjM1nWSDvmh4HiW1tibZhpvR1JF3xDQeLBVsoW2LIkd2OR1f6CZFIJyGy4ctM3vZlC8WNMD8h4fGCw=="
+}
