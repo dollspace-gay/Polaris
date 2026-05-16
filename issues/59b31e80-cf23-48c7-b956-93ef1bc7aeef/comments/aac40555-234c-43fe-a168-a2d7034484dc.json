@@ -1,0 +1,10 @@
+{
+  "uuid": "aac40555-234c-43fe-a168-a2d7034484dc",
+  "issue_uuid": "59b31e80-cf23-48c7-b956-93ef1bc7aeef",
+  "author": "TeIq",
+  "content": "PR 2 scaffold landed. PushProvider trait + ntfy impl (functional) + APNs/FCM stubs (deferred, need provider credentials) + mobile_devices migration 0030 + PushPayload with AC-8 no-PII invariant test. 10 tests passing. Fan-out subscriber + axum registration handler + APNs/FCM impls are tracked as follow-up work.",
+  "created_at": "2026-05-16T20:05:08.396193858Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA09f/SH2dDC1MPPnHGhPLoBgQN9sZ4vKSSPMgc1x2PTSEj3DfaPacFT6w0sH4YrBUhP9RP3lB3KXnA8U7mW+/AQ=="
+}
