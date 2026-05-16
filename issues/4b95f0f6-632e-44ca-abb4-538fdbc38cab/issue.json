@@ -1,0 +1,11 @@
+{
+  "uuid": "4b95f0f6-632e-44ca-abb4-538fdbc38cab",
+  "display_id": 149,
+  "title": "M5 #47 / PR 6: preview UI in polaris-frontend admin surface with per-observation weight preview",
+  "status": "open",
+  "priority": "low",
+  "parent_uuid": "c83e4ba4-cc01-4186-a104-69672382d917",
+  "created_by": "TeIq",
+  "created_at": "2026-05-16T13:48:38.292913634Z",
+  "updated_at": "2026-05-16T13:48:38.292913634Z"
+}
