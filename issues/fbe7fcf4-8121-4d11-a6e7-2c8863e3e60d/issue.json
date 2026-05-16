@@ -2,12 +2,13 @@
   "uuid": "fbe7fcf4-8121-4d11-a6e7-2c8863e3e60d",
   "display_id": 101,
   "title": "M5 #42 / PR 1: Lexicon JSON drafts for polaris.escalation (+ embedded observation, evidence-pointer) + lexicons/README.md compat policy",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "08aa2123-4977-4c5b-85ef-cada17ba4182",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:33:55.732497890Z",
-  "updated_at": "2026-05-16T13:36:03.504589792Z",
+  "updated_at": "2026-05-16T14:27:56.400654118Z",
+  "closed_at": "2026-05-16T14:27:56.400654118Z",
   "blockers": [
     "83fa0b96-b270-4d2a-836b-3722f08f5f07"
   ]
