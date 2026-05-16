@@ -55,6 +55,7 @@
 )]
 
 pub mod error;
+pub mod templates;
 
 pub use error::TrustPolicyError;
 
