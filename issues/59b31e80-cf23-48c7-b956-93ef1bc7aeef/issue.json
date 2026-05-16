@@ -2,12 +2,13 @@
   "uuid": "59b31e80-cf23-48c7-b956-93ef1bc7aeef",
   "display_id": 116,
   "title": "M5 #44 / PR 2: backend push subsystem (APNs + FCM + ntfy) + mobile_devices table + /api/devices/register endpoint",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "ce753212-18c3-432e-a31d-9356ed775ace",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:40:46.129504061Z",
-  "updated_at": "2026-05-16T13:43:25.031704656Z",
+  "updated_at": "2026-05-16T20:05:09.879731199Z",
+  "closed_at": "2026-05-16T20:05:09.879731199Z",
   "blockers": [
     "8dffb91a-b33d-497a-bcda-1c669642c4b4"
   ]
