@@ -130,6 +130,15 @@ define_uuid_id!(
     EscalationId
 );
 define_uuid_id!(
+    /// Identifier for an [`crate::escalation::EscalationMessage`] (issue #110 /
+    /// M5 PR 4).
+    ///
+    /// `EscalationMessageId` is the local primary key assigned when a message
+    /// is materialized from quarantine into `federation_messages`. It is
+    /// DROPPED at the to-wire boundary by the mapping layer — never federated.
+    EscalationMessageId
+);
+define_uuid_id!(
     /// Identifier for a `pattern_actions` row (issue #21).
     ///
     /// Pattern actions are the bulk-on-pattern endpoint (design.md §5.3) —

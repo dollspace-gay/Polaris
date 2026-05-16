@@ -1,0 +1,37 @@
+{
+  "lexicon": 1,
+  "id": "gay.dollspace.polaris.escalationMessage",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A message sent between Polaris instances as part of a federation escalation thread. Messages are append-only; each message is a new record in the source labeler's repo. Attribution is by instance DID, not by moderator identity.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": ["escalation", "source", "body", "signedAt"],
+        "properties": {
+          "escalation": {
+            "type": "string",
+            "format": "at-uri",
+            "description": "AT-URI reference to the parent gay.dollspace.polaris.escalation record. The authority component of the AT-URI identifies the source labeler's repo, and the record key identifies the parent escalation row. Used by the receiving instance to associate this message with an existing escalation thread."
+          },
+          "source": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the Polaris labeler instance that authored and signed this message. Messages are bidirectional — either the escalation originator or the escalation target may be the source. The receiving instance MUST verify the record signature against this DID's published verification method before materialising the message."
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 8192,
+            "description": "Free-text message body. Content is operator-to-operator moderation coordination text and is never surfaced to end users. The receiving instance stores this verbatim after signature verification."
+          },
+          "signedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "ISO 8601 / RFC 3339 timestamp at which the sending instance signed and published this record. The receiving instance records this value as the canonical message timestamp rather than its own ingestion time, preserving the author's intent."
+          }
+        }
+      }
+    }
+  }
+}

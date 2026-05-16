@@ -2,6 +2,8 @@
 #![allow(clippy::pedantic, clippy::nursery, clippy::all)]
 
 pub mod escalation;
+#[path = "escalationMessage.rs"]
+pub mod escalation_message;
 #[path = "evidencePointer.rs"]
 pub mod evidence_pointer;
 pub mod observation;

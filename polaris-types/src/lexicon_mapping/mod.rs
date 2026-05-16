@@ -38,10 +38,13 @@ pub mod error;
 
 use polaris_lexicons::gay::dollspace::polaris as wire;
 
-use crate::escalation::{EmbeddedObservation, Escalation, SubjectRef};
+use crate::escalation::{
+    EmbeddedObservation, Escalation, EscalationMessage, SignatureStatus, SubjectRef,
+};
 use crate::evidence::EvidencePointer;
-use crate::ids::Did;
+use crate::ids::{Did, EscalationMessageId};
 use crate::observation::ObservationKind;
+use chrono::{DateTime, Utc};
 
 pub use error::MappingError;
 
@@ -659,6 +662,88 @@ pub fn from_lexicon_escalation(
         observations,
         evidence,
         created_at,
+    })
+}
+
+// ── EscalationMessage (#110 / M5 #43 PR 4) ────────────────────────────────
+
+/// Convert an internal [`EscalationMessage`] into its wire form for
+/// publication via `gay.dollspace.polaris.escalationMessage`.
+///
+/// # Privacy boundary
+///
+/// Two internal-only fields are **silently dropped** at this boundary:
+///
+/// - `id: EscalationMessageId` — the local primary key assigned by the
+///   receiving instance. Never federated.
+/// - `signature_status: SignatureStatus` — the local verification verdict.
+///   Computed by the receiving instance from the record's signature; never
+///   present on the wire.
+///
+/// # Errors
+///
+/// Currently infallible — the function returns `Result` for forward-
+/// compatibility with future fields that may require validation.
+#[must_use = "the wire-form message is the value to publish; dropping it leaks the privacy strip"]
+pub fn to_lexicon_escalation_message(
+    msg: &EscalationMessage,
+) -> Result<wire::escalation_message::Main, MappingError> {
+    // privacy: EscalationMessageId never federated — `msg.id` is dropped here.
+    // privacy: SignatureStatus never federated — `msg.signature_status` is dropped here.
+    let escalation = proto_blue_syntax::AtUri::new(&msg.escalation_at_uri).map_err(|_| {
+        MappingError::MalformedAtUri {
+            value: msg.escalation_at_uri.clone(),
+        }
+    })?;
+    let source = proto_blue_syntax::Did::new(&msg.source_did).map_err(|_| {
+        MappingError::MalformedDid {
+            value: msg.source_did.clone(),
+        }
+    })?;
+    let signed_at = proto_blue_syntax::Datetime::from_utc(msg.signed_at);
+    Ok(wire::escalation_message::Main {
+        r#type: wire::escalation_message::TYPE.to_owned(),
+        body: msg.body.clone(),
+        escalation,
+        signed_at,
+        source,
+    })
+}
+
+/// Convert an inbound wire `gay.dollspace.polaris.escalationMessage` record
+/// into an internal [`EscalationMessage`].
+///
+/// # Post-conditions
+///
+/// - `id` is set to a freshly minted [`EscalationMessageId`] (the local PK
+///   — never carried on the wire).
+/// - `signature_status` is set to [`SignatureStatus::Unsigned`]. The caller
+///   is responsible for updating this to [`SignatureStatus::Verified`] or
+///   [`SignatureStatus::VerifyFailed`] after running the verifier.
+///
+/// # Errors
+///
+/// Returns [`MappingError::InvalidDatetime`] if `wire.signed_at` is not a
+/// well-formed RFC 3339 timestamp.
+pub fn from_lexicon_escalation_message(
+    wire_msg: wire::escalation_message::Main,
+) -> Result<EscalationMessage, MappingError> {
+    let signed_at_str = wire_msg.signed_at.as_str().to_owned();
+    let signed_at: DateTime<Utc> = DateTime::parse_from_rfc3339(&signed_at_str)
+        .map(|dt| dt.with_timezone(&Utc))
+        .map_err(|source| MappingError::InvalidDatetime {
+            value: signed_at_str,
+            source,
+        })?;
+
+    Ok(EscalationMessage {
+        id: EscalationMessageId::new(),
+        // AtUri exposes its raw form via Display; no public as_str accessor.
+        escalation_at_uri: wire_msg.escalation.to_string(),
+        source_did: wire_msg.source.as_str().to_owned(),
+        body: wire_msg.body,
+        signed_at,
+        signature_status: SignatureStatus::Unsigned,
     })
 }
 

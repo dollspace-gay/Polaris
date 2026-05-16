@@ -140,6 +140,70 @@ pub struct Escalation {
     pub created_at: DateTime<Utc>,
 }
 
+// ── EscalationMessage (#110 / M5 PR 4) ────────────────────────────────────
+
+/// Signature verification status for an inbound federation message.
+///
+/// Computed by the receiving instance at materialization time; never present
+/// on the wire (the wire carries only `sig` bytes; the verdict is local).
+/// Internal-only field — dropped at the to-wire boundary by the
+/// mapping layer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SignatureStatus {
+    /// Signature checked against the peer's declared pubkey and verified.
+    Verified,
+    /// Signature was present but did not verify. Message MUST NOT promote
+    /// the conversation state; kept for audit only.
+    VerifyFailed,
+    /// Frame carried no signature field. Treated the same as
+    /// `VerifyFailed` for promotion purposes.
+    Unsigned,
+}
+
+impl SignatureStatus {
+    /// Wire-form discriminator (matches the DB `CHECK` constraint values).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Verified => "verified",
+            Self::VerifyFailed => "verify_failed",
+            Self::Unsigned => "unsigned",
+        }
+    }
+}
+
+/// One bidirectional message inside a federated escalation thread (#110).
+///
+/// Both peers can post `EscalationMessage` records to their respective
+/// repos under `gay.dollspace.polaris.escalationMessage`. The receiving
+/// instance materializes the wire record into a `federation_messages`
+/// row attributed to the SENDING INSTANCE'S DID — never to a moderator
+/// identity (REQ-5 / AC-4).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct EscalationMessage {
+    /// Internal primary key. NEVER federated — dropped at the to-wire
+    /// boundary by the mapping layer.
+    pub id: crate::ids::EscalationMessageId,
+    /// AT-URI of the parent `polaris.escalation` record.
+    ///
+    /// Present on the wire as the `escalation` field. Receivers look up
+    /// the parent escalation by this at-uri's record-CID; on miss, the
+    /// message is held in quarantine until the parent arrives.
+    pub escalation_at_uri: String,
+    /// DID of the sending instance's labeler. Attribution renders as
+    /// `instance:<did>` in the case-view thread UI — REQ-5.
+    pub source_did: String,
+    /// Free-text message body. The lexicon `maxLength: 8192` is enforced
+    /// at the mapping boundary.
+    pub body: String,
+    /// When the message was signed by the sending instance.
+    pub signed_at: DateTime<Utc>,
+    /// Internal-only signature verdict; computed by the receiving instance.
+    /// Never federated.
+    pub signature_status: SignatureStatus,
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

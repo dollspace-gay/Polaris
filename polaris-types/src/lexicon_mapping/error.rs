@@ -68,4 +68,18 @@ pub enum MappingError {
         /// The offending string.
         value: String,
     },
+
+    /// An RFC 3339 datetime string failed to parse.
+    ///
+    /// Fires when a value claimed to be a `format: datetime` Lexicon string
+    /// cannot be parsed by `chrono::DateTime::parse_from_rfc3339`. Added in
+    /// issue #110 for the `escalationMessage.signedAt` round-trip.
+    #[error("invalid RFC 3339 datetime: {value:?}: {source}")]
+    InvalidDatetime {
+        /// The offending string.
+        value: String,
+        /// The chrono parser's structured error for diagnostic chaining.
+        #[source]
+        source: chrono::ParseError,
+    },
 }

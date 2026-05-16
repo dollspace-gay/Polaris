@@ -43,8 +43,10 @@
 
 use std::sync::Arc;
 
-use polaris_types::lexicon_mapping::{MappingError, to_lexicon_escalation};
-use polaris_types::Escalation;
+use polaris_types::lexicon_mapping::{
+    MappingError, to_lexicon_escalation, to_lexicon_escalation_message,
+};
+use polaris_types::{Escalation, EscalationMessage};
 use proto_blue::{lex_cbor, lex_json};
 use serde_json::json;
 use tracing::debug;
@@ -53,6 +55,10 @@ use crate::labeler::signer::{ActiveSignerReceiver, SigningError};
 
 /// ATProto collection that holds Polaris federation escalation records.
 const ESCALATION_COLLECTION: &str = "gay.dollspace.polaris.escalation";
+
+/// ATProto collection that holds Polaris federation escalation-message
+/// records (#110 / M5 #43 PR 4).
+const ESCALATION_MESSAGE_COLLECTION: &str = "gay.dollspace.polaris.escalationMessage";
 
 /// XRPC method used to write records to the operator's ATProto repo.
 const CREATE_RECORD_NSID: &str = "com.atproto.repo.createRecord";
@@ -222,6 +228,103 @@ impl OutboundPublisher {
             escalation_id = %escalation.id,
             cid = %cid,
             "federation escalation written to ATProto repo",
+        );
+
+        Ok(cid)
+    }
+
+    /// Publish a federation escalation message (#110 / M5 #43 PR 4).
+    ///
+    /// Bidirectional follow-up messages on a parent `polaris.escalation`
+    /// flow through this method. The privacy boundary lives in
+    /// [`to_lexicon_escalation_message`] — `id` (the local primary key)
+    /// and `signature_status` (the local verification verdict) are dropped
+    /// at the wire boundary. This method does NOT perform any field
+    /// stripping itself.
+    ///
+    /// # Errors
+    ///
+    /// Returns:
+    /// - [`PublishError::LocalDidNotConfigured`] if `local_did` is `None`.
+    /// - [`PublishError::Mapping`] if the message's `escalation_at_uri` or
+    ///   `source_did` fails wire-form validation.
+    /// - [`PublishError::SigningFailed`] if the active labeler signer
+    ///   rejects the canonical bytes.
+    /// - [`PublishError::EncodingFailed`] for any serde / lex-cbor failure.
+    /// - [`PublishError::RepoWriteFailed`] if the upstream XRPC call
+    ///   `com.atproto.repo.createRecord` returns an error.
+    ///
+    /// Returns the CID of the newly-written record on success.
+    pub async fn publish_escalation_message(
+        &self,
+        msg: &EscalationMessage,
+    ) -> Result<String, PublishError> {
+        let local_did = self
+            .local_did
+            .as_deref()
+            .ok_or(PublishError::LocalDidNotConfigured)?;
+
+        // Privacy boundary: mapping strips id + signature_status.
+        let wire = to_lexicon_escalation_message(msg)?;
+
+        // Canonicalise → sign → append `sig` → write. Same pipeline as
+        // publish_escalation; pulled inline rather than refactored
+        // because the wire types differ.
+        let json_value =
+            serde_json::to_value(&wire).map_err(|_| PublishError::EncodingFailed)?;
+        let lex_value = lex_json::json_to_lex(&json_value);
+        let canonical_bytes =
+            lex_cbor::encode(&lex_value).map_err(|_| PublishError::EncodingFailed)?;
+
+        let signer = {
+            let guard = self.active_signer.borrow();
+            Arc::clone(&*guard)
+        };
+        let signature = signer
+            .sign(&canonical_bytes)
+            .map_err(PublishError::SigningFailed)?;
+
+        debug!(
+            message_id = %msg.id,
+            collection = ESCALATION_MESSAGE_COLLECTION,
+            "publishing federation escalation message to ATProto repo",
+        );
+
+        let mut record_json =
+            serde_json::to_value(&wire).map_err(|_| PublishError::EncodingFailed)?;
+        if let Some(obj) = record_json.as_object_mut() {
+            obj.insert(
+                "sig".to_owned(),
+                serde_json::Value::String(base64_encode(signature.as_bytes())),
+            );
+        }
+
+        let body = json!({
+            "repo": local_did,
+            "collection": ESCALATION_MESSAGE_COLLECTION,
+            "record": record_json,
+        });
+
+        let xrpc_body = proto_blue::xrpc::types::XrpcBody::Json(body);
+        let response = self
+            .xrpc
+            .procedure(CREATE_RECORD_NSID, None, Some(xrpc_body), None)
+            .await
+            .map_err(|e| PublishError::RepoWriteFailed {
+                message: e.to_string(),
+            })?;
+
+        let cid = response
+            .data
+            .get("cid")
+            .and_then(|v| v.as_str())
+            .ok_or(PublishError::EncodingFailed)?
+            .to_owned();
+
+        debug!(
+            message_id = %msg.id,
+            cid = %cid,
+            "federation escalation message written to ATProto repo",
         );
 
         Ok(cid)

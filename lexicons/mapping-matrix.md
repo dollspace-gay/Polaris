@@ -169,3 +169,20 @@ When you change `polaris-types/src/lexicon_mapping/mod.rs`:
 The CI markdown-lint job catches broken links and heading drift. Every
 matrix row that names a Rust type must reference a type that actually
 exists in `polaris-types/src/lib.rs`'s re-exports.
+
+---
+
+## `gay.dollspace.polaris.escalationMessage`
+
+Maps to `polaris_types::EscalationMessage`. Record type
+(Lexicon `type: "record"`, key: `tid`). Added in issue #110 / M5 PR 4.
+
+| Internal field (`EscalationMessage`) | Wire field (`escalation_message::Main`) | Rule | Notes |
+|-------------------------------------|----------------------------------------|------|-------|
+| `id: EscalationMessageId` | — | `dropped — internal only` | Local primary key assigned at materialization. NEVER federated. |
+| `escalation_at_uri: String` | `escalation: proto_blue_syntax::AtUri` | `rename`/typed-wrap | Parent escalation's record AT-URI. The mapping validates the string via `AtUri::new`; malformed → `MappingError::MalformedAtUri`. |
+| `source_did: String` | `source: proto_blue_syntax::Did` | `rename`/typed-wrap | Sending instance's DID. Attribution renders as `instance:<did>`, never as a moderator identity (REQ-5). Malformed → `MappingError::MalformedDid`. |
+| `body: String` | `body: String` | `identity` | Free-text message body. The Lexicon `maxLength: 8192` is enforced at the codegen-validated boundary; the mapping does not re-validate. |
+| `signed_at: chrono::DateTime<Utc>` | `signed_at: proto_blue_syntax::Datetime` | `rename`/typed-wrap | The wire newtype enforces RFC 3339 formatting. from-wire parsing returns `MappingError::InvalidDatetime` on malformed input. |
+| `signature_status: SignatureStatus` | — | `dropped — internal only` | Local verification verdict computed by the receiving instance after running `verify::PeerKeyResolver`. NEVER federated — the wire carries the raw `sig` bytes, not the local verdict. |
+
