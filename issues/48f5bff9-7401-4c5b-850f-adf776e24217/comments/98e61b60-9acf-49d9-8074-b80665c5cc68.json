@@ -1,0 +1,10 @@
+{
+  "uuid": "98e61b60-9acf-49d9-8074-b80665c5cc68",
+  "issue_uuid": "48f5bff9-7401-4c5b-850f-adf776e24217",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/49-hardware-token-signing.md — REQ-5, AC-6 + decomposition PR 7.\n\n## Surface\n- `polaris-signer/src/fido2.rs` — FIDO2 PRF backend via `ctap-hid-fido2` (or current successor crate)\n- Config: `[hwtoken] backend = \"pkcs11\" | \"fido2\"` selects the path\n- Touch-per-sign: every signing operation prompts physical token touch; configurable timeout (default 30s).\n\n## Rust-quality notes\n- **`ctap-hid-fido2` is less mature than `cryptoki`** — verify current state before implementation. Spike if needed (similar to #155 TPM spike pattern).\n- FIDO2 PRF derives the signing key from a per-credential salt — the keypair is bound to the FIDO2 credential, not to a separately-generated key. This shape is different from PKCS#11; the impl handles the deterministic-derive case.\n- Per rust-quality §3: `PhysicalPresenceTimeout` (the variant from #164) is the explicit return on touch-timeout.\n- Per rust-quality §10: touch prompt + sign-await is a sync operation (the FIDO2 HID transport is blocking). Wrap in `tokio::task::spawn_blocking` on the daemon side.\n\n## External references\n- `ctap-hid-fido2`: https://docs.rs/ctap-hid-fido2/latest/ctap_hid_fido2/\n- WebAuthn PRF extension: https://www.w3.org/TR/webauthn-3/#prf-extension\n\n## Acceptance (AC-6)\n- [ ] FIDO2 token (or fixture) signs a payload after touch within 30s window.\n- [ ] No touch within 30s → `SigningError::PhysicalPresenceTimeout`.\n\n## Blocks / blocked-by\n- Blocked by #169.\n- Blocks #171 (rotation extends across both backends).",
+  "created_at": "2026-05-16T13:59:26.575732007Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPsWh9dnQPi3hoP1dah2YWzSEyaJck1gg2sDt0bsLMRz9R2DxQE5Jb45ngiZFGC0qYuPp76W7wfgqM7CRGA21AA=="
+}
