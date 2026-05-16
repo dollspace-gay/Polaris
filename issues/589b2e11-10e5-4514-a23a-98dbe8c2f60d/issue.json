@@ -1,0 +1,11 @@
+{
+  "uuid": "589b2e11-10e5-4514-a23a-98dbe8c2f60d",
+  "display_id": 121,
+  "title": "M5 #44 / PR 7: WebAuthn platform-authenticator (biometric) enforcement under require_hardware_key",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "ce753212-18c3-432e-a31d-9356ed775ace",
+  "created_by": "TeIq",
+  "created_at": "2026-05-16T13:40:52.560094039Z",
+  "updated_at": "2026-05-16T13:40:52.560094039Z"
+}
