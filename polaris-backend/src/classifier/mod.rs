@@ -19,10 +19,14 @@
 //! - [`error::ClassifierError`] — structured failure variants the
 //!   circuit breaker dispatches on.
 
+pub mod budget;
+pub mod circuit;
 pub mod client;
 pub mod error;
 pub mod fanout;
 
+pub use budget::{BudgetRegistry, DEFAULT_MAX_IN_FLIGHT};
+pub use circuit::{BreakerConfig, BreakerRegistry, BreakerVerdict};
 pub use client::{ClassifierClient, FixtureClassifierClient, TonicClassifierClient};
 pub use error::ClassifierError;
 pub use fanout::{ClassifierFanout, ClassifyEvent, ConfiguredClassifier};
