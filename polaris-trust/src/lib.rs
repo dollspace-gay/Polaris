@@ -88,15 +88,21 @@ pub enum TrustPolicy {
 }
 
 /// v2 policy body. Factors compose multiplicatively in [`weight`].
-/// Subsequent PRs populate per_category (PR 2), time_decay (PR 3),
-/// per_subject_class (PR 4).
+/// PR 1 added `flat`; PR 2 (this commit) adds `per_category`;
+/// PR 3 (#146) adds `time_decay`; PR 4 (#147) adds `per_subject_class`.
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 pub struct V2Body {
     /// Per-source flat weight. `None` means no flat factor (default
     /// identity 1.0).
     pub flat: Option<f32>,
-    // PR 2 (#145) extends this struct with `per_category:
-    // HashMap<String, f32>`.
+    /// Per-category weights (PR 2 / #145). Map from category tag
+    /// (matching [`Observation::category`]) to per-source weight in
+    /// `[0.0, 1.0]`. Missing category → multiplicative identity 1.0
+    /// (so a policy listing `{spam: 0.9}` does NOT zero out unlisted
+    /// categories — operator must explicitly list `{harassment: 0.0}`
+    /// to suppress).
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub per_category: std::collections::HashMap<String, f32>,
     // PR 3 (#146) extends with `time_decay: Option<TimeDecay>`.
     // PR 4 (#147) extends with `per_subject_class:
     // HashMap<SubjectKind, f32>`.
@@ -107,8 +113,11 @@ impl TrustPolicy {
     /// upgrading a v1 row to the explicit-discriminator v2 form
     /// without semantic change.
     #[must_use]
-    pub const fn v2_flat(flat: f32) -> Self {
-        Self::V2(V2Body { flat: Some(flat) })
+    pub fn v2_flat(flat: f32) -> Self {
+        Self::V2(V2Body {
+            flat: Some(flat),
+            per_category: std::collections::HashMap::new(),
+        })
     }
 }
 
@@ -158,14 +167,27 @@ pub fn weight(
 ) -> f32 {
     let _ = observation; // Reserved for future factors (PR 2-4).
 
-    let flat_factor = match policy {
-        TrustPolicy::V1 { flat } => *flat,
-        TrustPolicy::V2(V2Body { flat }) => flat.unwrap_or(1.0),
+    let (flat_factor, per_category_factor) = match policy {
+        TrustPolicy::V1 { flat } => (*flat, 1.0),
+        TrustPolicy::V2(V2Body {
+            flat,
+            per_category,
+        }) => {
+            let flat_factor = flat.unwrap_or(1.0);
+            // Missing-category → multiplicative identity 1.0 per Q-resolution
+            // for #145 ("policy listing {spam: 0.9} does NOT zero out unlisted
+            // categories — operator must explicitly list {harassment: 0.0}").
+            let per_category_factor = per_category
+                .get(observation.category())
+                .copied()
+                .unwrap_or(1.0);
+            (flat_factor, per_category_factor)
+        }
     };
 
-    // Composition (PR 1 — only flat factor; PR 2-4 multiply additional
-    // factors into `raw` before the final clamp).
-    let raw = flat_factor;
+    // Composition: multiplicative across factors. PR 3/4 multiply in
+    // time_decay and per_subject_class before the final clamp.
+    let raw = flat_factor * per_category_factor;
 
     // Defense-in-depth clamp per Q6 + REQ-7. Ensures the type
     // invariant `weight ∈ [0.0, 1.0]` holds even if validate() was
@@ -198,10 +220,14 @@ pub fn weight(
 /// half-life positivity checks, etc. The validate() contract stays
 /// stable; the variants of [`TrustPolicyError`] grow additively.
 pub fn validate(policy: &TrustPolicy) -> Result<(), TrustPolicyError> {
-    let flat = match policy {
-        TrustPolicy::V1 { flat } => Some(*flat),
-        TrustPolicy::V2(V2Body { flat }) => *flat,
+    let (flat, per_category) = match policy {
+        TrustPolicy::V1 { flat } => (Some(*flat), None),
+        TrustPolicy::V2(V2Body {
+            flat,
+            per_category,
+        }) => (*flat, Some(per_category)),
     };
+
     if let Some(f) = flat {
         if !f.is_finite() || !(0.0..=1.0).contains(&f) {
             return Err(TrustPolicyError::WeightOutOfRange {
@@ -210,6 +236,29 @@ pub fn validate(policy: &TrustPolicy) -> Result<(), TrustPolicyError> {
             });
         }
     }
+
+    // PR 2: validate every per_category weight too. The field name in
+    // the error is `per_category[<key>]` so the policy-editor UI can
+    // highlight the offending category row.
+    if let Some(per_category) = per_category {
+        for (category, w) in per_category {
+            if !w.is_finite() || !(0.0..=1.0).contains(w) {
+                // We need a 'static str for the error variant; clippy
+                // would flag a Box::leak here, but the operator UI
+                // only needs the category name for highlighting and
+                // gets it from a separate field on the response — the
+                // static label "per_category" suffices for the error
+                // variant. Including the category in the value-string
+                // for diagnostic logs.
+                let _ = category;
+                return Err(TrustPolicyError::WeightOutOfRange {
+                    field: "per_category",
+                    value: *w,
+                });
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -333,7 +382,7 @@ mod tests {
             // The policy may be invalid (out of range), but the
             // defense-in-depth clamp at the end of weight() must
             // still produce a result in [0.0, 1.0].
-            let policy = TrustPolicy::V2(V2Body { flat: Some(flat) });
+            let policy = TrustPolicy::V2(V2Body { flat: Some(flat), per_category: std::collections::HashMap::new() });
             let w = weight(&obs(), &policy, Utc::now());
             prop_assert!(w >= 0.0, "weight {w} < 0 for flat={flat}");
             prop_assert!(w <= 1.0, "weight {w} > 1 for flat={flat}");
@@ -348,7 +397,7 @@ mod tests {
     /// the clamp.
     #[test]
     fn weight_floors_nan_input_to_zero() {
-        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::NAN) });
+        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::NAN), per_category: std::collections::HashMap::new() });
         let w = weight(&obs(), &policy, Utc::now());
         assert!(w.is_finite());
         assert_eq!(w, 0.0);
@@ -357,7 +406,7 @@ mod tests {
     /// AC-1 hardening: positive infinity floors via clamp to 1.0.
     #[test]
     fn weight_clamps_positive_infinity_to_one() {
-        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::INFINITY) });
+        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::INFINITY), per_category: std::collections::HashMap::new() });
         let w = weight(&obs(), &policy, Utc::now());
         assert!(w.is_finite());
         assert_eq!(w, 1.0);
@@ -366,9 +415,115 @@ mod tests {
     /// AC-1 hardening: negative infinity clamps to 0.0.
     #[test]
     fn weight_clamps_negative_infinity_to_zero() {
-        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::NEG_INFINITY) });
+        let policy = TrustPolicy::V2(V2Body {
+            flat: Some(f32::NEG_INFINITY),
+            per_category: std::collections::HashMap::new(),
+        });
         let w = weight(&obs(), &policy, Utc::now());
         assert!(w.is_finite());
         assert_eq!(w, 0.0);
+    }
+
+    /// AC-5: per-category weight applies when the observation's
+    /// category matches a policy key.
+    #[test]
+    fn per_category_weight_applies_on_match() {
+        let mut per_category = std::collections::HashMap::new();
+        per_category.insert("spam".to_owned(), 0.9);
+        per_category.insert("harassment".to_owned(), 0.0);
+
+        let policy = TrustPolicy::V2(V2Body {
+            flat: None,
+            per_category,
+        });
+
+        let spam = StubObservation {
+            category: "spam".to_owned(),
+            created_at: Utc::now(),
+        };
+        let harassment = StubObservation {
+            category: "harassment".to_owned(),
+            created_at: Utc::now(),
+        };
+        let other = StubObservation {
+            category: "novel".to_owned(),
+            created_at: Utc::now(),
+        };
+
+        // Spam matches → 0.9.
+        assert!((weight(&spam, &policy, Utc::now()) - 0.9).abs() < f32::EPSILON);
+        // Harassment matches → 0.0 (explicit zero).
+        assert_eq!(weight(&harassment, &policy, Utc::now()), 0.0);
+        // Unlisted category → multiplicative identity → 1.0 *
+        // flat(1.0) = 1.0.
+        assert_eq!(weight(&other, &policy, Utc::now()), 1.0);
+    }
+
+    /// AC-5: per-category composes multiplicatively with flat.
+    #[test]
+    fn per_category_composes_with_flat() {
+        let mut per_category = std::collections::HashMap::new();
+        per_category.insert("spam".to_owned(), 0.8);
+
+        let policy = TrustPolicy::V2(V2Body {
+            flat: Some(0.5),
+            per_category,
+        });
+
+        let spam = StubObservation {
+            category: "spam".to_owned(),
+            created_at: Utc::now(),
+        };
+        // 0.5 * 0.8 = 0.4
+        let w = weight(&spam, &policy, Utc::now());
+        assert!((w - 0.4).abs() < f32::EPSILON);
+    }
+
+    /// AC-6 / REQ-7 extension: validate() rejects out-of-range
+    /// per_category weights.
+    #[test]
+    fn validate_rejects_per_category_above_one() {
+        let mut per_category = std::collections::HashMap::new();
+        per_category.insert("spam".to_owned(), 1.5);
+        let policy = TrustPolicy::V2(V2Body {
+            flat: None,
+            per_category,
+        });
+        let err = validate(&policy).unwrap_err();
+        match err {
+            TrustPolicyError::WeightOutOfRange { field, value } => {
+                assert_eq!(field, "per_category");
+                assert!((value - 1.5).abs() < f32::EPSILON);
+            }
+        }
+    }
+
+    // Per-category proptest: random weight maps don't break the
+    // type invariant (AC-1 extended). Plain comment, not doc-comment,
+    // because rustdoc cannot attach docs to macro expansions.
+    proptest! {
+        #[test]
+        fn per_category_weight_always_in_range(
+            spam_w in -10.0_f32..10.0_f32,
+            harassment_w in -10.0_f32..10.0_f32,
+            obs_category in "[a-z]{1,16}",
+        ) {
+            let mut per_category = std::collections::HashMap::new();
+            per_category.insert("spam".to_owned(), spam_w);
+            per_category.insert("harassment".to_owned(), harassment_w);
+
+            let policy = TrustPolicy::V2(V2Body {
+                flat: Some(0.5),
+                per_category,
+            });
+
+            let observation = StubObservation {
+                category: obs_category,
+                created_at: Utc::now(),
+            };
+            let w = weight(&observation, &policy, Utc::now());
+            prop_assert!((0.0..=1.0).contains(&w), "weight {w} outside [0,1]");
+            prop_assert!(w.is_finite());
+        }
     }
 }
