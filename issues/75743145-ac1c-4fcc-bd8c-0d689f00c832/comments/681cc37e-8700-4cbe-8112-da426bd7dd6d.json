@@ -1,0 +1,10 @@
+{
+  "uuid": "681cc37e-8700-4cbe-8112-da426bd7dd6d",
+  "issue_uuid": "75743145-ac1c-4fcc-bd8c-0d689f00c832",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/49-hardware-token-signing.md — Open Questions Q1-Q6.\n\n## Decisions required (provisional in #153)\n- Q1 batch vs realtime priority: A (batch first; provisional)\n- Q2 FIDO2 vs PKCS#11: C (both; PKCS#11 default; provisional)\n- Q3 PIN UX: A for PKCS#11 (start-cached in secrecy) + D for FIDO2 (touch)\n- Q4 batch touch policy: A (touch-per-sign; provisional)\n- Q5 N-of-M quorum: A (single-token v2; quorum is its own future design)\n- Q6 daemon transport: A (gRPC over TLS-mutual-auth; reuses tonic from ML epic)\n\n## Acceptance\n- [ ] Six decisions recorded as `--kind decision` comments.\n\n## Blocks\n- Blocks #164 (Q1 + Q2 shape what PR 1 builds first).",
+  "created_at": "2026-05-16T13:59:17.380710528Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABANaELioyN605wqm7tTWv0Dmse4bOkvpw57DHcH5C4OpepGpgPuOe5v6EjIcB40DTBdg3gLQqdXUBcYtmA+H+XAQ=="
+}
