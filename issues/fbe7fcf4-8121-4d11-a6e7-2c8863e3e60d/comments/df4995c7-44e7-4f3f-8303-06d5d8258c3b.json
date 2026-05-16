@@ -1,0 +1,8 @@
+{
+  "uuid": "df4995c7-44e7-4f3f-8303-06d5d8258c3b",
+  "issue_uuid": "fbe7fcf4-8121-4d11-a6e7-2c8863e3e60d",
+  "author": "anon-85e8116b",
+  "content": "Plan: Writing 4 files. escalation.json (record), observation.json (object, embedded), evidence-pointer.json (object, embedded), lexicons/README.md (compat policy). NSID: gay.dollspace.polaris.*. Observation variants per ObservationKind enum — only federable variants included (excluding ModeratorBehaviorAnomaly and ReportVolumeAnomaly which carry internal IDs / are internal-only signals). Subject as union of did + at-uri per Q4-A.",
+  "created_at": "2026-05-16T14:19:17.699443237Z",
+  "kind": "plan"
+}
