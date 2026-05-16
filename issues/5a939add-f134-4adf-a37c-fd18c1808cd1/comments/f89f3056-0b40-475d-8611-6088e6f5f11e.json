@@ -1,0 +1,10 @@
+{
+  "uuid": "f89f3056-0b40-475d-8611-6088e6f5f11e",
+  "issue_uuid": "5a939add-f134-4adf-a37c-fd18c1808cd1",
+  "author": "TeIq",
+  "content": "PR 8 closed WITHOUT IMPLEMENTATION. Q1 from #143 (resolved on the epic-Q-resolution sub) selected option A — structured config only. The structured-only V2Body shape (flat / per_category / per_subject_class / time_decay) covers all stated operator use cases per the design's analysis.\n\nThe DSL / JSON-Logic path adds substantial complexity (custom parser, sandboxing, fuzzing, mandatory boost-attack protection per Q6-C) without a concrete operator demand justifying it.\n\nIf operator demand emerges in the future, reopen this issue with the specific use case the structured shape can't express. The parser-bug surface this would expose (per the issue body's \"highest-risk component\" framing) means proceeding only with a concrete need is the right move.\n\nPer architect skill / recalibrate: explicit conditional-no-op closure documenting the design-time decision is the cleanest outcome.",
+  "created_at": "2026-05-16T19:51:19.167967374Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABANDlHV8DUDmc4WOzVR6v1bC+9LWJPwM/lE9Q07Y7LBvkPnFsoupJKpMnnx4SxqB7/g4ImMNDF9wCfvb78InUkDA=="
+}
