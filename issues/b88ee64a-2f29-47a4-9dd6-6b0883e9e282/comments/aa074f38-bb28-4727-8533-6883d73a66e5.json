@@ -1,0 +1,10 @@
+{
+  "uuid": "aa074f38-bb28-4727-8533-6883d73a66e5",
+  "issue_uuid": "b88ee64a-2f29-47a4-9dd6-6b0883e9e282",
+  "author": "TeIq",
+  "content": "Q1 (Transport): A — firehose-subscription via proto-blue. Reuses ATProto sync infra; latency budget for moderator conversation is seconds, not subsecond. Eliminates inventing a parallel federation transport with its own bugs.",
+  "created_at": "2026-05-16T15:10:27.473649991Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA+VySDHpFSN3Y1UjMQ+jWZc8QVEsY2VOloFBGY+zVXkynCJiuDaiG55B7VqzurgjvMP+x4C7tRQPQebx1P5c1Cg=="
+}
