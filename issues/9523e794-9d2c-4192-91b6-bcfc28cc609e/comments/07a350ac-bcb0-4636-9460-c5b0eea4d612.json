@@ -1,0 +1,10 @@
+{
+  "uuid": "07a350ac-bcb0-4636-9460-c5b0eea4d612",
+  "issue_uuid": "9523e794-9d2c-4192-91b6-bcfc28cc609e",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/47-trust-model.md — Open Questions Q1-Q6.\n\n## Decisions required (provisional in #133)\n- Q1 expression form: A (structured only) vs B (mini-DSL) vs C (JSON Logic / Rego). Provisional A.\n- Q2 decay model: A (exponential half-life) vs B (linear) vs C (step). Provisional A.\n- Q3 audit UX: which combination of admin filter (A), CSV report (B), per-observation case-view visibility (C). Provisional C + A.\n- Q4 v1→v2 deser: A (untagged enum) vs B (versioned discriminator + migration) vs C (lazy migration on write). Provisional B.\n- Q5 default policy: A (v1 flat unchanged) vs B (v1 flat + default decay) vs C (neutral 0.5). Provisional A.\n- Q6 boost-attack mitigations: A (save-time cap) + B (eval-time clamp) baseline; C (aggregate-change alert) + D (senior co-sign) as follow-ups.\n\n## Acceptance\n- [ ] Six decisions recorded as `--kind decision` comments.\n\n## Blocks\n- Blocks #144 (Q1 + Q4 shape the data model PR 1 establishes).",
+  "created_at": "2026-05-16T13:52:46.877445672Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAtRLpddrKTWWB6sZJ+3vzuhTTMFH+7Bz5Cyv7d1DGvf+ZFd9zKt4WRE1M4JAyaG4+H1Tm8/JRioktRXOjv/7iAg=="
+}
