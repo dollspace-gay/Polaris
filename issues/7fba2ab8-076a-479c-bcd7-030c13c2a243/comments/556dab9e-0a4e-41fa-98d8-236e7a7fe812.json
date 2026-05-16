@@ -1,0 +1,8 @@
+{
+  "uuid": "556dab9e-0a4e-41fa-98d8-236e7a7fe812",
+  "issue_uuid": "7fba2ab8-076a-479c-bcd7-030c13c2a243",
+  "author": "anon-e0ae8c29",
+  "content": "Plan: 1) Run proto-blue-codegen via manifest-path invocation against lexicons/polaris/ to populate polaris-lexicons/src/generated/. 2) Create polaris-lexicons/Cargo.toml with serde+serde_json+chrono workspace deps, no tokio/reqwest. 3) Create polaris-lexicons/src/lib.rs with #![deny(missing_docs)] + pub mod generated. 4) Create polaris-lexicons/README.md. 5) Add polaris-lexicons to workspace members (alphabetical: after polaris-frontend, before polaris-publish-did-service). 6) Add xtask/src/gen_lexicons.rs that shells out to proto-blue-codegen via manifest-path. 7) Wire into xtask lib.rs + main.rs. 8) Add CI step to .github/workflows/ci.yml after cargo test. 9) Verify all build targets + clippy + doc.",
+  "created_at": "2026-05-16T14:30:26.500576481Z",
+  "kind": "plan"
+}
