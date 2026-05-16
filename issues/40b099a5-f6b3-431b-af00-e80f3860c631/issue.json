@@ -2,11 +2,12 @@
   "uuid": "40b099a5-f6b3-431b-af00-e80f3860c631",
   "display_id": 95,
   "title": "Mod workstation #5: media blur-by-default + per-mod exposure counter",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "created_by": "TeIq",
   "created_at": "2026-05-16T01:48:14.114106053Z",
-  "updated_at": "2026-05-16T01:48:15.359929249Z",
+  "updated_at": "2026-05-16T03:13:21.153654536Z",
+  "closed_at": "2026-05-16T03:13:21.153654536Z",
   "labels": [
     "feature"
   ]
