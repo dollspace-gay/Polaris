@@ -1,0 +1,8 @@
+{
+  "uuid": "23ae2db6-de31-4cf6-8496-3798cb9bb8c6",
+  "issue_uuid": "93ff7ce9-e89c-4094-9405-e5b7e36bed46",
+  "author": "anon-29bcf1a0",
+  "content": "PR 3 implemented and committed (81185f3).\n\nFiles shipped:\n- polaris-backend/src/federation/publish.rs — OutboundPublisher with publish_escalation (#[must_use]), PublishError thiserror enum, 3 unit tests\n- polaris-backend/src/bin/polaris_federation_escalate.rs — clap-derive admin binary (--incident, --to, --reason); exit codes 0/1/2/3\n- polaris-backend/tests/federation_publish_privacy.rs — 5 AC-4 privacy boundary tests (all pass)\n- polaris-types/src/escalation.rs, evidence.rs, lexicon_mapping/ — copied from main (#103 dependency)\n- polaris-lexicons/ — generated lexicon crate (copied from main)\n\nVerification:\n  cargo build -p polaris-backend ✓\n  cargo build --bin polaris-federation-escalate -p polaris-backend ✓\n  cargo clippy -p polaris-backend --bins --tests -- -D warnings ✓ (0 warnings)\n  cargo test -p polaris-backend --lib federation::publish ✓ (3/3)\n  cargo test -p polaris-backend --test federation_publish_privacy ✓ (5/5)\n\nPrivacy boundary: to_lexicon_escalation in polaris_types::lexicon_mapping owns all stripping — no field logic in publish.rs per spec. Watch guard held only in a block scope before any .await per rust-quality §10.",
+  "created_at": "2026-05-16T16:30:55.266813521Z",
+  "kind": "result"
+}
