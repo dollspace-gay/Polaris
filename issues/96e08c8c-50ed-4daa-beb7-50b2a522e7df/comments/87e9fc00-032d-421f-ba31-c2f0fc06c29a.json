@@ -1,0 +1,10 @@
+{
+  "uuid": "87e9fc00-032d-421f-ba31-c2f0fc06c29a",
+  "issue_uuid": "96e08c8c-50ed-4daa-beb7-50b2a522e7df",
+  "author": "TeIq",
+  "content": "DEFERRED. Same structural blocker as #111: agent worktrees branch off pre-PR-1 base (81e8217), and the agent rewrites #107-#110 from scratch in shapes incompatible with what landed on main. Integration tests need to exercise main's actual federation code — peer_subscribe + verify + state machine + publish + the planned inbound materialize (#175). Authoring the two-instance fixture against main's surface is the right move, not merging the agent's parallel reality.\n\nFiled as follow-up #177 under epic #105 with the AC-1..AC-8 coverage spec from this issue body preserved verbatim.",
+  "created_at": "2026-05-16T17:24:44.366746735Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAR3GzX5REzrKmI6290qS2oBLB0YJ6Oh4nIsoy0ns76y1nfKMpRgRTZpjZ+MZiOhQrl7cUAt+sNf+DNvY4cy9ECA=="
+}
