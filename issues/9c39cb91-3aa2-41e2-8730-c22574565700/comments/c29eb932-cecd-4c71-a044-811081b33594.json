@@ -1,0 +1,10 @@
+{
+  "uuid": "c29eb932-cecd-4c71-a044-811081b33594",
+  "issue_uuid": "9c39cb91-3aa2-41e2-8730-c22574565700",
+  "author": "TeIq",
+  "content": "PR 1 landed. polaris-trust crate skeleton with TrustPolicy V1/V2 discriminator + Observation trait + weight() flat-only composition + defense-in-depth NaN/Inf clamp + validate() with TrustPolicyError. 11 tests passing including a 1000-case AC-1 proptest. wasm32-unknown-unknown builds clean for REQ-7. Subsequent PRs (#145 per-category, #146 time decay, #147 per-subject-class) extend V2Body additively.",
+  "created_at": "2026-05-16T19:29:03.550855088Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAzjxtZhvnR+pOX7ANuKD+lhTMbEY9lgLGBOkG0R0SuLl6vx9eR63egdPYflNLjg3ZRaa/DnhchcStE9iofikNCQ=="
+}
