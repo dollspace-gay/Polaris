@@ -1,0 +1,10 @@
+{
+  "uuid": "ed0bd49f-e404-4f8c-9618-60eb7f275196",
+  "issue_uuid": "7fba2ab8-076a-479c-bcd7-030c13c2a243",
+  "author": "TeIq",
+  "content": "PR 2 closed. The previous attempt (a5c7db6) landed with an incomplete codegen output because #101's lexicons used invalid `\"type\": \"number\"` (fixed in 8bd63a6, see #101 thread). With the lexicon spec corrected, the codegen now emits all 7 generated files for all 3 lexicons.\n\n## What landed (commits)\n- a5c7db6: initial polaris-lexicons crate + xtask + CI scaffolding (incomplete codegen output)\n- 8bd63a6: #101 lexicon fix (scaled-integer for confidence/similarityScore/weight)\n- THIS commit: regenerate the full codegen tree + add proto-blue-syntax workspace dep + re-export the namespace at crate root\n\n## Verification (architect-run, not subagent-claimed)\n- `cargo build -p polaris-lexicons` — clean\n- `cargo clippy -p polaris-lexicons -- -D warnings` — clean\n- `cargo build --target wasm32-unknown-unknown -p polaris-lexicons` — clean (AC-4)\n- `cargo xtask gen-lexicons` idempotent — zero diff on the second invocation\n\n## Generated tree\n```\npolaris-lexicons/src/generated/\n├── mod.rs\n└── gay/\n    ├── mod.rs\n    └── dollspace/\n        ├── mod.rs\n        └── polaris/\n            ├── mod.rs\n            ├── escalation.rs\n            ├── evidencePointer.rs\n            └── observation.rs\n```\n\n## AC results\n- [x] AC-2 (codegen idempotency): cargo xtask gen-lexicons produces zero diff on second run\n- [x] AC-4 (wasm32 build): polaris-lexicons builds for wasm32-unknown-unknown\n- [x] Doc-comment lint: cargo doc -p polaris-lexicons --no-deps -- -D warnings clean",
+  "created_at": "2026-05-16T14:43:20.779229908Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAXagNoA6cP7Dn8oqeLyyq95YDxShSBQIHNRocxDZfCL5uDeJ1A7i6tmTDshq3Flw+XymXuKfLWtNvbaHv5ZmnBQ=="
+}
