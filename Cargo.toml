@@ -5,6 +5,7 @@ members = [
     "polaris-frontend",
     "polaris-lexicons",
     "polaris-classifier-proto",
+    "polaris-trust",
     "polaris-publish-labeler-record",
     "polaris-publish-did-service",
     "xtask",

@@ -1,0 +1,32 @@
+[package]
+name = "polaris-trust"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure-logic per-source × per-category × time-decay trust function for cross-labeler / classifier observations (M5 #47 / issue #144)."
+
+# Leaf crate by design: pure logic, no DB / async / network deps. Lets
+# the weight function be exercised in isolation via proptest at AC-1
+# (output range) and AC-3 (v1 backwards-compat) without standing up a
+# Postgres testcontainer.
+#
+# Workspace-MSRV constraint: this crate must build for
+# wasm32-unknown-unknown so the polaris-frontend admin policy editor
+# (PR 6 / #149) can preview weights client-side without a backend
+# round-trip per keystroke.
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# 1000-case property tests verify AC-1 (weight ∈ [0.0, 1.0] for any
+# input) and AC-3 (v1 flat-only weights JSONB round-trips through v2
+# deserialization). proptest is already in workspace deps via #103.
+proptest.workspace = true
+
+[lints]
+workspace = true
