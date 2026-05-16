@@ -2,12 +2,13 @@
   "uuid": "5a939add-f134-4adf-a37c-fd18c1808cd1",
   "display_id": 151,
   "title": "M5 #47 / PR 8 (conditional on Q1): mini-DSL or JSON-Logic custom expression support",
-  "status": "open",
+  "status": "closed",
   "priority": "low",
   "parent_uuid": "c83e4ba4-cc01-4186-a104-69672382d917",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:48:40.691523103Z",
-  "updated_at": "2026-05-16T13:53:07.420882396Z",
+  "updated_at": "2026-05-16T19:51:20.427962978Z",
+  "closed_at": "2026-05-16T19:51:20.427962978Z",
   "blockers": [
     "848d02d4-9d1e-487c-9d41-feab87ad62f8"
   ]
