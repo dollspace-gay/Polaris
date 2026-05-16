@@ -1,0 +1,8 @@
+{
+  "uuid": "918fa1a1-1479-41f6-8297-a5c9cab589d4",
+  "issue_uuid": "f0f56147-43a4-4ca0-a496-831654acdd56",
+  "author": "anon-07157d90",
+  "content": "Plan: implementing PR 1 — federation quarantine ingestion path. Migration will be number 24 (file 00000000000024_federation_quarantine.sql), inserting schema_version 25. Key decisions: using DashMap-free design per the issue since we use in-process HashMap + tokio::Mutex (same pattern as UpstreamKeyCache); per-peer pump task approach mirrors ingest/firehose.rs pump-vs-consumer split for cancel safety; FederationError with thiserror; config added to AppConfig as FederationConfig + Vec<PeerConfig>; federation worker conditional on config.federation.enabled.",
+  "created_at": "2026-05-16T15:13:39.093345377Z",
+  "kind": "plan"
+}
