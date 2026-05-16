@@ -1,0 +1,10 @@
+{
+  "uuid": "b54227d2-119a-4479-b8f0-a9a46044bc28",
+  "issue_uuid": "119cbd6c-2343-46dd-b042-a015bf0d218e",
+  "author": "TeIq",
+  "content": "CLOSED as DOCUMENTED-ARCHITECTURAL. Ozone-to-Polaris migration depends on a real Ozone Postgres schema dump for source-reader binding + mapping validation + integration testing. The issue body's per-PR spec (typed OzoneXxxRow structs, mapping with MappingError, migration_state idempotency, CLI binary + verify subcommand, audit-log boundary, cutover runbook, fixture dataset) is the implementation guide for an operator with Ozone-access who picks this up.\n\nArchitectural pieces that don't need Ozone-access (the v1 file-plain signing key being Ozone-compatible by design, the audit-log integration pattern, the polaris-types side of the mapping bridge) are captured by the existing v1 work + this epic's design doc at .design/m5/46-ozone-migration.md.",
+  "created_at": "2026-05-16T20:08:46.527001634Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA8PkDt9t3p6FogPFYGC/F4+MNGwdC+lkuFSepMs2d3dKc1LM9I5tJerPHyE5K7kD2c2ypsVr3SnB6Eq3wrNWpCQ=="
+}
