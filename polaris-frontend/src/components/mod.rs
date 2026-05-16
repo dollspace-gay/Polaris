@@ -22,9 +22,17 @@
 //!   fields, no color-only signals.
 
 pub mod action_composer;
+pub mod case_drawer;
+pub mod classifier_panel;
+pub mod command_palette;
 pub mod dashboard;
+pub mod exposure_counter;
+pub mod filter_bar;
 pub mod history_timeline;
+pub mod media_preview;
 pub mod network_panel;
 pub mod report_list;
 pub mod safe_payload;
 pub mod subject_header;
+pub mod subject_lookup_bar;
+pub mod subscriber_effect_preview;

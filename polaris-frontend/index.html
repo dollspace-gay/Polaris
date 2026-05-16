@@ -4,7 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Polaris</title>
-    <link data-trunk rel="rust" href="Cargo.toml" />
+
+    <!--
+      Stylesheet bundle (REQ-B1).
+      Trunk picks up each `<link data-trunk rel="css">` and copies the file
+      into `dist/`; load order matters because the cascade flows top-to-bottom.
+      Tokens MUST load before any component file so the cascade has the
+      custom-property values defined when the component rules reference them.
+    -->
+    <link data-trunk rel="css" href="styles/tokens.css" />
+    <link data-trunk rel="css" href="styles/reset.css" />
+    <link data-trunk rel="css" href="styles/login.css" />
+    <link data-trunk rel="css" href="styles/setup-wizard.css" />
+    <link data-trunk rel="css" href="styles/pattern-dashboard.css" />
+    <link data-trunk rel="css" href="styles/queue.css" />
+    <link data-trunk rel="css" href="styles/case-view.css" />
+    <link data-trunk rel="css" href="styles/action-composer.css" />
+    <link data-trunk rel="css" href="styles/command-palette.css" />
+    <link data-trunk rel="css" href="styles/filter-bar.css" />
+    <link data-trunk rel="css" href="styles/components/cluster-list.css" />
+    <link data-trunk rel="css" href="styles/components/report-list.css" />
+    <link data-trunk rel="css" href="styles/components/subject-header.css" />
+    <link data-trunk rel="css" href="styles/components/history-timeline.css" />
+    <link data-trunk rel="css" href="styles/components/report-volume-chart.css" />
+    <link data-trunk rel="css" href="styles/components/coordinated-signals.css" />
+    <link data-trunk rel="css" href="styles/components/moderator-load.css" />
+    <link data-trunk rel="css" href="styles/components/media-preview.css" />
+    <link data-trunk rel="css" href="styles/components/network-panel.css" />
+    <link data-trunk rel="css" href="styles/components/classifier-panel.css" />
+    <link data-trunk rel="css" href="styles/case-drawer.css" />
+    <link data-trunk rel="css" href="styles/exposure-counter.css" />
+    <link data-trunk rel="css" href="styles/subscriber-effect-preview.css" />
+    <link data-trunk rel="css" href="styles/subject-lookup-bar.css" />
+
+    <link data-trunk rel="rust" href="Cargo.toml" data-bin="polaris-frontend" />
   </head>
   <body></body>
 </html>
