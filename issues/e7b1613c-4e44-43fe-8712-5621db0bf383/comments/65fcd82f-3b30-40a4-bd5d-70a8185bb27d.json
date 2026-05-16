@@ -1,0 +1,10 @@
+{
+  "uuid": "65fcd82f-3b30-40a4-bd5d-70a8185bb27d",
+  "issue_uuid": "e7b1613c-4e44-43fe-8712-5621db0bf383",
+  "author": "TeIq",
+  "content": "CLOSED as DOCUMENTED-ARCHITECTURAL. Mobile docs depend on the mobile shell being shippable. .design/m5/44-mobile-app-spike-results.md (#115) is the architectural-decision doc; the operator runbook (docs/ops/mobile-runbook.md) becomes meaningful once the shell is concretely deployable. Resume when the shell is up.",
+  "created_at": "2026-05-16T20:06:21.236048585Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAUmoH5jWni9WobnKCqlDjZlDCsIwxJgvfVaT+fY8Ms+agyq1Eevd+LbF/ADqn++4F4WWzxh/bSMp/fNfnb0kxDw=="
+}
