@@ -1,0 +1,11 @@
+{
+  "uuid": "dd303366-9ec0-4464-8701-7f6e734cd00e",
+  "display_id": 155,
+  "title": "M5 #48 / PR 1: 1-2 day spike — verify tss-esapi current state + K-256 vs P-256 support + Bluesky verifier curve dispatch",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "a6ecf6ea-2598-44bf-a377-4bfbe1cda397",
+  "created_by": "TeIq",
+  "created_at": "2026-05-16T13:54:50.769321710Z",
+  "updated_at": "2026-05-16T13:54:50.769321710Z"
+}
