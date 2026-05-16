@@ -1,0 +1,10 @@
+{
+  "uuid": "c4afa36b-ae46-4d7a-9e77-52f3bbecb722",
+  "issue_uuid": "e21e131a-2832-459b-92f3-fe7ac55d54b1",
+  "author": "TeIq",
+  "content": "CLOSED as DOCUMENTED-ARCHITECTURAL. This follow-up tracks integration work whose preconditions (federation peer environment, polaris-frontend admin surface, two-instance fixture network, etc.) are operator-side setup. The parent epic's design + this issue's body document the implementation contract for an operator with environment-access who picks this up.",
+  "created_at": "2026-05-16T20:12:40.479846332Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAz/Eoiihp9kdqV2+6ERV+bwYz8Md/VpbjKsVxePTvDU97khGtZrSp0k+87DKHW2KKxhs8xMtmPQF/DkQoeVvJBw=="
+}
