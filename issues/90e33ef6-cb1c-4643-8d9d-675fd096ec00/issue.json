@@ -2,12 +2,13 @@
   "uuid": "90e33ef6-cb1c-4643-8d9d-675fd096ec00",
   "display_id": 103,
   "title": "M5 #42 / PR 3: polaris-types::lexicon_mapping bridge + MappingError + proptest round-trip",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "08aa2123-4977-4c5b-85ef-cada17ba4182",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:35:00.505174147Z",
-  "updated_at": "2026-05-16T13:36:06.135108632Z",
+  "updated_at": "2026-05-16T15:07:08.997538577Z",
+  "closed_at": "2026-05-16T15:07:08.997538577Z",
   "blockers": [
     "7fba2ab8-076a-479c-bcd7-030c13c2a243"
   ]
