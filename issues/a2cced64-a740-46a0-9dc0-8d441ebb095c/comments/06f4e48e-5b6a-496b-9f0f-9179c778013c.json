@@ -1,0 +1,10 @@
+{
+  "uuid": "06f4e48e-5b6a-496b-9f0f-9179c778013c",
+  "issue_uuid": "a2cced64-a740-46a0-9dc0-8d441ebb095c",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/48-tpm-signing.md — REQ-7, AC-8 + decomposition PR 8.\n\n## Surface\n- CI gate: `cargo +nightly miri test -p polaris-backend --test tpm_signing` runs and passes.\n- Code audit: confirms zero `unsafe` blocks in `polaris-backend/src/labeler/signer/tpm/`. If any are required, each has a `// SAFETY:` justification AND a miri exercise.\n- Add the miri job to `.github/workflows/ci.yml` as a non-blocking-yet-CI-visible step initially; promote to blocking once consistently green.\n\n## Rust-quality notes\n- Per rust-quality §5: this is the canonical unsafe-discipline closure. miri catches UB at runtime; the audit catches policy violations at review time.\n- The miri job is slower than regular tests (often 10-100x). Mark it as a separate workflow job, not part of every PR's required-tests set initially.\n- Document the unsafe-audit policy in the repo: \"no hand-written `unsafe` in polaris-backend/src/labeler/signer/tpm/; FFI lives inside tss-esapi; exceptions require explicit code review approval + miri exercise.\"\n\n## External references\n- miri docs: https://github.com/rust-lang/miri\n- nightly toolchain pinning in CI: https://github.com/actions-rust-lang/setup-rust-toolchain\n\n## Acceptance (AC-8)\n- [ ] `cargo +nightly miri test -p polaris-backend --test tpm_signing` passes locally + in CI.\n- [ ] Code audit confirms zero hand-written `unsafe` in the tpm module tree.\n- [ ] Policy documented in `docs/dev/unsafe-discipline.md` (new file or extend existing).\n\n## Blocks / blocked-by\n- Blocked by #161.\n- Closes the TPM epic. On approval, close #152 with `--kind result`.",
+  "created_at": "2026-05-16T13:57:03.900362622Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAHrpe4DI1esNKLqeKgJqv2ardR4bVD+HhLrp8KnwtGoqW0/cqAu/pBqaGJqxEsEUATHEiXYAKtm8FZCj1hqS6Cg=="
+}
