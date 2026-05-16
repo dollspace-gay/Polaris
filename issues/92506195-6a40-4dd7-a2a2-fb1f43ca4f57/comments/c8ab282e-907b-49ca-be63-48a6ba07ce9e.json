@@ -1,0 +1,10 @@
+{
+  "uuid": "c8ab282e-907b-49ca-be63-48a6ba07ce9e",
+  "issue_uuid": "92506195-6a40-4dd7-a2a2-fb1f43ca4f57",
+  "author": "TeIq",
+  "content": "PR 1 landed. Wire-protocol foundation for the ML classifier epic is in place.\n\n## Deliverables\n- proto/polaris-classifier-v1.proto (4-RPC service: Classify, ClassifyStream, Feedback, HealthCheck)\n- polaris-classifier-proto/ workspace crate (tonic-prost-build codegen, vendored protoc, leaf-shape deps)\n- Workspace dep pins for tonic 0.14 ecosystem (tonic / tonic-prost / tonic-prost-build / tonic-build / prost / prost-types)\n\n## Architect-run verification\n- cargo build -p polaris-classifier-proto PASS\n- cargo clippy -p polaris-classifier-proto -- -D warnings CLEAN\n- cargo test -p polaris-classifier-proto PASS\n\n## Implementation notes\n- Direct authoring (no agent dispatch) — avoids the worktree-base-drift issue documented on #98\n- protoc-bin-vendored makes the build hermetic across operator hardware\n- The `build.rs` carries a narrow `#![allow(unsafe_code)]` for the pre-spawn `std::env::set_var(\"PROTOC\", ...)` with justifying comment; the lib crate retains the workspace `unsafe_code = deny`\n- The codegen output (in OUT_DIR) is not checked in — tonic-build's output is deterministic for a given .proto + tonic version, so diff-stability is by construction",
+  "created_at": "2026-05-16T17:58:57.298951377Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASWsy/wQ5ubea8qEAWHzxddgtBhZjnhXYkMLCiTxbU7AV56hITM/Q+UswlEV2/FlP4jbzqi3zwlfJho/5+AyWCw=="
+}
