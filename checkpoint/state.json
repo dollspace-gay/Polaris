@@ -10,6 +10,10 @@
     "98": {
       "agent_id": "TeIq",
       "claimed_at": "2026-05-16T13:30:45.991174623Z"
+    },
+    "104": {
+      "agent_id": "TeIq",
+      "claimed_at": "2026-05-16T15:07:23.454662867Z"
     }
   },
   "issues": {},
@@ -1113,11 +1117,16 @@
       "agent_id": "TeIq",
       "agent_seq": 220,
       "timestamp": "2026-05-16T15:07:10.345672478Z"
+    },
+    {
+      "agent_id": "TeIq",
+      "agent_seq": 221,
+      "timestamp": "2026-05-16T15:07:23.454662867Z"
     }
   ],
   "watermark": {
-    "timestamp": "2026-05-16T15:07:10.345672478Z",
+    "timestamp": "2026-05-16T15:07:23.454662867Z",
     "agent_id": "TeIq",
-    "agent_seq": 220
+    "agent_seq": 221
   }
 }
