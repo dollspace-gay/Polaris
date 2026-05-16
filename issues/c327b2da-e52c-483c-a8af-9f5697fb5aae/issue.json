@@ -2,11 +2,12 @@
   "uuid": "c327b2da-e52c-483c-a8af-9f5697fb5aae",
   "display_id": 96,
   "title": "Mod workstation #6: subscriber-effect preview in ActionComposer",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "created_by": "TeIq",
   "created_at": "2026-05-16T01:48:16.699179814Z",
-  "updated_at": "2026-05-16T01:48:17.961193344Z",
+  "updated_at": "2026-05-16T03:35:45.178946633Z",
+  "closed_at": "2026-05-16T03:35:45.178946633Z",
   "labels": [
     "feature"
   ]
