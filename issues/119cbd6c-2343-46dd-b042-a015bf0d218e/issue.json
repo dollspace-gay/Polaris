@@ -1,0 +1,11 @@
+{
+  "uuid": "119cbd6c-2343-46dd-b042-a015bf0d218e",
+  "display_id": 138,
+  "title": "M5 #46 / PR 4: polaris-ozone-import CLI binary wiring source + mapping + target end-to-end",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "fdae19ae-8e80-4170-a301-28c73cbf68f8",
+  "created_by": "TeIq",
+  "created_at": "2026-05-16T13:48:24.096713007Z",
+  "updated_at": "2026-05-16T13:48:24.096713007Z"
+}
