@@ -1,0 +1,10 @@
+{
+  "uuid": "273df053-acd5-42a6-9a4e-921df632fefb",
+  "issue_uuid": "08aa2123-4977-4c5b-85ef-cada17ba4182",
+  "author": "TeIq",
+  "content": "All 5 sub-issues (#100 Q-resolution, #101 lexicons JSON, #102 codegen crate + xtask + CI, #103 mapping bridge + privacy tests, #104 wasm CI + mapping-matrix) landed. The wire format for federation is in place. Internal mapping bridge enforces the privacy boundary. CI catches regressions. Closes the NSIDs epic.",
+  "created_at": "2026-05-16T15:09:41.032802827Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAYn28aqE960M12s+VZdi0cQyPp2eFA0UWth5mxYhlHsiqtfqCZf82kjlF2gFj/E0HkmamvKDLOZNqHjqLSHqXBg=="
+}
