@@ -1,0 +1,8 @@
+{
+  "uuid": "542a1f18-73a4-43a4-9b2a-42572725f4df",
+  "issue_uuid": "93ff7ce9-e89c-4094-9405-e5b7e36bed46",
+  "author": "anon-29bcf1a0",
+  "content": "Plan: implementing publish.rs (OutboundPublisher + PublishError), polaris_federation_escalate.rs admin binary, and federation_publish_privacy.rs test file. Worktree is missing #107/#108 federation files and #103 lexicon_mapping — writing new code as if those dependencies exist (architect will reconcile on merge). Key decisions: (1) use existing active_signer watch channel from ApiState, (2) JSON-serialise the wire escalation then encode as DAG-CBOR matching the label emitter pattern, (3) use XrpcClient::procedure for the createRecord call, (4) privacy boundary stays in polaris_types::lexicon_mapping::to_lexicon_escalation — no strip logic in publish.rs.",
+  "created_at": "2026-05-16T16:08:45.482162681Z",
+  "kind": "plan"
+}
