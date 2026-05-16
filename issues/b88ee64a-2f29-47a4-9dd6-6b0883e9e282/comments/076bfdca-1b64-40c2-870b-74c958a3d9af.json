@@ -1,0 +1,10 @@
+{
+  "uuid": "076bfdca-1b64-40c2-870b-74c958a3d9af",
+  "issue_uuid": "b88ee64a-2f29-47a4-9dd6-6b0883e9e282",
+  "author": "TeIq",
+  "content": "Q5 (Withdrawal): A — mark-and-lock. WithdrawnBySource transitions are recorded on both sides; the peer's view enters a terminal Withdrawn state and locks further state transitions. No destructive operations cross instance boundaries (no peer-side row deletions). The withdrawal record itself is the audit trail.",
+  "created_at": "2026-05-16T15:10:33.081037549Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABABTXky56qhNr7dG2FUforO3PTB2oPYKtXK1fsZ6NoKBMtVkE3O2AaQimYbu1Cix7NP8YoFuqG/UYEJ6k/z7SLDw=="
+}
