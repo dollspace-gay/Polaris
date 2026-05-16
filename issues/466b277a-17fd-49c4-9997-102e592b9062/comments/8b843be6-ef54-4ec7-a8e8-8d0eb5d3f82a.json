@@ -1,0 +1,10 @@
+{
+  "uuid": "8b843be6-ef54-4ec7-a8e8-8d0eb5d3f82a",
+  "issue_uuid": "466b277a-17fd-49c4-9997-102e592b9062",
+  "author": "TeIq",
+  "content": "PR 3 landed. Migration 0029 adds labels.signature_status + signed_at columns (additive; DEFAULT 'signed' preserves v1 semantics) + pending_label_queue view + partial index. Schema version 30. Foundation for #167 sign-pending CLI + #169 realtime promoter.",
+  "created_at": "2026-05-16T19:47:08.521250517Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAx3eNccwBs2s+85+n7khgiwlVwYs+ESAMeSmkarZ832Qru3Ngnq6M4RNtAOdND1/UDrMvyoxCeN8OEWc9uXSoBg=="
+}
