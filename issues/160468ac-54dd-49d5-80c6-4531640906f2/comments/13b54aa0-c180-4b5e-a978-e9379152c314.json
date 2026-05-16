@@ -1,0 +1,10 @@
+{
+  "uuid": "13b54aa0-c180-4b5e-a978-e9379152c314",
+  "issue_uuid": "160468ac-54dd-49d5-80c6-4531640906f2",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/49-hardware-token-signing.md — REQ-3, REQ-7 + decomposition PR 1.\n\n## Surface\n- Extend `polaris_backend::labeler::signer::SigningError` with three new variants:\n  - `WouldBlock` — no signer reachable; caller queues\n  - `PhysicalPresenceTimeout` — touch not received within window\n  - `TokenDisconnected` — token removed mid-session\n\n## Rust-quality notes\n- **Additive enum extension** — v1 impls (file_plain, passphrase_sealed, os_keychain, cloud_kms) never return these new variants; their behavior is unchanged. Per rust-quality §1: this is the right way to extend an enum.\n- Per rust-quality §3: each variant has a `# Errors`-relevant doc-comment.\n- Document in the trait's doc-comment that `WouldBlock` callers MUST queue (treat the label as `signature_status = 'PendingSignature'`), NOT retry immediately.\n- Per rust-quality §7: regression test asserting v1 impls never construct the new variants (compile-time exhaustive match catches future drift).\n\n## External references\n- v1 SigningError: `polaris-backend/src/labeler/signer/mod.rs`\n- `std::io::ErrorKind::WouldBlock` semantics (the inspiration): https://doc.rust-lang.org/std/io/enum.ErrorKind.html\n\n## Acceptance\n- [ ] `SigningError::{WouldBlock, PhysicalPresenceTimeout, TokenDisconnected}` exist.\n- [ ] v1 impls compile-test confirms none constructs the new variants.\n- [ ] Doc-comment on `WouldBlock` names the queue-don't-retry semantic.\n\n## Blocks / blocked-by\n- Blocked by #163.\n- Blocks #165 (impl skeleton uses the variants).",
+  "created_at": "2026-05-16T13:59:18.671409165Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAtlQeRAJgi4+3MDEElA2bGtmgTnO7i3Srjey6EjqjIdEZ2KB0WVjykL7Tgj9EqkgrBGOKV/BWPka626MN9G5UAw=="
+}
