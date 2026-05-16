@@ -1,0 +1,10 @@
+{
+  "uuid": "b5c5bf23-45bb-4e06-963e-69a126ab742d",
+  "issue_uuid": "9523e794-9d2c-4192-91b6-bcfc28cc609e",
+  "author": "TeIq",
+  "content": "Q3 (Audit UX): C primary + A secondary. Per-observation weight visible in case view (moderator sees the weight where they see the observation); admin UI gets a weighted-observations filter for at-scale review.",
+  "created_at": "2026-05-16T17:27:45.088662536Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABArd4Aw0pGJuVsxpOPq/8ImfQ7BcFYiFurdjlZbBgoeTaLHSbqZu5Rwb+9V3IBuqVcdNLSkCwfBe/ocFXmKw8TBw=="
+}
