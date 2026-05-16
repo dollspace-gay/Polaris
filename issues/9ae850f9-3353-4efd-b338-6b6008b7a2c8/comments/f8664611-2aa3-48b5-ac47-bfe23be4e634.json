@@ -1,0 +1,10 @@
+{
+  "uuid": "f8664611-2aa3-48b5-ac47-bfe23be4e634",
+  "issue_uuid": "9ae850f9-3353-4efd-b338-6b6008b7a2c8",
+  "author": "TeIq",
+  "content": "Q5 (Ownership broadcast): A — mobile take/release writes go through v1 case-lock infrastructure; the existing WebSocket broadcast (issue #57) reflects to all connected clients including the desktop. No mobile-specific shortcut. Code-review-only item — no design work needed.",
+  "created_at": "2026-05-16T17:26:03.267327810Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAhuzZyWPwVLDtduzTCNrDI3s/8LuVFS6RvNYjgXXEUMN1dWnrEpTbpxL5BWZOAjqb4TCqPyXORWPXcnJCUHeyDg=="
+}
