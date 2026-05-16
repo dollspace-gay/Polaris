@@ -2,12 +2,13 @@
   "uuid": "22b51ac3-9b8f-423a-9a47-4b8d731ff708",
   "display_id": 142,
   "title": "M5 #46 / PR 8: representative anonymized fixture Ozone dump in tests/fixtures/ozone-dump-v1.sql for CI",
-  "status": "open",
+  "status": "closed",
   "priority": "low",
   "parent_uuid": "fdae19ae-8e80-4170-a301-28c73cbf68f8",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:48:29.288579298Z",
-  "updated_at": "2026-05-16T13:50:55.892709827Z",
+  "updated_at": "2026-05-16T20:09:21.771557918Z",
+  "closed_at": "2026-05-16T20:09:21.771557918Z",
   "blockers": [
     "0069d22e-17df-4e58-898f-fb981dc8f8d6"
   ]
