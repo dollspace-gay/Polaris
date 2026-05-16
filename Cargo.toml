@@ -4,6 +4,7 @@ members = [
     "polaris-backend",
     "polaris-frontend",
     "polaris-lexicons",
+    "polaris-classifier-proto",
     "polaris-publish-labeler-record",
     "polaris-publish-did-service",
     "xtask",
@@ -33,6 +34,41 @@ proto-blue-syntax = "0.3"
 # Consumed only by `polaris-types::lexicon_mapping` — the privacy boundary
 # between internal domain types and the federated wire shape.
 polaris-lexicons = { path = "polaris-lexicons" }
+
+# polaris-classifier-proto: generated tonic types for the
+# `polaris.classifier.v1.Classifier` gRPC service (issue #125 /
+# M5 #45 PR 1). Consumed by polaris-backend's `classifier` module
+# (lands in #126 / PR 2). Leaf crate — codegen output only.
+polaris-classifier-proto = { path = "polaris-classifier-proto" }
+
+# tonic 0.14.x (crates.io 2026-05-15): MIT. The gRPC client+server
+# transport for the classifier integration (#45). The default-features
+# pull in `transport` (which Polaris needs as a client) and `prost`
+# (the canonical proto message backend).
+tonic = "0.14"
+
+# prost 0.14.x: MIT/Apache-2.0. Companion to tonic; defines the
+# `Message` trait the generated proto types implement.
+prost = "0.14"
+
+# prost-types 0.14.x: well-known proto types (Timestamp, Empty, …).
+# The classifier proto imports `google/protobuf/{empty,timestamp}.proto`.
+prost-types = "0.14"
+
+# tonic-prost 0.14.x: runtime companion to tonic-prost-build. tonic 0.14
+# split the prost-driven serde path into a separate crate. The codegen
+# output references `tonic_prost::*` for the gRPC-Message serde shims,
+# so consumers of the generated tree must depend on tonic-prost too.
+tonic-prost = "0.14"
+
+# tonic-build 0.14.x: build-script side of tonic codegen. Compiled in
+# the polaris-classifier-proto crate's [build-dependencies] only.
+tonic-build = "0.14"
+
+# tonic-prost-build 0.14.x: tonic 0.14 split the prost-driven
+# compile_protos / configure entrypoints out into a separate crate.
+# build.rs invokes `tonic_prost_build::configure().compile_protos(...)`.
+tonic-prost-build = "0.14"
 
 # Web framework
 axum = "0.8"

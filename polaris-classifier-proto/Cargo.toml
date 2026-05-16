@@ -1,0 +1,51 @@
+[package]
+name = "polaris-classifier-proto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Generated Rust types for the polaris.classifier.v1.Classifier gRPC service (M5 #45 / issue #125)."
+
+# Leaf crate by design: depends ONLY on tonic + prost so the codegen
+# output crate has no transitive surprises. polaris-backend's
+# `classifier` module (lands in #126 / PR 2) wraps these types with the
+# `ClassifierClient` trait + the production tonic Channel client + the
+# in-memory fixture client.
+#
+# Per rust-quality §9: the codegen crate is intentionally minimal so a
+# downstream service author can depend on it alone (without dragging in
+# polaris-backend) to implement the Classifier service contract.
+[dependencies]
+tonic = { workspace = true }
+# tonic-prost: codegen output uses `tonic_prost::*` for the gRPC
+# message-serde shims (tonic 0.14 split this out of the umbrella crate).
+tonic-prost = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+
+[build-dependencies]
+# tonic-build (0.14) provides the codegen-builder traits; the
+# prost-driven entrypoint (`compile_protos` + `configure`) lives in
+# tonic-prost-build since 0.14 split them.
+#
+# build.rs invokes `tonic_prost_build::configure().compile_protos(...)`
+# against `../proto/polaris-classifier-v1.proto`. Codegen output lands
+# in `OUT_DIR`; the public surface in `src/lib.rs` re-exports via
+# `tonic::include_proto!`.
+#
+# Codegen-on-build (vs the cargo xtask gen-lexicons pattern) is the
+# tonic convention. The diff-stability guarantee is provided by the
+# build.rs's deterministic output for a given .proto input — no diff
+# gate needed.
+tonic-build = { workspace = true }
+tonic-prost-build = { workspace = true }
+# protoc-bin-vendored ships the `protoc` binary as Cargo-distributed
+# bytes so the build doesn't require a system-installed
+# protobuf-compiler. The build script reads `protoc_bin_path()` and
+# sets `PROTOC=...` before invoking tonic-prost-build's codegen
+# pipeline. Keeps the build hermetic across operator machines + CI.
+protoc-bin-vendored = "3"
+
+[lints]
+workspace = true

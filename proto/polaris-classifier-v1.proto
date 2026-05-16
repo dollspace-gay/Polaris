@@ -1,0 +1,185 @@
+// Polaris classifier integration — wire schema v1.
+//
+// Issue #45 / M5 PR 1: ML classifier integration via gRPC as a
+// pattern-engine signal source. The classifier service is operated
+// independently (either by the Polaris operator self-hosting or by an
+// external provider via cloud-API); Polaris is a CLIENT of this
+// service.
+//
+// Privacy notes:
+//   - The default `send_feedback = false` config (#130 / PR 6) means
+//     no moderator-action data is sent back to the classifier service
+//     beyond what the classifier already saw at inference time.
+//   - For external classifiers (cloud-API): operators opt in
+//     per-classifier; a UI banner surfaces "this case was scored by
+//     external classifier X" so moderators have explicit knowledge of
+//     the data flow.
+//
+// Versioning:
+//   - This file is `v1`. Backward-incompatible changes require a new
+//     proto package (`polaris.classifier.v2.Classifier`). Forward-
+//     compatible additions follow proto3 conventions (additive fields
+//     with new numbers; never reuse field numbers; never repurpose
+//     semantics).
+
+syntax = "proto3";
+
+package polaris.classifier.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// Classifier service — Polaris consumes this; the service provider
+// implements it. The contract is intentionally minimal so that
+// fine-tuned BERT classifiers, fine-tuned LLMs, and rule engines can
+// all conform to the same wire shape with their own internal model
+// choices (issue #45 Q1, resolved in #124: model-agnostic).
+service Classifier {
+  // Single-shot synchronous classification. The v2 baseline call
+  // path for the firehose ingest worker.
+  //
+  // Polaris emits one Classify call per (event, classifier-config)
+  // pair. The caller's per-call timeout is operator-configurable
+  // (default 500ms, fitting fine-tuned-BERT inference latency).
+  rpc Classify(ClassifyRequest) returns (ClassifyResponse);
+
+  // Bidirectional streaming for high-throughput Bluesky-profile
+  // deployments where per-RPC overhead of Classify is noticeable.
+  // Optional path; v2 baseline does not require classifier services
+  // to implement this.
+  rpc ClassifyStream(stream ClassifyRequest) returns (stream ClassifyResponse);
+
+  // Opt-in feedback callback (issue #130 / PR 6). Sent by Polaris
+  // ONLY when `[[classifiers.<name>]] send_feedback = true` is
+  // explicitly set by the operator. Payload is the bare minimum:
+  // event_id, classifier_label, classifier_confidence,
+  // moderator_action_kind. Never carries moderator identity, reasoning
+  // text, reporter identity, or subject content.
+  rpc Feedback(FeedbackRequest) returns (FeedbackResponse);
+
+  // Health probe wired into the per-classifier circuit breaker
+  // (#128 / PR 4). Returns rapidly so the breaker's half-open probe
+  // distinguishes "service is up" from "service is slow."
+  rpc HealthCheck(google.protobuf.Empty) returns (HealthResponse);
+}
+
+// A single classification request.
+message ClassifyRequest {
+  // Stable, operator-allocated identifier for this event.
+  //
+  // Used by Polaris to correlate the classifier's response with the
+  // originating firehose event (and to dedup if the request is
+  // retried). Opaque to the classifier service.
+  string event_id = 1;
+
+  // ATProto DID of the subject (account, post, etc.) being scored.
+  //
+  // The classifier service may or may not inspect this; it's
+  // provided so external classifiers that maintain per-subject
+  // historical state can correlate scores.
+  string subject_did = 2;
+
+  // Text content of the event, if any.
+  //
+  // Empty for media-only events. Encoded as UTF-8 bytes.
+  optional bytes text_content = 3;
+
+  // Content-addressed reference to an image blob, if any.
+  //
+  // Format: ATProto blob CID (e.g. `bafkrei...`). The classifier
+  // service fetches the blob through the operator's PDS or CDN; the
+  // bytes themselves are NOT included in this request (keeping the
+  // RPC small for the common case).
+  optional string image_blob_cid = 4;
+
+  // Hint to the classifier service about which model variant to use.
+  //
+  // Opaque; the classifier service interprets. Useful when a single
+  // service provider hosts multiple models behind one gRPC endpoint.
+  optional string model_hint = 5;
+}
+
+// A single classification response.
+message ClassifyResponse {
+  // Identifier of the model that produced this response.
+  //
+  // Polaris stores this in `classifier_signals.classifier_name` for
+  // audit + accuracy-tracking (#127 / PR 3, #128 / PR 4).
+  string model = 1;
+
+  // Version of the model that produced this response.
+  //
+  // Stored alongside `model` for reproducibility. Format is service-
+  // defined (semver, git SHA, training-run timestamp, etc.).
+  string model_version = 2;
+
+  // Set of labels the classifier emitted, with per-label confidence.
+  //
+  // The vocabulary is model-specific (issue #45 Q1: model-agnostic).
+  // Polaris stores each label as a separate Observation row so
+  // disagreement and per-label accuracy tracking work without
+  // collapsing labels prematurely.
+  repeated Label labels = 3;
+
+  // When the classifier produced this response.
+  //
+  // Useful for tracking classifier latency drift over time.
+  google.protobuf.Timestamp produced_at = 4;
+}
+
+// One labeled output from a classifier.
+message Label {
+  // The classifier-emitted label string. Vocabulary is
+  // model-specific.
+  string value = 1;
+
+  // Classifier confidence in this label, in `[0.0, 1.0]`.
+  //
+  // Polaris's storage representation is `DOUBLE PRECISION` in
+  // `classifier_signals.confidence`; proto3 `float` is sufficient
+  // for the wire (BERT softmax outputs are typically only ~6
+  // significant figures).
+  float confidence = 2;
+}
+
+// Feedback from Polaris to the classifier service. Opt-in.
+message FeedbackRequest {
+  // The originating event_id from the corresponding ClassifyRequest.
+  string event_id = 1;
+
+  // The label the classifier emitted (one of the values from the
+  // corresponding ClassifyResponse.labels).
+  string classifier_label = 2;
+
+  // The classifier's stated confidence in `classifier_label`.
+  float classifier_confidence = 3;
+
+  // The moderator's final action_kind for the event.
+  //
+  // Discrete vocabulary: `label`, `takedown`, `mute`, `warn`,
+  // `escalate`, `no_action`. Matches the v1 Polaris ActionKind enum.
+  // The classifier service may use this to track accuracy ("model
+  // said spam 0.95, moderator agreed and took down" vs "model said
+  // spam 0.95, moderator decided no_action") but Polaris does not
+  // dictate how.
+  string moderator_action_kind = 4;
+}
+
+// Feedback acknowledgement.
+message FeedbackResponse {
+  // Empty by convention; the classifier service may add fields in
+  // future schema revisions (semver-additive).
+}
+
+// Classifier service health.
+message HealthResponse {
+  // Service-defined health string. Polaris treats any non-empty,
+  // non-"failed" value as healthy for the purposes of the circuit
+  // breaker probe.
+  string status = 1;
+
+  // Optional service-specific diagnostics. Surfaced in
+  // `polaris federation-status`-equivalent classifier tooling
+  // (out of scope for v2 — operator inspects logs directly).
+  optional string message = 2;
+}
