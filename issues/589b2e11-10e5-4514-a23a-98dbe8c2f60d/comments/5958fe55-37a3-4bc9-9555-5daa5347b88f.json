@@ -1,0 +1,10 @@
+{
+  "uuid": "5958fe55-37a3-4bc9-9555-5daa5347b88f",
+  "issue_uuid": "589b2e11-10e5-4514-a23a-98dbe8c2f60d",
+  "author": "TeIq",
+  "content": "CLOSED as DOCUMENTED-ARCHITECTURAL. WebAuthn platform-authenticator enforcement happens at the OS browser layer during the OAuth flow (#117 shell). The backend's require_hardware_key config flag rejects auth attempts whose session lacks a WebAuthn assertion; the existing v1 hardware-key plumbing (#40) handles the server side already. Resume when the shell + OS-level WebAuthn flow are in place.",
+  "created_at": "2026-05-16T20:06:20.008457318Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAqAmzt+LzYkRLdAvbgj6RNYg2ZFMCOSfqfLiyXVHeC33uZN+z3Ys8gzPKJnNPHo7+52tR6EX2rRT/IML5DFMsAA=="
+}
