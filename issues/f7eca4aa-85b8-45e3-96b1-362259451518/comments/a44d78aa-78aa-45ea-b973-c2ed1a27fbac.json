@@ -1,0 +1,10 @@
+{
+  "uuid": "a44d78aa-78aa-45ea-b973-c2ed1a27fbac",
+  "issue_uuid": "f7eca4aa-85b8-45e3-96b1-362259451518",
+  "author": "TeIq",
+  "content": "Q3 (Accuracy tracking): A — track per-category accuracy + surface decay to operators. C (auto-decay) is dangerous (cascade risk) and explicitly out.",
+  "created_at": "2026-05-16T17:27:16.472018197Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA+pbpl5334+PaD8DZSAk4C5FJZIEBJVUKqcn3Qu6p7RMg8F1KVGvc22LR8/DiRWNeODY6opanPCXyVRyW80iEBw=="
+}
