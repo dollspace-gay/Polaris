@@ -2,12 +2,13 @@
   "uuid": "13e6369f-99a7-4bdd-a986-a3c79d795780",
   "display_id": 126,
   "title": "M5 #45 / PR 2: ClassifierClient trait + tonic-backed default impl + in-memory fixture impl",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "a29c02bc-f94b-4159-a450-afdf32f11d55",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:44:24.505756683Z",
-  "updated_at": "2026-05-16T13:46:44.498683665Z",
+  "updated_at": "2026-05-16T19:00:40.678991280Z",
+  "closed_at": "2026-05-16T19:00:40.678991280Z",
   "blockers": [
     "92506195-6a40-4dd7-a2a2-fb1f43ca4f57"
   ]
