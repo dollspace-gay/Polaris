@@ -1,0 +1,10 @@
+{
+  "uuid": "30b4c537-5864-4a0a-a7f3-31e237594832",
+  "issue_uuid": "9a85ac97-13c7-48b2-ba36-ca482d54dcf8",
+  "author": "TeIq",
+  "content": "PR 2 landed. V2Body::per_category HashMap field added with multiplicative composition. Missing-category → identity 1.0 (explicit-zero required to suppress). validate() extended for out-of-range per-category weights. 4 new tests on top of #144's 11 (15 total). AC-5 verified. wasm32 still clean.",
+  "created_at": "2026-05-16T19:32:21.842676447Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA3Yv6ex0cY7/dRx17R93WNJyZnd2l5g/c3QIUi9uOGKSp/IE+FRxx3sRM7KIIWk6QQjHJxA442oACKBkRx8yuAw=="
+}
