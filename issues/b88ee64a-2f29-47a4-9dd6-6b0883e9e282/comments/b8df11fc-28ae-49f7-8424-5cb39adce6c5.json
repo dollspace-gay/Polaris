@@ -1,0 +1,10 @@
+{
+  "uuid": "b8df11fc-28ae-49f7-8424-5cb39adce6c5",
+  "issue_uuid": "b88ee64a-2f29-47a4-9dd6-6b0883e9e282",
+  "author": "TeIq",
+  "content": "Q3 (Conflict resolution): A — surface-only. Federation does not change the per-instance labeling decision. Cross-instance disagreements are visible to moderators via the existing v1 upstream-label observation pipeline. Silent override of a local moderation decision (auto-resolve by trust weight) is a moderation hazard.",
+  "created_at": "2026-05-16T15:10:30.332056067Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAbbGjC6zFRmfRPfcuzMFfkz7LQP5dc6NZzYdARui+RCoayt/MkBHV0JEjIyuC/UgTbVo+553nzwyfzbq93HUaAg=="
+}
