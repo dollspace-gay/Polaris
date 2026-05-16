@@ -16,6 +16,7 @@ federation — the shape that flows between Polaris labeler instances.
 | `polaris/escalation.json` | `gay.dollspace.polaris.escalation` | record | Primary cross-instance escalation record |
 | `polaris/observation.json` | `gay.dollspace.polaris.observation` | object defs | Embedded observation variant shapes |
 | `polaris/evidence-pointer.json` | `gay.dollspace.polaris.evidencePointer` | object | Content-addressed evidence CAR reference |
+| `mapping-matrix.md` | — | reference | Field-by-field mapping between `polaris-types` (internal) and `polaris-lexicons` (wire). Canonical record of which fields cross the privacy boundary. |
 
 ## Architecture context
 

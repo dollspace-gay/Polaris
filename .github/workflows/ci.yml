@@ -178,6 +178,29 @@ jobs:
         env:
           SQLX_OFFLINE: "true"
 
+  polaris-types-wasm-build:
+    # #104 / M5 #42 PR 4: polaris-types must build for wasm32-unknown-unknown
+    # because the frontend depends on it transitively. The lexicon_mapping
+    # module added in #103 pulls polaris-lexicons + proto-blue-syntax;
+    # this job catches any future regression where a non-wasm dep leaks in
+    # through the mapping layer.
+    name: cargo build --target wasm32-unknown-unknown -p polaris-types (#104)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: build (wasm32-unknown-unknown)
+        run: cargo build --target wasm32-unknown-unknown -p polaris-types
+        env:
+          SQLX_OFFLINE: "true"
+      - name: clippy (wasm32-unknown-unknown)
+        run: cargo clippy --target wasm32-unknown-unknown -p polaris-types --lib -- -D warnings
+        env:
+          SQLX_OFFLINE: "true"
+
   boundary:
     # AC-7: polaris-frontend must not import polaris_backend internals or
     # call mutating /api/* routes via raw string literals; every non-public
