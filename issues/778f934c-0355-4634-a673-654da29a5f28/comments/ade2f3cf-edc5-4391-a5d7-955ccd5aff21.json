@@ -1,0 +1,10 @@
+{
+  "uuid": "ade2f3cf-edc5-4391-a5d7-955ccd5aff21",
+  "issue_uuid": "778f934c-0355-4634-a673-654da29a5f28",
+  "author": "TeIq",
+  "content": "PR 4 landed. V2Body::per_subject_class HashMap field + Observation::subject_kind() trait method + multiplicative composition + validate() extension. 2 new tests on top of #146's 18 (20 total). Trust function's pure-logic core is now complete across all 4 factors (flat × per_category × time_decay × per_subject_class). Subsequent PRs wire into admin endpoints + UI.",
+  "created_at": "2026-05-16T19:42:30.464105922Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA9cN+cPV1193mf8LREKXVOjerVuwQ6VTG1a4RUIQ31zU4q9N8rev50p45yGEa3xsNRw+wygv9RiltxipRF+VABA=="
+}
