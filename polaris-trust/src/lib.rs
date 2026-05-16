@@ -107,8 +107,16 @@ pub struct V2Body {
     /// `None` means no time decay (factor 1.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub time_decay: Option<TimeDecay>,
-    // PR 4 (#147) extends with `per_subject_class:
-    // HashMap<SubjectKind, f32>`.
+    /// Per-subject-class weights (PR 4 / #147). Map from subject-kind
+    /// tag (matching [`Observation::subject_kind`] — lowercase variant
+    /// name: `"account"`, `"post"`, `"list"`, `"feed"`) to per-source
+    /// weight in `[0.0, 1.0]`. Missing kind → multiplicative identity
+    /// 1.0. Subject-kind values are strings rather than a typed enum
+    /// so the leaf crate doesn't depend on polaris-types (which would
+    /// introduce a cycle once polaris-types eventually uses this crate
+    /// for the ingest-path lookup in PR 5).
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub per_subject_class: std::collections::HashMap<String, f32>,
 }
 
 /// Exponential half-life decay parameters (PR 3 / #146).
@@ -139,6 +147,7 @@ impl TrustPolicy {
             flat: Some(flat),
             per_category: std::collections::HashMap::new(),
             time_decay: None,
+            per_subject_class: std::collections::HashMap::new(),
         })
     }
 }
@@ -187,30 +196,41 @@ pub fn weight(
     policy: &TrustPolicy,
     now: chrono::DateTime<chrono::Utc>,
 ) -> f32 {
-    let (flat_factor, per_category_factor, time_decay_factor) = match policy {
-        TrustPolicy::V1 { flat } => (*flat, 1.0, 1.0),
-        TrustPolicy::V2(V2Body {
-            flat,
-            per_category,
-            time_decay,
-        }) => {
-            let flat_factor = flat.unwrap_or(1.0);
-            // Missing-category → multiplicative identity 1.0 per Q-resolution
-            // for #145 ("policy listing {spam: 0.9} does NOT zero out unlisted
-            // categories — operator must explicitly list {harassment: 0.0}").
-            let per_category_factor = per_category
-                .get(observation.category())
-                .copied()
-                .unwrap_or(1.0);
-            let time_decay_factor = time_decay
-                .map_or(1.0, |d| compute_decay_factor(d, observation.created_at(), now));
-            (flat_factor, per_category_factor, time_decay_factor)
-        }
-    };
+    let (flat_factor, per_category_factor, time_decay_factor, per_subject_class_factor) =
+        match policy {
+            TrustPolicy::V1 { flat } => (*flat, 1.0, 1.0, 1.0),
+            TrustPolicy::V2(V2Body {
+                flat,
+                per_category,
+                time_decay,
+                per_subject_class,
+            }) => {
+                let flat_factor = flat.unwrap_or(1.0);
+                // Missing-category → multiplicative identity 1.0 per
+                // Q-resolution for #145.
+                let per_category_factor = per_category
+                    .get(observation.category())
+                    .copied()
+                    .unwrap_or(1.0);
+                let time_decay_factor = time_decay.map_or(1.0, |d| {
+                    compute_decay_factor(d, observation.created_at(), now)
+                });
+                // Same identity-on-miss rule as per_category (#147).
+                let per_subject_class_factor = per_subject_class
+                    .get(observation.subject_kind())
+                    .copied()
+                    .unwrap_or(1.0);
+                (
+                    flat_factor,
+                    per_category_factor,
+                    time_decay_factor,
+                    per_subject_class_factor,
+                )
+            }
+        };
 
-    // Composition: multiplicative across factors. PR 4 multiplies in
-    // per_subject_class before the final clamp.
-    let raw = flat_factor * per_category_factor * time_decay_factor;
+    // Composition: multiplicative across all four factors.
+    let raw = flat_factor * per_category_factor * time_decay_factor * per_subject_class_factor;
 
     // Defense-in-depth clamp per Q6 + REQ-7. Ensures the type
     // invariant `weight ∈ [0.0, 1.0]` holds even if validate() was
@@ -243,13 +263,19 @@ pub fn weight(
 /// half-life positivity checks, etc. The validate() contract stays
 /// stable; the variants of [`TrustPolicyError`] grow additively.
 pub fn validate(policy: &TrustPolicy) -> Result<(), TrustPolicyError> {
-    let (flat, per_category, time_decay) = match policy {
-        TrustPolicy::V1 { flat } => (Some(*flat), None, None),
+    let (flat, per_category, time_decay, per_subject_class) = match policy {
+        TrustPolicy::V1 { flat } => (Some(*flat), None, None, None),
         TrustPolicy::V2(V2Body {
             flat,
             per_category,
             time_decay,
-        }) => (*flat, Some(per_category), time_decay.as_ref()),
+            per_subject_class,
+        }) => (
+            *flat,
+            Some(per_category),
+            time_decay.as_ref(),
+            Some(per_subject_class),
+        ),
     };
 
     if let Some(f) = flat {
@@ -287,6 +313,19 @@ pub fn validate(policy: &TrustPolicy) -> Result<(), TrustPolicyError> {
     if let Some(decay) = time_decay {
         if !decay.half_life_days.is_finite() || decay.half_life_days <= 0.0 {
             return Err(TrustPolicyError::InvalidHalfLife(decay.half_life_days));
+        }
+    }
+
+    // PR 4: validate every per_subject_class weight too.
+    if let Some(per_subject_class) = per_subject_class {
+        for (subject_kind, w) in per_subject_class {
+            if !w.is_finite() || !(0.0..=1.0).contains(w) {
+                let _ = subject_kind; // captured for log context only.
+                return Err(TrustPolicyError::WeightOutOfRange {
+                    field: "per_subject_class",
+                    value: *w,
+                });
+            }
         }
     }
 
@@ -358,6 +397,14 @@ pub trait Observation {
     fn category(&self) -> &str;
     /// When the observation was created (PR 3 / #146 — time decay).
     fn created_at(&self) -> chrono::DateTime<chrono::Utc>;
+    /// Subject-kind tag for per-subject-class weighting (PR 4 / #147).
+    ///
+    /// Implementors should return the lowercase variant name of the
+    /// subject's [`polaris_types::SubjectKind`] — `"account"`, `"post"`,
+    /// `"list"`, `"feed"` — to align with the v2 `per_subject_class`
+    /// HashMap keys. The leaf crate avoids depending on polaris-types
+    /// to keep the dependency graph acyclic.
+    fn subject_kind(&self) -> &str;
 }
 
 #[cfg(test)]
@@ -383,6 +430,7 @@ mod tests {
     struct StubObservation {
         category: String,
         created_at: chrono::DateTime<chrono::Utc>,
+        subject_kind: String,
     }
     impl Observation for StubObservation {
         fn category(&self) -> &str {
@@ -391,10 +439,14 @@ mod tests {
         fn created_at(&self) -> chrono::DateTime<chrono::Utc> {
             self.created_at
         }
+        fn subject_kind(&self) -> &str {
+            &self.subject_kind
+        }
     }
 
     fn obs() -> StubObservation {
         StubObservation {
+            subject_kind: "account".to_owned(),
             category: "spam".to_owned(),
             created_at: Utc::now(),
         }
@@ -469,7 +521,7 @@ mod tests {
             // The policy may be invalid (out of range), but the
             // defense-in-depth clamp at the end of weight() must
             // still produce a result in [0.0, 1.0].
-            let policy = TrustPolicy::V2(V2Body { flat: Some(flat), per_category: std::collections::HashMap::new(), time_decay: None });
+            let policy = TrustPolicy::V2(V2Body { flat: Some(flat), per_category: std::collections::HashMap::new(), time_decay: None, per_subject_class: std::collections::HashMap::new() });
             let w = weight(&obs(), &policy, Utc::now());
             prop_assert!(w >= 0.0, "weight {w} < 0 for flat={flat}");
             prop_assert!(w <= 1.0, "weight {w} > 1 for flat={flat}");
@@ -484,7 +536,7 @@ mod tests {
     /// the clamp.
     #[test]
     fn weight_floors_nan_input_to_zero() {
-        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::NAN), per_category: std::collections::HashMap::new(), time_decay: None });
+        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::NAN), per_category: std::collections::HashMap::new(), time_decay: None, per_subject_class: std::collections::HashMap::new() });
         let w = weight(&obs(), &policy, Utc::now());
         assert!(w.is_finite());
         assert_eq!(w, 0.0);
@@ -493,7 +545,7 @@ mod tests {
     /// AC-1 hardening: positive infinity floors via clamp to 1.0.
     #[test]
     fn weight_clamps_positive_infinity_to_one() {
-        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::INFINITY), per_category: std::collections::HashMap::new(), time_decay: None });
+        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::INFINITY), per_category: std::collections::HashMap::new(), time_decay: None, per_subject_class: std::collections::HashMap::new() });
         let w = weight(&obs(), &policy, Utc::now());
         assert!(w.is_finite());
         assert_eq!(w, 1.0);
@@ -505,6 +557,7 @@ mod tests {
         let policy = TrustPolicy::V2(V2Body {
             flat: Some(f32::NEG_INFINITY),
             per_category: std::collections::HashMap::new(), time_decay: None,
+            per_subject_class: std::collections::HashMap::new(),
         });
         let w = weight(&obs(), &policy, Utc::now());
         assert!(w.is_finite());
@@ -523,19 +576,23 @@ mod tests {
             flat: None,
             per_category,
             time_decay: None,
+            per_subject_class: std::collections::HashMap::new(),
         });
 
         let spam = StubObservation {
             category: "spam".to_owned(),
             created_at: Utc::now(),
+            subject_kind: "account".to_owned(),
         };
         let harassment = StubObservation {
             category: "harassment".to_owned(),
             created_at: Utc::now(),
+            subject_kind: "account".to_owned(),
         };
         let other = StubObservation {
             category: "novel".to_owned(),
             created_at: Utc::now(),
+            subject_kind: "account".to_owned(),
         };
 
         // Spam matches → 0.9.
@@ -557,11 +614,13 @@ mod tests {
             flat: Some(0.5),
             per_category,
             time_decay: None,
+            per_subject_class: std::collections::HashMap::new(),
         });
 
         let spam = StubObservation {
             category: "spam".to_owned(),
             created_at: Utc::now(),
+            subject_kind: "account".to_owned(),
         };
         // 0.5 * 0.8 = 0.4
         let w = weight(&spam, &policy, Utc::now());
@@ -578,6 +637,7 @@ mod tests {
             flat: None,
             per_category,
             time_decay: None,
+            per_subject_class: std::collections::HashMap::new(),
         });
         let err = validate(&policy).unwrap_err();
         match err {
@@ -607,11 +667,13 @@ mod tests {
                 flat: Some(0.5),
                 per_category,
             time_decay: None,
+            per_subject_class: std::collections::HashMap::new(),
             });
 
             let observation = StubObservation {
                 category: obs_category,
                 created_at: Utc::now(),
+            subject_kind: "account".to_owned(),
             };
             let w = weight(&observation, &policy, Utc::now());
             prop_assert!((0.0..=1.0).contains(&w), "weight {w} outside [0,1]");
@@ -627,6 +689,7 @@ mod tests {
         let policy = TrustPolicy::V2(V2Body {
             flat: Some(1.0),
             per_category: std::collections::HashMap::new(),
+            per_subject_class: std::collections::HashMap::new(),
             time_decay: Some(TimeDecay {
                 half_life_days: 30.0,
             }),
@@ -635,6 +698,7 @@ mod tests {
         let obs = StubObservation {
             category: "spam".to_owned(),
             created_at: t0,
+            subject_kind: "account".to_owned(),
         };
 
         // At t0: factor = 1.0.
@@ -659,6 +723,7 @@ mod tests {
         let policy = TrustPolicy::V2(V2Body {
             flat: Some(1.0),
             per_category: std::collections::HashMap::new(),
+            per_subject_class: std::collections::HashMap::new(),
             time_decay: Some(TimeDecay {
                 half_life_days: 30.0,
             }),
@@ -667,9 +732,68 @@ mod tests {
         let future_obs = StubObservation {
             category: "spam".to_owned(),
             created_at: now + Duration::days(10),
+            subject_kind: "account".to_owned(),
         };
         let w = weight(&future_obs, &policy, now);
         assert!((w - 1.0).abs() < f32::EPSILON, "future obs should not boost: got {w}");
+    }
+
+    /// Per-subject-class weight applies on match; misses default to
+    /// identity 1.0 (mirrors per_category semantics).
+    #[test]
+    fn per_subject_class_weight_applies_on_match() {
+        let mut per_subject_class = std::collections::HashMap::new();
+        per_subject_class.insert("post".to_owned(), 0.9);
+        per_subject_class.insert("account".to_owned(), 0.5);
+
+        let policy = TrustPolicy::V2(V2Body {
+            flat: None,
+            per_category: std::collections::HashMap::new(),
+            time_decay: None,
+            per_subject_class,
+        });
+
+        let post_obs = StubObservation {
+            category: "spam".to_owned(),
+            created_at: Utc::now(),
+            subject_kind: "post".to_owned(),
+        };
+        let account_obs = StubObservation {
+            category: "spam".to_owned(),
+            created_at: Utc::now(),
+            subject_kind: "account".to_owned(),
+        };
+        let feed_obs = StubObservation {
+            category: "spam".to_owned(),
+            created_at: Utc::now(),
+            subject_kind: "feed".to_owned(),
+        };
+
+        assert!((weight(&post_obs, &policy, Utc::now()) - 0.9).abs() < f32::EPSILON);
+        assert!((weight(&account_obs, &policy, Utc::now()) - 0.5).abs() < f32::EPSILON);
+        // Unlisted kind → identity 1.0.
+        assert!((weight(&feed_obs, &policy, Utc::now()) - 1.0).abs() < f32::EPSILON);
+    }
+
+    /// validate() rejects out-of-range per_subject_class weights.
+    #[test]
+    fn validate_rejects_per_subject_class_above_one() {
+        let mut per_subject_class = std::collections::HashMap::new();
+        per_subject_class.insert("post".to_owned(), 1.7);
+        let policy = TrustPolicy::V2(V2Body {
+            flat: None,
+            per_category: std::collections::HashMap::new(),
+            time_decay: None,
+            per_subject_class,
+        });
+        let err = validate(&policy).unwrap_err();
+        match err {
+            TrustPolicyError::WeightOutOfRange { field, value } => {
+                assert_eq!(field, "per_subject_class");
+                assert!((value - 1.7).abs() < f32::EPSILON);
+            }
+            TrustPolicyError::InvalidHalfLife(_) => panic!("expected WeightOutOfRange, got InvalidHalfLife"),
+        }
     }
 
     /// validate() rejects invalid half_life_days values.
@@ -679,7 +803,8 @@ mod tests {
             let policy = TrustPolicy::V2(V2Body {
                 flat: None,
                 per_category: std::collections::HashMap::new(),
-                time_decay: Some(TimeDecay { half_life_days: bad }),
+                per_subject_class: std::collections::HashMap::new(),
+            time_decay: Some(TimeDecay { half_life_days: bad }),
             });
             let err = validate(&policy).unwrap_err();
             match err {
