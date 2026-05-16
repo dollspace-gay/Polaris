@@ -1,0 +1,10 @@
+{
+  "uuid": "da5b736f-4eb1-4308-904b-ff713b1479cf",
+  "issue_uuid": "5508fe4d-2669-4374-93b1-10886189e0b9",
+  "author": "TeIq",
+  "content": "PR 2 landed. 27 federation tests pass (13 new state + 2 new repo + 12 from PR 1). Migration 0028 (schema_version 29). EscalationState as runtime enum, untyped sqlx queries (consistent with PR 1), source_did authoritative from verified quarantine row. Architect verification: build PASS, clippy CLEAN, federation tests 27 PASSED. Ready for PR 3 (outbound publish + admin escalate command + privacy boundary enforcement at the to-wire mapping).",
+  "created_at": "2026-05-16T16:06:21.955910987Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAkA8hmOJrfNxWx0Fb5jelOKWeXe3p0b8b78eaG+1HjB6RLyD9WcHvA7tse1PPR2cDaKtrh39mCLcm5C5l5A2uCA=="
+}
