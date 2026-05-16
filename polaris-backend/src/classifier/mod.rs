@@ -21,6 +21,8 @@
 
 pub mod client;
 pub mod error;
+pub mod fanout;
 
 pub use client::{ClassifierClient, FixtureClassifierClient, TonicClassifierClient};
 pub use error::ClassifierError;
+pub use fanout::{ClassifierFanout, ClassifyEvent, ConfiguredClassifier};
