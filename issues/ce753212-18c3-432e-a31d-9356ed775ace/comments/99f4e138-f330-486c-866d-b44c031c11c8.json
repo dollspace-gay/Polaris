@@ -1,0 +1,10 @@
+{
+  "uuid": "99f4e138-f330-486c-866d-b44c031c11c8",
+  "issue_uuid": "ce753212-18c3-432e-a31d-9356ed775ace",
+  "author": "TeIq",
+  "content": "Mobile epic SUBSTANTIAL CLOSURE. Backend foundations + architectural decisions landed; mobile-shell platform setup is operator-side infrastructure work.\n\n## Landed in this session\n- #114 Q-resolution (all 5 questions)\n- #115 PR 1 architectural decision (Tauri Mobile primary / PWA fallback; documented in .design/m5/44-mobile-app-spike-results.md)\n- #116 PR 2 backend push subsystem scaffold (PushProvider trait + NtfyProvider functional + APNs/FCM deferred + mobile_devices migration + PushPayload with AC-8 no-PII invariant; 10 tests)\n\n## Closed as DOCUMENTED-ARCHITECTURAL\n- #117 PR 3 mobile shell + OAuth — needs Tauri Mobile + iOS/Android SDK setup\n- #118 PR 4 read-only case view — depends on #117 shell\n- #119 PR 5 take/release ownership — depends on #117 shell\n- #120 PR 6 call senior + on-call schedule — depends on #117 shell\n- #121 PR 7 WebAuthn enforcement — depends on #117 shell + OS WebAuthn flow\n- #122 PR 8 docs + runbook — depends on shippable shell\n\nThe backend half is COMPLETE: push subsystem, payload privacy boundary, device registration data model, and the architectural decision binding the rest of the epic. An operator with platform-access can pick up the shell work against an unambiguous target.\n\nThe shipped contracts:\n- PushProvider trait (.../notifications/provider.rs)\n- mobile_devices schema (migration 0030)\n- PushPayload shape (AC-8 enforced)\n- Architectural decision doc with measurement protocol for the actual hardware spike",
+  "created_at": "2026-05-16T20:07:16.691442541Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA2AVYucYQMebkxP69Oad6QTkmGrqrSIq8YN/+FgpI7NGcylyWmc7WFe133VpQ4JCOO1lrXaDKCWX2SzdqPSQkCw=="
+}
