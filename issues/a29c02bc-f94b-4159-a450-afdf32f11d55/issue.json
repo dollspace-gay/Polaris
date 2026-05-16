@@ -1,0 +1,10 @@
+{
+  "uuid": "a29c02bc-f94b-4159-a450-afdf32f11d55",
+  "display_id": 123,
+  "title": "M5 #45 epic: ML classifier integration via gRPC as pattern-engine signal source (self-hosted + cloud opt-in)",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "TeIq",
+  "created_at": "2026-05-16T13:43:41.072896745Z",
+  "updated_at": "2026-05-16T13:43:41.072896745Z"
+}
