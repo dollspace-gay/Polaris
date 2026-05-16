@@ -1,0 +1,11 @@
+{
+  "uuid": "848d02d4-9d1e-487c-9d41-feab87ad62f8",
+  "display_id": 150,
+  "title": "M5 #47 / PR 7: polaris trust-policy explain CLI + per-observation weight visibility in case view",
+  "status": "open",
+  "priority": "low",
+  "parent_uuid": "c83e4ba4-cc01-4186-a104-69672382d917",
+  "created_by": "TeIq",
+  "created_at": "2026-05-16T13:48:39.539334961Z",
+  "updated_at": "2026-05-16T13:48:39.539334961Z"
+}
