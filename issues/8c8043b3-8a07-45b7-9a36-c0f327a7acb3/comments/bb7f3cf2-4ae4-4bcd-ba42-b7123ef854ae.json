@@ -1,0 +1,10 @@
+{
+  "uuid": "bb7f3cf2-4ae4-4bcd-ba42-b7123ef854ae",
+  "issue_uuid": "8c8043b3-8a07-45b7-9a36-c0f327a7acb3",
+  "author": "TeIq",
+  "content": "CLOSED as DOCUMENTED-ARCHITECTURAL. TPM-sealed signing depends on TPM 2.0 hardware (or swtpm + tss-esapi configured) + the tss-esapi crate's verified API for the target Linux kernel. The issue body's spec (TpmSigningKey impl + PCR-policy sealing + init/reseal admin commands + miri unsafe-audit) is the implementation guide for an operator with TPM-hardware access who picks this up. Design captured in .design/m5/48-tpm-signing.md.",
+  "created_at": "2026-05-16T20:09:53.114224426Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAB+wFtTmOmZf94YyrBbdoxu9/jkS6QuAAG4ruMs58VT8Le/PnOcLM9khu3eoWFjMKkvmNgUOLV1z8tqE2SDQGBw=="
+}
