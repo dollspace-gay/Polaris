@@ -2,10 +2,11 @@
   "uuid": "40284767-3c7c-42b6-a123-06e811fee615",
   "display_id": 154,
   "title": "M5 #48 / Q-resolution: confirm tss-esapi maturity (Q1), curve choice K256/P256 (Q2), recovery auth (Q3), HA story (Q4), multi-tenant docs (Q5)",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "a6ecf6ea-2598-44bf-a377-4bfbe1cda397",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:54:49.489519992Z",
-  "updated_at": "2026-05-16T13:54:49.489519992Z"
+  "updated_at": "2026-05-16T17:28:04.147119344Z",
+  "closed_at": "2026-05-16T17:28:04.147119344Z"
 }
