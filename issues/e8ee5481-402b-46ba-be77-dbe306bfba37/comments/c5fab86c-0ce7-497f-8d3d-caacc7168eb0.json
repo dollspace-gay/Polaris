@@ -1,0 +1,10 @@
+{
+  "uuid": "c5fab86c-0ce7-497f-8d3d-caacc7168eb0",
+  "issue_uuid": "e8ee5481-402b-46ba-be77-dbe306bfba37",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/49-hardware-token-signing.md — operator docs.\n\n## Surface\n- New file: `docs/operations/hardware-token-signing.md`\n- Sections:\n  1. Hardware support matrix (PKCS#11 HSMs, YubiKey PIV, FIDO2)\n  2. Token initialization (one-time setup per token)\n  3. Mode selection (attended-batch vs attended-realtime)\n  4. PIN management (where applicable; security discipline)\n  5. Touch-per-sign workflow\n  6. `polaris labeler-sign-pending` daily operations (batch mode)\n  7. `polaris-signer` daemon ops (realtime mode): TLS setup, cert pinning, monitoring\n  8. Rotation: PKCS#11 (full destroy supported) vs FIDO2 (credential management via authenticator UI)\n  9. Token-loss recovery (rotate to a replacement token; old key in revoked_keys; emitted labels still verify)\n  10. Troubleshooting (PIN failures, touch timeouts, daemon disconnect)\n\n## Rust-quality notes\n- Per rust-quality §8: every CLI invocation copy-pasteable; one runnable example per section.\n- The docs explicitly contrast PKCS#11 vs FIDO2 trade-offs so operators choose well.\n\n## External references\n- v1 ops runbook (style reference): `docs/ops/runbook.md`\n- YubiKey PIV documentation: https://developers.yubico.com/PIV/\n- softhsm2 setup (for testing): https://github.com/opendnssec/SoftHSMv2\n\n## Acceptance\n- [ ] `docs/operations/hardware-token-signing.md` exists; ≥300 lines; covers all 10 sections.\n- [ ] CI markdown-lint passes.\n\n## Blocks / blocked-by\n- Blocked by #171.\n- Blocks #173 (final audit closure).",
+  "created_at": "2026-05-16T13:59:29.164055348Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAzs6pGMZuWHHDtGsALeCvuHnx6QTRAdUvE422XH8eUJIWBGQ6JP+EIcZgMusPbLpqH0CfpZUIIZzb6+pcY9vVDA=="
+}
