@@ -1,0 +1,8 @@
+{
+  "uuid": "75525e2e-6bce-4e55-b44d-2dcde050b74a",
+  "issue_uuid": "f0f56147-43a4-4ca0-a496-831654acdd56",
+  "author": "anon-07157d90",
+  "content": "Committed: Add cross-instance federation ingestion path (M5 PR 1, issue #107) | Files: 8 files changed, 1591 insertions(+) — migration, federation module (mod.rs, verify.rs, peer_subscribe.rs), config extension, lib.rs + main.rs wiring",
+  "created_at": "2026-05-16T15:28:27.714871705Z",
+  "kind": "result"
+}
