@@ -1,0 +1,10 @@
+{
+  "uuid": "2973e70a-54b3-4392-be6a-e52cf383628d",
+  "issue_uuid": "90e33ef6-cb1c-4643-8d9d-675fd096ec00",
+  "author": "TeIq",
+  "content": "PR 3 closed. The agent's worktree branched off an older base (81e8217); I applied the new polaris-types-side files directly to main (escalation.rs, evidence.rs, lexicon_mapping/{mod.rs, error.rs}, two test files, two fixtures) plus the workspace + crate Cargo.toml deltas (polaris-lexicons + proto-blue-syntax + getrandom + proptest).\n\n## Architect verification (all clean)\n- cargo build -p polaris-types — PASS\n- cargo clippy -p polaris-types --tests -- -D warnings — PASS\n- cargo test -p polaris-types --lib — 54 passed (incl. 3 new lexicon_mapping unit tests)\n- cargo test -p polaris-types --test lexicon_mapping_privacy — 7 passed (moderator_id-not-in-wire, EscalationId-stripped, ReportVolumeAnomaly + ModeratorBehaviorAnomaly rejected at boundary, fixture JSON deserializes)\n- cargo test -p polaris-types --test lexicon_mapping_roundtrip — 3 proptests × 1000 cases each\n- cargo build --target wasm32-unknown-unknown -p polaris-types — PASS\n- RUSTDOCFLAGS=\"-D warnings\" cargo doc -p polaris-types --no-deps — PASS\n\n## Bonus pre-existing fixes\n- getrandom 0.4 wasm_js feature gap at workspace level (uuid 1.x pulls getrandom 0.4 via rng-getrandom; explicit `wasm_js` feature needed)\n- Broken intra-doc link in polaris-types/src/oauth_config.rs ([`proto_blue::oauth::ClientMetadata`])\n\n## AC results\n- [x] AC-3: 1000-case proptest round-trip per record type — PASS\n- [x] AC-5: at least one valid Lexicon JSON document per record type round-trips — PASS (sample_escalation.json + sample_evidence_pointer.json)\n- [x] Privacy boundary enforced by unit test (REQ-4 / REQ-5)",
+  "created_at": "2026-05-16T15:07:07.547670402Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA+6GzP9dsSz6CyN6Zb0xdK4et38mJvUxKnBcUNitj/B7iF9yvzEOyy8kNq2qcObWR97eIofcXQqLM1GwsQ2u1Bg=="
+}
