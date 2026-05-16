@@ -1,0 +1,10 @@
+{
+  "uuid": "b081184a-bcb2-4a31-86ae-05e86a5383bf",
+  "issue_uuid": "464d4aa5-eca7-4f45-816b-aa46ff0b6ba3",
+  "author": "TeIq",
+  "content": "Closing per the existing [result] comment from 2026-05-15. The smoke-test producer slice surface (tests/smoke_e2e.rs + cargo xtask smoke-local + .github/workflows/lexicon-contract.yml) shipped as part of .design/polaris-operationally-complete.md (REQ-E1, REQ-E2, REQ-E3 / AC-E1 closed). The seven discrete production bugs the original smoke session surfaced are all closed in the working tree; the test pins the wire-shape contracts so regression is mechanical-failure.\n\nThe live polarislabeler.bsky.social smoke run that originally motivated this issue is an operator activity, not session-scope work — runs at operator discretion.",
+  "created_at": "2026-05-16T19:51:49.181607960Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA0PTl8BJSVnmK0me6WYs9mCZ7uV3p8x+nigIgKw6Kc3CUX6lp2S9Hw1s0foGH3r2Rmjelmnu4HJVhIrbYrrrbBQ=="
+}
