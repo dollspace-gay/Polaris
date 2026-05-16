@@ -1,0 +1,10 @@
+{
+  "uuid": "b3e0be5d-2681-4ef0-968a-97fe771307c0",
+  "issue_uuid": "f7eca4aa-85b8-45e3-96b1-362259451518",
+  "author": "TeIq",
+  "content": "Q4 (Transport): A — gRPC via tonic. Cloud providers without gRPC get wrapped in tonic-bridge adapters; canonical wire stays proto-as-schema.",
+  "created_at": "2026-05-16T17:27:17.954866092Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAjsDCje3BetYfr1uj35DrU/8uTXNY6L2L2BX/sGke/SoEaQ8udfHq/6WTOWx3AC5qB1Ql0bwijudhOwQAn9E1DQ=="
+}
