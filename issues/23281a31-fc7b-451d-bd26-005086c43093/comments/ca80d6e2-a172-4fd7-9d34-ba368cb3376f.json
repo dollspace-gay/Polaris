@@ -1,0 +1,10 @@
+{
+  "uuid": "ca80d6e2-a172-4fd7-9d34-ba368cb3376f",
+  "issue_uuid": "23281a31-fc7b-451d-bd26-005086c43093",
+  "author": "TeIq",
+  "content": "PR 5 PARTIAL — templates portion landed. polaris-trust::templates module with 3 named templates + by_name() lookup + all() catalogue. 5 new tests including all_shipped_templates_validate CI guard. The admin-endpoint + audit-log integration half is deferred to follow-up #178 because it touches axum routing + auth + the #35 hash-chained audit log — substantive integration warranting its own focused PR. Per architect skill: partial but clean.",
+  "created_at": "2026-05-16T19:48:49.613302062Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAflohHKs170B6u4g9UkRwheHFiRmQ7P9/982rT0X1rBTRjRNndfozSTvLmGcqWIBHUkkt47q//lEycQ0x7iJ1Cw=="
+}
