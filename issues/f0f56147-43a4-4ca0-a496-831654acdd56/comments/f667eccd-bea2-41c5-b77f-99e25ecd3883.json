@@ -1,0 +1,10 @@
+{
+  "uuid": "f667eccd-bea2-41c5-b77f-99e25ecd3883",
+  "issue_uuid": "f0f56147-43a4-4ca0-a496-831654acdd56",
+  "author": "TeIq",
+  "content": "PR 1 landed. Read-only federation ingestion path is live (disabled by default; opt-in via POLARIS_FEDERATION_ENABLED).\n\n## Surface delta\n- polaris-backend/src/federation/{mod.rs, peer_subscribe.rs, verify.rs} — ~1200 lines new\n- polaris-backend/migrations/00000000000027_federation_quarantine.sql (schema_version 28)\n- polaris-backend/src/config.rs: +FederationConfig +PeerConfig +FederationDirection (~175 lines appended)\n- polaris-backend/src/main.rs: +spawn_federation_worker_if_enabled helper + import wiring\n- polaris-backend/src/lib.rs: +pub mod federation\n\n## Architect verification\n- cargo build -p polaris-backend — PASS\n- cargo clippy -p polaris-backend --tests -- -D warnings — CLEAN\n- cargo test -p polaris-backend --lib federation — 11 tests PASS (FederationError, supervisor no-op-on-empty, consume cancellation, key-cache hit/miss/expire, NSID filter, backoff math, URL format)\n\n## Migration version note\nAgent's worktree branched off an older base (81e8217) and picked migration 24 inserting schema_version 25; main has migrations 24-26 inserting schema_versions 24-27. Renamed to 00000000000027_federation_quarantine.sql + bumped to schema_version 28 before merging.\n\n## AC progress (partial — full AC verification lands in #112 PR 6)\n- [x] PR 1's component pieces tested in isolation\n- [-] AC-3 (quarantine on unknown peer) — code path exists; verified in PR 6 fixture\n- [-] AC-6 (forged signature WARN+discard) — code path exists; verified in PR 6 fixture",
+  "created_at": "2026-05-16T15:34:47.123455400Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAWFyhIrfj3ZePtYLkL9cPNsgpbRe9szQP1apbcScSZCLIlpCH5vPoP0zLiTwnYNClwry+ZetyY9zbtNDwqe3dCQ=="
+}
