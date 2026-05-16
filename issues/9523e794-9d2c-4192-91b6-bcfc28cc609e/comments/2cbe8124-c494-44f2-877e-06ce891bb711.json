@@ -1,0 +1,10 @@
+{
+  "uuid": "2cbe8124-c494-44f2-877e-06ce891bb711",
+  "issue_uuid": "9523e794-9d2c-4192-91b6-bcfc28cc609e",
+  "author": "TeIq",
+  "content": "Q1 (Expression form): A — structured config only. Covers all stated cases (per-category, per-class, time-decay). DSL/JSON-Logic deferred as conditional PR 8 if operator demand justifies the parser-bug surface.",
+  "created_at": "2026-05-16T17:27:42.295064136Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAriKsXNcXtbpBTuI38q/zDKm7yPgm4sdginiAvy320SJF6VU4mg127BcBgfyECFXfGMmpblZlEYrtKQChIVSDAA=="
+}
