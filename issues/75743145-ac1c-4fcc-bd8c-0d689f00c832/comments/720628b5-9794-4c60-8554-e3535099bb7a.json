@@ -1,0 +1,10 @@
+{
+  "uuid": "720628b5-9794-4c60-8554-e3535099bb7a",
+  "issue_uuid": "75743145-ac1c-4fcc-bd8c-0d689f00c832",
+  "author": "TeIq",
+  "content": "Q5 (N-of-M quorum): A — single-token signing in v2. Quorum signing has its own design (key ceremony, quorum-member management, lost-key recovery) that deserves a dedicated issue. Operators with regulatory requirements escalate via a follow-up.",
+  "created_at": "2026-05-16T17:28:16.420433679Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA+3fbeRY1lqPK/Ytub/Z8s6aBWHTYFO122lulztyWhFk0Nh5spsTqgua84TshX3j9CMvo+M8RDB2VoujX9qC1Aw=="
+}
