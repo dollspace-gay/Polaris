@@ -1,0 +1,10 @@
+{
+  "uuid": "c4c2a06e-57fb-4dc3-8da8-8fb58bfa8ff3",
+  "issue_uuid": "9b9012e6-447e-4dbd-a72d-7a22d98ff6b5",
+  "author": "TeIq",
+  "content": "PR 7 landed. polaris-sample-classifier binary (5 rule-engine unit tests pass) + docs/ops/classifier-integration.md operator runbook covering self-hosted + cloud-API + breaker/budget tuning + opt-in feedback + observability/troubleshooting. ML classifier epic surface is delivered for backend; #129 disagreement UI is the only remaining piece (frontend-only — deferred).",
+  "created_at": "2026-05-16T19:24:08.780264214Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAgVYdR/hT0OogotMbSqI0423C/fZCkDSmANhdFLNRCKVlAKLpZp4xFEK56r9ej1Cingst42IUjW8AWTcsxU0YDg=="
+}
