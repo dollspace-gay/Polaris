@@ -1,0 +1,10 @@
+{
+  "uuid": "2e79c4df-a373-47c7-9624-7ddc3aa6c15d",
+  "issue_uuid": "c37fef8f-ee48-4546-b9c6-832adb12eda0",
+  "author": "TeIq",
+  "content": "Closing as CODE-COMPLETE. The M2 NetworkPanel implementation landed end-to-end:\n\n- backend: polaris-backend/src/api/network_context.rs with parallel proto-blue fetches across profile + follow-graph + reply-graph + cohort + shared-images, SignalQuality partial-failure surface, /api/cases/{subject_id}/network-context route, 15 unit tests\n- frontend: polaris-frontend/src/components/network_panel.rs with five render sections, LocalResource fetch, FetchState enum, 5 unit tests\n- polaris-frontend/styles/components/network-panel.css with 50+ BEM classes, all token-based\n- migrations/00000000000026_subject_image_blobs.sql cross-subject image-blob index\n- all backend lib tests pass + frontend wasm builds clean + clippy clean across both crates\n\nLive verification on https://polarislabeler.bsky.social via ngrok is an operator activity (requires backend restart + tunnel handoff). The code itself is shipped and merged into main.",
+  "created_at": "2026-05-16T19:58:04.916104286Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAlm3kNhieozpRW15t58WCYTUb0KXXx9KgzRkB3yH9uDJE0F7u+ElCtBHLqG94Sq4l+bp41v/KXun3Jgj9yWd1AA=="
+}
