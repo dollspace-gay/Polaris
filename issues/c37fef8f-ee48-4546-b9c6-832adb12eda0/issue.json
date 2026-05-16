@@ -1,0 +1,10 @@
+{
+  "uuid": "c37fef8f-ee48-4546-b9c6-832adb12eda0",
+  "display_id": 97,
+  "title": "NetworkPanel: implement subject network-context surface from app.bsky.actor.getProfile",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-16T12:54:48.949795423Z",
+  "updated_at": "2026-05-16T12:54:48.949795423Z"
+}
