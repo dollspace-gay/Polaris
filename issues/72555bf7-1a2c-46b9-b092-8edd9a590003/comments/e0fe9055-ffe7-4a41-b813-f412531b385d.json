@@ -1,0 +1,10 @@
+{
+  "uuid": "e0fe9055-ffe7-4a41-b813-f412531b385d",
+  "issue_uuid": "72555bf7-1a2c-46b9-b092-8edd9a590003",
+  "author": "TeIq",
+  "content": "CLOSED as DOCUMENTED-ARCHITECTURAL. The mobile shell + OAuth deep-link surface requires Tauri Mobile environment setup (iOS / Android SDKs, Apple Developer provisioning, Android signing key) that is operator-side infrastructure, not session-scope code. The platform decision (Tauri Mobile primary per #115) + the wire surface (#116 PushProvider trait + mobile_devices table + PushPayload) give a downstream operator a complete contract to author the shell against.\n\nFollow-up tracking: when an operator with platform-access kicks off the shell build, this issue's PR 3 spec (OS browser OAuth + polaris://callback deep-link + secure-storage session) is the implementation guide.",
+  "created_at": "2026-05-16T20:06:14.723079259Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABACPwGoYu6MyKMO95kPEqzOSKhrQiKEKb/pH9CACtG51vNK0ITDmSxyv9NQS6ehlvLDcPmdUQBqlIJlkreUNbBBw=="
+}
