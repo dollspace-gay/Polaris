@@ -2,12 +2,13 @@
   "uuid": "0d8b152d-7b25-4ca2-ac2d-87c347932237",
   "display_id": 129,
   "title": "M5 #45 / PR 5: classifier-disagreement surfacing in case view (side-by-side display per Q5-A)",
-  "status": "open",
+  "status": "closed",
   "priority": "low",
   "parent_uuid": "a29c02bc-f94b-4159-a450-afdf32f11d55",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:44:28.209396954Z",
-  "updated_at": "2026-05-16T13:46:48.191718237Z",
+  "updated_at": "2026-05-16T19:57:39.755849390Z",
+  "closed_at": "2026-05-16T19:57:39.755849390Z",
   "blockers": [
     "a42e3b54-53cc-4c32-9277-a4e224fd1ee1"
   ]
