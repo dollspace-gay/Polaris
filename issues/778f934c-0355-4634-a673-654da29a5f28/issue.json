@@ -7,5 +7,8 @@
   "parent_uuid": "c83e4ba4-cc01-4186-a104-69672382d917",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:48:35.792399336Z",
-  "updated_at": "2026-05-16T13:48:35.792399336Z"
+  "updated_at": "2026-05-16T13:53:02.504234929Z",
+  "blockers": [
+    "0dc838fa-39db-4afe-aa76-944a1231e9c4"
+  ]
 }
