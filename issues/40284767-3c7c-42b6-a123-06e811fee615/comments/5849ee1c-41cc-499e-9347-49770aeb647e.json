@@ -1,0 +1,10 @@
+{
+  "uuid": "5849ee1c-41cc-499e-9347-49770aeb647e",
+  "issue_uuid": "40284767-3c7c-42b6-a123-06e811fee615",
+  "author": "TeIq",
+  "content": "Q5 (Multi-tenant): documentation-only — operator allocates a TPM hierarchy for Polaris. Covered in docs/operations/tpm-signing.md.",
+  "created_at": "2026-05-16T17:28:02.842847237Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAscs578Qqqyxln9HEIvhfeJIA0BgTEuFtxa0qLA75g3G26CNp3+pMIYfNsfDtVnIIhy5h6EtHQFK5I8kR8gdOCw=="
+}
