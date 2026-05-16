@@ -1,0 +1,8 @@
+{
+  "uuid": "56cfea74-5c11-4dfc-932d-727ac2af3a7a",
+  "issue_uuid": "411e421a-e37f-4e7b-a34b-c6a3a5892346",
+  "author": "anon-16838310",
+  "content": "Plan: Implementing PR 4 for issue #110 in Polaris repository. This includes:\n1. New lexicon: lexicons/polaris/escalation-message.json (NSID: gay.dollspace.polaris.escalationMessage)\n2. Update lexicons/mapping-matrix.md with field-by-field rows\n3. polaris-types/src/escalation.rs with EscalationMessage struct + EscalationMessageId + SignatureStatus\n4. polaris-types/src/ids.rs - add EscalationMessageId\n5. polaris-types::lexicon_mapping extension (to/from wire)\n6. polaris-backend federation extensions (publish.rs, peer_subscribe.rs, repo/federation.rs, promote.rs)\n7. polaris-backend case-view DTO + API extension\n8. polaris-frontend extensions (dto.rs, federation_thread.rs component, case_view.rs wiring, CSS)\n\nKey constraints:\n- Privacy boundary in lexicon_mapping (not publish.rs or frontend)\n- Attribution by instance DID, not moderator name (REQ-5)\n- Append-only federation_messages, ON CONFLICT DO NOTHING\n- Atomic tx for materialize_message_from_quarantine\n- The worktree does not have polaris-lexicons or federation/ dirs — creating files as if they exist; architect will reconcile",
+  "created_at": "2026-05-16T16:36:10.934903930Z",
+  "kind": "plan"
+}
