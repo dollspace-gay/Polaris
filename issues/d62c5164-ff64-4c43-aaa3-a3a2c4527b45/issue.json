@@ -1,0 +1,10 @@
+{
+  "uuid": "d62c5164-ff64-4c43-aaa3-a3a2c4527b45",
+  "display_id": 90,
+  "title": "OAuth complete_login: pass aud to callback so session bundle records PDS URL",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-16T00:45:37.019353634Z",
+  "updated_at": "2026-05-16T00:45:37.019353634Z"
+}
