@@ -2,12 +2,13 @@
   "uuid": "aa4656b6-9a75-41c1-876c-7ab3e92463d5",
   "display_id": 159,
   "title": "M5 #48 / PR 5: polaris labeler-key rotate TPM-mode extension (new keypair in TPM, old destroyed); AC-6",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "a6ecf6ea-2598-44bf-a377-4bfbe1cda397",
   "created_by": "TeIq",
   "created_at": "2026-05-16T13:54:55.957955539Z",
-  "updated_at": "2026-05-16T13:57:10.639172267Z",
+  "updated_at": "2026-05-16T20:10:11.120053104Z",
+  "closed_at": "2026-05-16T20:10:11.120053104Z",
   "blockers": [
     "d03b4c90-adab-4356-b9cd-f07d05106d99"
   ]
