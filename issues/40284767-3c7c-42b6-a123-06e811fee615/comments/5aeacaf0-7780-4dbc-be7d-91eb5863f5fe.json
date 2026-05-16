@@ -1,0 +1,10 @@
+{
+  "uuid": "5aeacaf0-7780-4dbc-be7d-91eb5863f5fe",
+  "issue_uuid": "40284767-3c7c-42b6-a123-06e811fee615",
+  "author": "TeIq",
+  "content": "Q3 (Recovery auth): A — offline sealing-authorization token. The whole point of TPM sealing is offline-immutable custody; the recovery path must match the strength of the seal.",
+  "created_at": "2026-05-16T17:28:00.202916004Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAA7/Kpe23OCGK1ZHmgQBHQUR40DB5uxS157JmpOx0aRpRCc30mxtlM76TsdFjeJk2Nz/7HOU/7No7Ml881t7dCA=="
+}
