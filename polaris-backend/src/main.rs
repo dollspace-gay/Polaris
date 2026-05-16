@@ -19,6 +19,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context as _;
+use axum_prometheus::PrometheusMetricLayer;
 use polaris_backend::api::state::ApiState;
 use polaris_backend::auth::crypto::Crypto;
 use polaris_backend::auth::session::SessionStore;
@@ -27,6 +28,7 @@ use polaris_backend::evidence::{
     BlobStore, EvidenceFetcher, EvidenceWorker, InMemoryBlobStore, LiveEvidenceFetcher,
     LocalFsBlobStore,
 };
+use polaris_backend::federation;
 use polaris_backend::ingest::aggregator::{AggregatorConfig, ReportAggregator};
 use polaris_backend::ingest::upstream_labels::{
     self, UpstreamKeyCache, UpstreamKeyFetcher, UpstreamLabelerConsumer,
@@ -37,6 +39,7 @@ use polaris_backend::labeler::signer::{SigningKey, build_signing_key};
 use polaris_backend::repo::PgObservationRepo;
 use polaris_backend::{api, config::AppConfig, db};
 use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 #[tokio::main]
@@ -47,6 +50,17 @@ async fn main() -> anyhow::Result<()> {
         version = env!("CARGO_PKG_VERSION"),
         "Polaris backend starting"
     );
+
+    // Workstream D / REQ-D2: install the Prometheus recorder ONCE,
+    // BEFORE the router is built, so the `axum-prometheus` middleware
+    // and the in-handler `metrics::counter!` / `metrics::gauge!`
+    // emissions both route to the same recorder. `install_recorder`
+    // sets the global recorder and returns the handle the `/metrics`
+    // endpoint renders; `install` (no underscore) would also spawn an
+    // HTTP server we don't want.
+    let (prometheus_layer, prometheus_handle) = PrometheusMetricLayer::pair();
+    let prometheus_handle = Arc::new(prometheus_handle);
+    info!("Prometheus recorder installed; /metrics will serve text exposition");
 
     let cfg = AppConfig::from_env().context("loading AppConfig from environment")?;
     info!(bind = %cfg.http.bind, "configuration loaded");
@@ -103,16 +117,14 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("bootstrapping signing_key_history with the active key")?;
 
-    // Build the active-signer slot. The Sender stays here in main(); a
-    // future #65 issue lands the polling-discovery task that watches
-    // `signing_key_history` on a `tokio::time::interval` and pushes
-    // freshly-loaded `Arc<dyn SigningKey>` instances through this
-    // sender. The Receiver is handed to ApiState for read access.
+    // Build the active-signer slot. The Sender is promoted onto
+    // `ApiState` (REQ-A4) so the setup wizard's
+    // `POST /api/setup/generate-key` handler can hot-swap the
+    // freshly-loaded signer through the same channel the rotation-
+    // discovery task uses. The Receiver is handed to ApiState for
+    // read access.
     let (signer_tx, signer_rx) = watch::channel::<Arc<dyn SigningKey>>(signer.clone());
-    // Hold the sender for the process lifetime so the channel does not
-    // close. The variable is intentionally underscored — the active
-    // rotation-discovery task (filed as #65) will own it.
-    let _signer_tx = signer_tx;
+    let signer_tx = Arc::new(signer_tx);
 
     // Assemble ApiState with the emitter installed. `api::router`'s
     // public signature takes `(Db, SessionStore, PatternActionsConfig)`
@@ -120,8 +132,17 @@ async fn main() -> anyhow::Result<()> {
     // so the emitter can be wired in, then call the state-taking
     // router constructor.
     let api_state = ApiState::with_config(db.pool().clone(), sessions, cfg.pattern_actions);
-    let emitter = Arc::new(LabelEmitter::new(
-        signer,
+    // REQ-A4 / Workstream A carry-over: build the emitter around the
+    // **receiver** half of the active-signer channel so every emit
+    // reads through to the live signer. The receiver and the matching
+    // sender (held below via `with_active_signer_tx`) share one
+    // channel; the wizard's `generate_key` handler pushes a real
+    // `FilePlainSigner` through the sender and the next emit sees it
+    // without a process restart. `signer` (the initial value) is
+    // already inside the channel.
+    let _ = signer; // initial value lives inside the watch channel
+    let emitter = Arc::new(LabelEmitter::with_active_signer(
+        signer_rx.clone(),
         db.pool().clone(),
         api_state.label_broadcaster.clone(),
     ));
@@ -153,11 +174,32 @@ async fn main() -> anyhow::Result<()> {
         }
     };
 
+    // Hold one extra reference so the channel cannot close even if a
+    // future refactor drops the `ApiState`-borne handle. The
+    // rotation-discovery task (#65) will eventually own this binding;
+    // until then it lives for the process lifetime.
+    let _signer_tx_keepalive = Arc::clone(&signer_tx);
     let api_state = api_state
         .with_label_emitter(emitter)
         .with_active_signer(signer_rx)
+        .with_active_signer_tx(signer_tx)
         .with_moderator_auth(moderator_auth)
-        .with_oauth_client_metadata(oauth_client_metadata);
+        .with_oauth_client_metadata(oauth_client_metadata)
+        // Issue #85: the setup wizard's generate-key handler picks its
+        // output path from `state.labeler_signing_key_cfg`. Without
+        // this wire-through the handler falls back to the
+        // `LabelerSigningKeyConfig::default()` sentinel
+        // (`/etc/polaris/labeler.key`) and a non-root operator hits
+        // `Permission denied` on `create_dir_all`. Thread the
+        // env-parsed config through so the wizard writes the key to
+        // the same path the labeler subsystem already loaded at boot.
+        .with_labeler_signing_key_cfg(cfg.labeler.signing_key.clone())
+        // Workstream D / REQ-D2: thread the Prometheus handle onto
+        // the state so the `/metrics` handler can render it. The
+        // recorder itself was set globally above via
+        // `PrometheusMetricLayer::pair()`; the handle is the read
+        // side of the recorder and is `Arc`-cloneable.
+        .with_metrics_handle(Arc::clone(&prometheus_handle));
 
     // Issue #32: spawn one per-upstream subscribeLabels consumer for every
     // `upstream_labelers WHERE enabled = TRUE` row. Each task is detached
@@ -187,7 +229,19 @@ async fn main() -> anyhow::Result<()> {
     // exits is task abort. See design.md §9 #4 (T4 mitigation).
     spawn_report_aggregator(&cfg.aggregator, db.pool().clone());
 
-    let app = api::router_with_state(db, api_state);
+    // Issue #107 / M5 PR 1: spawn the federation worker if enabled. The
+    // supervisor manages one per-peer Firehose task and drains the JoinSet
+    // until cancellation. The CancellationToken is created here and held
+    // for the process lifetime so SIGINT propagates gracefully.
+    let _fed_cancel = spawn_federation_worker_if_enabled(&cfg.federation, db.pool().clone());
+
+    // Layer the auto-instrumenting `axum-prometheus` middleware on
+    // the merged router so every request fires
+    // `axum_http_requests_total{method,endpoint,status}` +
+    // the duration histogram. The recorder set globally above
+    // captures both these series and the hand-emitted
+    // `polaris_*_total` counters.
+    let app = api::router_with_state(db, api_state).layer(prometheus_layer);
 
     let listener = tokio::net::TcpListener::bind(&cfg.http.bind)
         .await
@@ -347,6 +401,41 @@ fn spawn_report_aggregator(cfg: &polaris_backend::config::AggregatorEnvConfig, p
     );
     let aggregator = ReportAggregator::new(pool, aggregator_cfg);
     tokio::spawn(aggregator.run());
+}
+
+/// Issue #107 / M5 PR 1: conditionally spawn the federation supervisor.
+///
+/// When `config.federation.enabled = true` this creates a shared
+/// [`CancellationToken`] and spawns the federation supervisor via
+/// [`federation::spawn_federation_worker`]. The token is returned so the
+/// caller can hold it for the process lifetime and cancel it on SIGINT.
+///
+/// When federation is disabled the function is a no-op that returns a dummy
+/// token (never cancelled).
+fn spawn_federation_worker_if_enabled(
+    cfg: &polaris_backend::config::FederationConfig,
+    pool: sqlx::PgPool,
+) -> CancellationToken {
+    let cancel = CancellationToken::new();
+
+    if !cfg.enabled {
+        info!("federation disabled (POLARIS_FEDERATION_ENABLED not set); skipping");
+        return cancel;
+    }
+
+    info!(
+        peer_count = cfg.peers.len(),
+        key_cache_ttl_secs = cfg.public_key_cache_ttl_secs,
+        "federation enabled; spawning supervisor",
+    );
+
+    let _handle = federation::spawn_federation_worker(cfg.clone(), pool, cancel.clone());
+    // The handle is intentionally dropped: the supervisor runs for the
+    // process lifetime and we rely on the CancellationToken (returned to
+    // the caller) for co-operative shutdown. The handle is held by the
+    // tokio runtime until SIGINT fires and the token is cancelled by the
+    // operator's process manager (e.g. `docker stop`, `systemctl stop`).
+    cancel
 }
 
 /// Construct the [`S3BlobStore`] backend from configuration (#68).

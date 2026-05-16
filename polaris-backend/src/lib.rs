@@ -40,6 +40,12 @@ pub mod bus;
 pub mod config;
 pub mod db;
 pub mod evidence;
+/// Cross-instance federation (issue #107 / M5 PR 1).
+///
+/// Subscribes to configured peer instances' ATProto Firehose streams,
+/// filters commits to `gay.dollspace.polaris.*` NSIDs, verifies commit
+/// signatures, and materialises records into `federation_quarantine`.
+pub mod federation;
 pub mod ingest;
 pub mod labeler;
 pub mod middleware;

@@ -62,6 +62,13 @@ pub struct AppConfig {
     /// threat-model T4).
     #[serde(default)]
     pub aggregator: AggregatorEnvConfig,
+    /// Cross-instance federation settings (issue #107 / M5 PR 1).
+    ///
+    /// When `federation.enabled = true` (env: `POLARIS_FEDERATION_ENABLED`)
+    /// the binary spawns one Firehose subscriber per configured peer.
+    /// Defaults to disabled so existing deployments are unaffected.
+    #[serde(default)]
+    pub federation: FederationConfig,
 }
 
 /// Postgres connection and pool configuration.
@@ -169,6 +176,7 @@ impl AppConfig {
         let reputation = ReputationConfig::from_env()?;
         let moderator_anomaly = ModeratorAnomalyEnvConfig::from_env()?;
         let aggregator = AggregatorEnvConfig::from_env()?;
+        let federation = FederationConfig::from_env()?;
 
         Ok(Self {
             db,
@@ -182,6 +190,7 @@ impl AppConfig {
             reputation,
             moderator_anomaly,
             aggregator,
+            federation,
         })
     }
 }
@@ -1388,6 +1397,183 @@ fn parse_positive_f32_env(var: &'static str, default: f32) -> Result<f32, Config
         });
     }
     Ok(parsed)
+}
+
+// ── federation config ─────────────────────────────────────────────────────
+
+/// Cross-instance federation settings (issue #107 / M5 PR 1).
+///
+/// Controls whether the Polaris instance subscribes to peer Polaris instances'
+/// Firehose streams and materialises incoming records into `federation_quarantine`.
+///
+/// Env-var mapping:
+///
+/// | Variable                              | Field                    |
+/// |---------------------------------------|--------------------------|
+/// | `POLARIS_FEDERATION_ENABLED`          | `enabled` (bool)         |
+/// | `POLARIS_FEDERATION_KEY_CACHE_TTL_SECS` | `public_key_cache_ttl_secs` |
+///
+/// Individual peers are configured via `POLARIS_FEDERATION_PEERS`, a
+/// comma-separated list of `<did>@<pds_host>` pairs (e.g.
+/// `did:plc:peerA@pds.example.com,did:plc:peerB@pds.other.com`). The optional
+/// `+direction` suffix selects the replication direction:
+/// `bidirectional` (default), `incoming-only`, `outgoing-only`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationConfig {
+    /// Whether the federation worker is enabled. Default `false`.
+    ///
+    /// All other fields are ignored when this is `false`.
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Seconds to keep a peer's signing-key `did:key` in the in-process
+    /// cache before re-fetching from the peer's PLC document. Default
+    /// 21,600 (6 hours) — matches Bluesky's stated PLC TTL conventions.
+    #[serde(default = "default_federation_key_cache_ttl_secs")]
+    pub public_key_cache_ttl_secs: u64,
+
+    /// Configured peers. Populated from `POLARIS_FEDERATION_PEERS`; the
+    /// default is empty (no federation).
+    #[serde(default)]
+    pub peers: Vec<PeerConfig>,
+}
+
+const fn default_federation_key_cache_ttl_secs() -> u64 {
+    21_600 // 6 hours
+}
+
+impl Default for FederationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            public_key_cache_ttl_secs: default_federation_key_cache_ttl_secs(),
+            peers: vec![],
+        }
+    }
+}
+
+impl FederationConfig {
+    /// Build from environment variables.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidEnumValue`] if a peer entry's direction
+    /// token is not one of the accepted values, or [`ConfigError::InvalidInt`]
+    /// if `POLARIS_FEDERATION_KEY_CACHE_TTL_SECS` is not a valid `u64`.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let enabled = parse_optional_bool_env("POLARIS_FEDERATION_ENABLED")?.unwrap_or(false);
+
+        let public_key_cache_ttl_secs =
+            match env::var("POLARIS_FEDERATION_KEY_CACHE_TTL_SECS").ok() {
+                Some(raw) => raw
+                    .parse::<u64>()
+                    .map_err(|source| ConfigError::InvalidInt {
+                        field: "POLARIS_FEDERATION_KEY_CACHE_TTL_SECS",
+                        source,
+                    })?,
+                None => default_federation_key_cache_ttl_secs(),
+            };
+
+        let peers = parse_federation_peers_env()?;
+
+        Ok(Self {
+            enabled,
+            public_key_cache_ttl_secs,
+            peers,
+        })
+    }
+}
+
+/// Parse `POLARIS_FEDERATION_PEERS` into a `Vec<PeerConfig>`.
+///
+/// Format: comma-separated `<did>@<pds_host>` pairs with an optional
+/// `+<direction>` suffix. Example:
+/// ```text
+/// did:plc:peerA@pds.example.com+bidirectional,did:plc:peerB@pds.other.com
+/// ```
+///
+/// Unknown direction tokens are rejected with [`ConfigError::InvalidEnumValue`].
+fn parse_federation_peers_env() -> Result<Vec<PeerConfig>, ConfigError> {
+    let raw = match env::var("POLARIS_FEDERATION_PEERS").ok() {
+        Some(r) if !r.trim().is_empty() => r,
+        _ => return Ok(vec![]),
+    };
+
+    raw.split(',')
+        .map(|entry| {
+            let entry = entry.trim();
+            // Split off optional `+direction` suffix.
+            let (at_part, direction_str) = if let Some((left, right)) = entry.split_once('+') {
+                (left, right)
+            } else {
+                (entry, "bidirectional")
+            };
+
+            // Split DID and PDS host on `@`.
+            let (did, pds_host) = at_part.split_once('@').ok_or(ConfigError::InvalidEnumValue {
+                field: "POLARIS_FEDERATION_PEERS",
+                value: entry.to_owned(),
+                accepted: &["<did>@<pds_host>[+direction]"],
+            })?;
+
+            let direction = match direction_str {
+                "bidirectional" => FederationDirection::Bidirectional,
+                "incoming-only" => FederationDirection::IncomingOnly,
+                "outgoing-only" => FederationDirection::OutgoingOnly,
+                other => {
+                    return Err(ConfigError::InvalidEnumValue {
+                        field: "POLARIS_FEDERATION_PEERS direction",
+                        value: other.to_owned(),
+                        accepted: &["bidirectional", "incoming-only", "outgoing-only"],
+                    });
+                }
+            };
+
+            Ok(PeerConfig {
+                did: did.to_owned(),
+                pds_host: pds_host.to_owned(),
+                direction,
+            })
+        })
+        .collect()
+}
+
+/// Peer replication direction.
+///
+/// Controls which data flows:
+///
+/// - [`Bidirectional`](Self::Bidirectional) — this instance subscribes to the
+///   peer's Firehose AND (when outbound federation lands in PR 3) publishes to
+///   the peer.
+/// - [`IncomingOnly`](Self::IncomingOnly) — this instance only reads from the peer.
+/// - [`OutgoingOnly`](Self::OutgoingOnly) — this instance only publishes to the
+///   peer (reserved for PR 3; no inbound subscription is spawned).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum FederationDirection {
+    /// Subscribe to the peer and publish to the peer.
+    #[default]
+    Bidirectional,
+    /// Subscribe to the peer only.
+    IncomingOnly,
+    /// Publish to the peer only (reserved for PR 3).
+    OutgoingOnly,
+}
+
+/// One configured federation peer.
+///
+/// Constructed from `POLARIS_FEDERATION_PEERS` (env) or from a future
+/// `[[federation_peers]]` TOML table.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeerConfig {
+    /// The peer's DID (e.g. `did:plc:peerA`).
+    pub did: String,
+    /// The bare hostname of the peer's PDS (no scheme, no path;
+    /// e.g. `pds.example.com`). Used to build the `wss://` URL.
+    pub pds_host: String,
+    /// Replication direction. Default [`FederationDirection::Bidirectional`].
+    #[serde(default)]
+    pub direction: FederationDirection,
 }
 
 #[cfg(test)]
