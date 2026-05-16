@@ -1,0 +1,10 @@
+{
+  "uuid": "2fb8b3de-bff4-40a3-ab4b-f3a447e87d02",
+  "issue_uuid": "75743145-ac1c-4fcc-bd8c-0d689f00c832",
+  "author": "TeIq",
+  "content": "Q2 (FIDO2 vs PKCS#11): C — both, config-selectable. PKCS#11 default (hits more existing operator hardware: YubiHSM, AWS CloudHSM, YubiKey-PIV). FIDO2-PRF as alternative path.",
+  "created_at": "2026-05-16T17:28:12.262296120Z",
+  "kind": "decision",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAyxDh+5aCovIB0lKYm61hFVCqspk59Bt5S/hbPZV99EhF8B/T0wlDAhumsQy70/6DDYN09c9sUTDkPCAcPtO/Ag=="
+}
