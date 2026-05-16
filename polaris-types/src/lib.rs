@@ -39,6 +39,13 @@
 //!   `polaris-backend`'s pure routing function (`design.md` §5.4).
 //! - [`oauth_config`] — shared `load_client_metadata` loader (#61).
 //!   The *only* module in this crate that references a `proto-blue` type.
+//! - [`escalation`] — [`Escalation`], [`EmbeddedObservation`], [`SubjectRef`].
+//!   Cross-instance federation record for pattern evidence (#103 / M5 PR 3).
+//! - [`evidence`] — [`EvidencePointer`]. Content-addressed CAR file pointer
+//!   embedded in escalations.
+//! - [`lexicon_mapping`] — mapping functions between internal types and the
+//!   `polaris-lexicons` wire types. The *only* module that references
+//!   `polaris-lexicons`.
 //!
 //! # Re-exports
 //!
@@ -50,8 +57,11 @@
 
 pub mod action;
 pub mod appeal;
+pub mod escalation;
+pub mod evidence;
 pub mod ids;
 pub mod incident;
+pub mod lexicon_mapping;
 pub mod oauth_config;
 pub mod observation;
 pub mod report;
@@ -63,9 +73,11 @@ pub use appeal::{
     AppealDecision, AppealId, AppealStatus, CalibrationEvent, CalibrationEventKind,
     InvalidTransition,
 };
+pub use escalation::{EmbeddedObservation, Escalation, SubjectRef};
+pub use evidence::EvidencePointer;
 pub use ids::{
-    ActionId, AtUri, Did, IncidentId, LabelValue, ModeratorId, ObservationId, PatternActionId,
-    PolicyId, ReportId, SubjectId,
+    ActionId, AtUri, Did, EscalationId, IncidentId, LabelValue, ModeratorId, ObservationId,
+    PatternActionId, PolicyId, ReportId, SubjectId,
 };
 pub use incident::{Incident, IncidentStatus, NewIncident, Severity};
 pub use observation::{NewObservation, Observation, ObservationKind};

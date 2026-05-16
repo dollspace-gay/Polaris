@@ -9,7 +9,7 @@
 //! # Why this lives in polaris-types
 //!
 //! The loader is purely "read JSON from disk, decode into
-//! [`proto_blue::oauth::ClientMetadata`]". It carries no Polaris-business
+//! `proto_blue::oauth::ClientMetadata`". It carries no Polaris-business
 //! logic: it doesn't talk to the database, doesn't seal anything at rest,
 //! and doesn't drive a flow. That makes it a typed-input adapter — the
 //! same category as the rest of `polaris-types` — and the natural home

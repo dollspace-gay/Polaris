@@ -28,6 +28,12 @@ proto-blue = "0.3"
 # umbrella re-export. Pin to the same semver line as the umbrella.
 proto-blue-syntax = "0.3"
 
+# polaris-lexicons: generated Rust types for the gay.dollspace.polaris.*
+# AT Protocol Lexicons (codegen output from `cargo xtask gen-lexicons`).
+# Consumed only by `polaris-types::lexicon_mapping` — the privacy boundary
+# between internal domain types and the federated wire shape.
+polaris-lexicons = { path = "polaris-lexicons" }
+
 # Web framework
 axum = "0.8"
 
@@ -175,6 +181,18 @@ serde_json = "1"
 # the browser-side `crypto.getRandomValues` on wasm32-unknown-unknown via the
 # `wasm_js` cfg in getrandom 0.3.
 uuid = { version = "1", features = ["v4", "serde", "rng-getrandom", "js"] }
+
+# `getrandom` 0.4.x changed the wasm32 RNG selection mechanism: the
+# `wasm_js` feature must be declared as a *direct* workspace dependency to
+# opt the `wasm32-unknown-unknown` target into the browser-side
+# `crypto.getRandomValues` backend. Without this declaration, the wasm32
+# build errors at `backends::inner_u64` resolution. The 0.2.x and 0.3.x
+# lines used a cfg-flag approach; 0.4.x requires the explicit crate
+# feature. The `uuid` crate pulls getrandom 0.4 transitively via
+# `rng-getrandom`; this declaration forces the `wasm_js` feature on for
+# the entire workspace so the polaris-types and polaris-lexicons wasm32
+# builds resolve correctly.
+getrandom = { version = "0.4", features = ["wasm_js"] }
 
 # Date/time
 chrono = { version = "0.4", features = ["serde"] }

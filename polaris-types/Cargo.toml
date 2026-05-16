@@ -45,12 +45,31 @@ thiserror.workspace = true
 # call into a single typed surface. See the DEP POLICY block above for the
 # carve-out rationale.
 proto-blue.workspace = true
+# Issue #103 (PR 3): the `lexicon_mapping` module bridges between internal
+# polaris-types domain structs and the generated polaris-lexicons wire
+# types. This is the *only* place in polaris-types that references Lexicon
+# wire shapes (carve-out rationale parallel to proto-blue above).
+polaris-lexicons.workspace = true
+# Issue #103: proto-blue-syntax newtypes (`Did`, `AtUri`, `Datetime`, …)
+# used by lexicon_mapping to construct wire-side typed values from internal
+# plain strings. Same scoping rule: only `lexicon_mapping` may import these.
+proto-blue-syntax.workspace = true
+# Issue #103: getrandom 0.4.x requires the `wasm_js` feature on every crate
+# that transitively pulls it on wasm32-unknown-unknown. uuid 1.x with
+# `rng-getrandom` pulls getrandom 0.4 here; declaring the dep directly
+# (with the workspace-level feature already enabled) makes Cargo feature
+# unification include `wasm_js` in this crate's compilation unit.
+getrandom.workspace = true
 
 [dev-dependencies]
 # `oauth_config` round-trip tests write a JSON fixture to a disposable
 # tempfile and read it back through `load_client_metadata`. Already in the
 # lockfile transitively via testcontainers / proto-blue.
 tempfile = "3"
+# Issue #103: 1000-case property-based round-trip tests in
+# `tests/lexicon_mapping_roundtrip.rs` exercise the bridge over randomly
+# generated Escalation / Observation / EvidencePointer values.
+proptest.workspace = true
 
 [lints]
 workspace = true

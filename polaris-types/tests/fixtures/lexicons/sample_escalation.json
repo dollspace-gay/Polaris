@@ -1,0 +1,35 @@
+{
+  "$type": "gay.dollspace.polaris.escalation",
+  "createdAt": "2026-05-16T00:00:00.000Z",
+  "source": "did:plc:source1234567890abcdef",
+  "target": "did:plc:target1234567890abcdef",
+  "subject": {
+    "$type": "gay.dollspace.polaris.escalation#subjectAccount",
+    "did": "did:plc:subject1234567890abcdef"
+  },
+  "reason": "Coordinated inauthentic behavior — account cohort match plus reply brigade targeting multiple threads.",
+  "observations": [
+    {
+      "confidence": 850,
+      "observation": {
+        "$type": "gay.dollspace.polaris.observation#imageHashCluster",
+        "hash": "deadbeef01234567",
+        "distance": 3
+      }
+    },
+    {
+      "confidence": 720,
+      "observation": {
+        "$type": "gay.dollspace.polaris.observation#replyBrigade",
+        "threadUri": "at://did:plc:x/app.bsky.feed.post/3labc123"
+      }
+    }
+  ],
+  "evidence": [
+    {
+      "carCid": "bafyreifoobarbazbazqux",
+      "mediaType": "application/vnd.ipld.car",
+      "byteLength": 4096
+    }
+  ]
+}

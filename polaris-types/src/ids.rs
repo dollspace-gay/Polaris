@@ -121,6 +121,15 @@ define_uuid_id!(
     ModeratorId
 );
 define_uuid_id!(
+    /// Identifier for an [`crate::escalation::Escalation`] (issue #103 / M5 PR 3).
+    ///
+    /// An escalation is a cross-instance federation record: one Polaris instance
+    /// sends an escalation to a peer instance carrying the safe-to-federate subset
+    /// of an incident's pattern evidence. The `EscalationId` is the internal
+    /// primary key; it is DROPPED at the to-wire boundary (never federated).
+    EscalationId
+);
+define_uuid_id!(
     /// Identifier for a `pattern_actions` row (issue #21).
     ///
     /// Pattern actions are the bulk-on-pattern endpoint (design.md §5.3) —
