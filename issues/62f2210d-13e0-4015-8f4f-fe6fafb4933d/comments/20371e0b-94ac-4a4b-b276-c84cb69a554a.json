@@ -1,0 +1,10 @@
+{
+  "uuid": "20371e0b-94ac-4a4b-b276-c84cb69a554a",
+  "issue_uuid": "62f2210d-13e0-4015-8f4f-fe6fafb4933d",
+  "author": "TeIq",
+  "content": "CLOSED as DOCUMENTED-ARCHITECTURAL. take_ownership/release_ownership endpoints depend on the mobile shell (#117) and the v1 case-lock plumbing already in place. The mobile shell calls existing v1 case-lock endpoints; WebSocket broadcasts already reflect to desktop (#57). Resume when the shell is up.",
+  "created_at": "2026-05-16T20:06:17.442108720Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAztktxOF7hzUOmujc8DKDB+5tVZVM/NwJNwNSiPFPBcy7/od5rIcQebv1NbQTJNpTbwkkR5QNogoVr6KubOjsAQ=="
+}
