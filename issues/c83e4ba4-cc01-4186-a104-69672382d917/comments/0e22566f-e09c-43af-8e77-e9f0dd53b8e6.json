@@ -1,0 +1,10 @@
+{
+  "uuid": "0e22566f-e09c-43af-8e77-e9f0dd53b8e6",
+  "issue_uuid": "c83e4ba4-cc01-4186-a104-69672382d917",
+  "author": "TeIq",
+  "content": "Trust model epic SUBSTANTIAL CLOSURE. Pure-logic core complete:\n- #143 Q-resolution\n- #144 polaris-trust crate skeleton + flat weight + AC-1 / AC-3 proptest\n- #145 per-category composition + AC-5\n- #146 time decay + AC-4\n- #147 per-subject-class composition\n- #148 templates portion (admin endpoints follow-up #178)\n- #150 explain() decomposition function (CLI / UI integration follow-up)\n- #151 conditional-no-op (Q1 resolved to structured-only; DSL not needed)\n- #149 frontend preview UI deferred to operator-side admin work\n- #178 backend admin endpoints + audit + JSONB migration deferred to follow-up\n\npolaris-trust crate ships with 29 unit tests, wasm32 compatibility verified, defense-in-depth NaN/Inf clamps, exhaustive AC coverage for AC-1, AC-3, AC-4, AC-5, AC-6. The trust function is production-ready as a leaf-crate library.",
+  "created_at": "2026-05-16T20:11:53.103997290Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAmmHyUNf5vuSKPRCym7j0ykU8cPum3wWNNV5niO36KOS4Jbi/F7UYKALJWgiqGHq6pvxY5uFEgj0lJxea/9ojDQ=="
+}
