@@ -1,0 +1,8 @@
+{
+  "uuid": "f48b33d1-4143-4c4f-be8b-f86f37a316b2",
+  "issue_uuid": "fbe7fcf4-8121-4d11-a6e7-2c8863e3e60d",
+  "author": "anon-85e8116b",
+  "content": "Delivered: 4 files, 566 total lines. All JSON validates. Observation union uses ATProto $type discriminator (no redundant kind field). ReportVolumeAnomaly and ModeratorBehaviorAnomaly excluded from wire format (carry internal IDs). README covers all 3 compat categories + full worked priorityHint example with JSON diff, codegen sketch, and mapping function update. Flag for review: embeddedObservation uses confidence + observation union (ATProto-idiomatic) rather than kind + payload as originally sketched — this drops redundancy but the reviewer should confirm the codegen handles the union correctly in PR 2.",
+  "created_at": "2026-05-16T14:23:56.799124219Z",
+  "kind": "result"
+}
