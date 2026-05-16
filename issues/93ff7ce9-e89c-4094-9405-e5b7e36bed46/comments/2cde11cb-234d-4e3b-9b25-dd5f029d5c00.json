@@ -1,0 +1,10 @@
+{
+  "uuid": "2cde11cb-234d-4e3b-9b25-dd5f029d5c00",
+  "issue_uuid": "93ff7ce9-e89c-4094-9405-e5b7e36bed46",
+  "author": "TeIq",
+  "content": "PR 3 landed. OutboundPublisher in federation/publish.rs reuses the v1 active_signer; the polaris-federation-escalate admin binary is clap-derived; 5 privacy boundary tests verify the wire form excludes moderator_id / audit_chain_hash / reporter_did / exposure / internal Escalation.id; 3 unit tests verify the mapping is invoked + LocalDidNotConfigured surfaces. Architect verification: build PASS, bin build PASS, clippy CLEAN, federation::publish 3 PASS, federation_publish_privacy 5 PASS.",
+  "created_at": "2026-05-16T16:33:24.059599249Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAZJD8bVuIzIUPNIGGXoNQdkYqZyiR9gW1mHFdnRjzQa+tXAnmLa5CZLuCN2brC0IOvnIbBpYwvUAX8BntJuUSDQ=="
+}
