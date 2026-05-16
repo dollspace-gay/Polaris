@@ -1,0 +1,124 @@
+{
+  "lexicon": 1,
+  "id": "gay.dollspace.polaris.escalation",
+  "description": "Cross-instance escalation record. Published by a source labeler to declare that a moderation subject warrants review by a target labeler on another Polaris instance. The record is the federated wire representation of a Polaris escalation decision; it carries embedded observations and evidence pointers but deliberately omits all internal-only fields (moderator identifiers, audit chain hashes, reporter DIDs, exposure metadata) that must not cross instance boundaries. The privacy boundary is enforced at the mapping layer (polaris-types::lexicon_mapping); this Lexicon shape IS the privacy contract.",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A cross-instance escalation from a source labeler to a target labeler about a specific ATProto subject. The record key is a TID assigned by the source labeler's PDS at write time.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "source",
+          "target",
+          "subject",
+          "reason",
+          "observations",
+          "createdAt"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the Polaris labeler instance originating this escalation. The source labeler is responsible for the observations, evidence, and reason text in this record. Receivers should verify that the record's repo DID matches this field before trusting the content."
+          },
+          "target": {
+            "type": "string",
+            "format": "did",
+            "description": "DID of the target Polaris labeler instance that this escalation is addressed to. The target labeler is expected to review the subject independently and apply its own moderation policy — this record does not prescribe an action."
+          },
+          "subject": {
+            "type": "union",
+            "description": "The ATProto subject of this escalation. Must be either a bare account DID (for account-level moderation) or an AT-URI (for record-level moderation). Non-ATProto Polaris subjects (internal aggregates, cohort IDs, etc.) are not federable and must not appear here — see the Q4-A decision in issue #100.",
+            "refs": [
+              "#subjectAccount",
+              "#subjectRecord"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Free-text summary of why this subject is being escalated. Written by the source labeler's operators. Must be human-readable; the target labeler's reviewers will see this text. Must not contain personally identifying information about reporters, moderators, or third parties — such information belongs in the evidence CAR bundles, not in the record.",
+            "maxGraphemes": 5000,
+            "maxLength": 50000
+          },
+          "observations": {
+            "type": "array",
+            "description": "Ordered list of embedded observations that informed this escalation. Each entry is a discriminated observation value matching one of the safe-to-federate ObservationKind variants. Must contain at least one observation — an escalation with no supporting observations is malformed. The ordering is meaningful: the source labeler lists observations from most to least significant.",
+            "items": {
+              "type": "ref",
+              "ref": "#embeddedObservation"
+            },
+            "minLength": 1,
+            "maxLength": 50
+          },
+          "evidence": {
+            "type": "array",
+            "description": "Optional list of content-addressed evidence pointers. Each pointer references a preserved evidence CAR bundle in the source labeler's blob store. The receiving labeler may fetch and verify these bundles independently using the CID for integrity checking. Absent if the source labeler has not preserved evidence CARs for this escalation.",
+            "items": {
+              "type": "ref",
+              "ref": "gay.dollspace.polaris.evidencePointer"
+            },
+            "maxLength": 20
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Timestamp when this escalation record was created by the source labeler, in ISO 8601 / RFC 3339 format with timezone. This is the source labeler's local time; receivers should not treat it as authoritative for ordering — use the PDS commit timestamp for that."
+          }
+        }
+      }
+    },
+    "subjectAccount": {
+      "type": "object",
+      "description": "An ATProto account (DID) as the escalation subject. Use when the concern is about the account as a whole (e.g. ban-worthy behavior, coordinated inauthentic accounts) rather than a specific piece of content.",
+      "required": ["did"],
+      "properties": {
+        "did": {
+          "type": "string",
+          "format": "did",
+          "description": "DID of the ATProto account being escalated. Must be a resolvable DID — receivers should resolve the DID document to confirm the account still exists before taking action."
+        }
+      }
+    },
+    "subjectRecord": {
+      "type": "object",
+      "description": "A specific ATProto record (AT-URI) as the escalation subject. Use when the concern is about a particular piece of content (e.g. a post, a list, a labeler service record) rather than the account as a whole.",
+      "required": ["uri"],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "at-uri",
+          "description": "AT-URI of the specific ATProto record being escalated (e.g. 'at://did:plc:abc123/app.bsky.feed.post/tid'). Receivers should resolve the AT-URI to confirm the record still exists and has not been deleted before acting."
+        },
+        "cid": {
+          "type": "string",
+          "format": "cid",
+          "description": "Optional CID of the specific version of the record at escalation time. If provided, the receiver can verify that the content has not changed since the escalation was filed. Absent if the source labeler did not capture the CID."
+        }
+      }
+    },
+    "embeddedObservation": {
+      "type": "object",
+      "description": "A single observation entry embedded in an escalation record. Carries the calibrated confidence the source labeler's pattern engine assigned and the discriminated observation value. The observation union uses ATProto's $type field as its discriminator — the active ref determines which ObservationKind variant this entry represents. The two internal-only ObservationKind variants (reportVolumeAnomaly, moderatorBehaviorAnomaly) are excluded from the union by design: they carry internal identifiers that must not cross instance boundaries.",
+      "required": ["confidence", "observation"],
+      "properties": {
+        "confidence": {
+          "type": "number",
+          "description": "Cross-detector calibrated confidence the source labeler's pattern engine assigned to this observation, in the range [0.0, 1.0]. Distinct from per-variant confidence fields (e.g. classifierSignal.confidence) — those are the detector's raw output; this is the calibrated composite score the pattern engine assigned after cross-detector weighting. Receivers use this value to weight observations when making their own moderation decision."
+        },
+        "observation": {
+          "type": "union",
+          "description": "Discriminated observation value. The $type field on the wire identifies the active ObservationKind variant. Only the five safe-to-federate variants are permitted; the internal-only variants are not in the refs list.",
+          "refs": [
+            "gay.dollspace.polaris.observation#imageHashCluster",
+            "gay.dollspace.polaris.observation#accountCohort",
+            "gay.dollspace.polaris.observation#replyBrigade",
+            "gay.dollspace.polaris.observation#externalLabel",
+            "gay.dollspace.polaris.observation#classifierSignal"
+          ]
+        }
+      }
+    }
+  }
+}

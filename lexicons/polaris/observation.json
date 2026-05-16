@@ -1,0 +1,105 @@
+{
+  "lexicon": 1,
+  "id": "gay.dollspace.polaris.observation",
+  "description": "Embedded observation shapes for the polaris.escalation wire format. Each def represents one variant of the internal polaris-types::ObservationKind enum, filtered to variants that are safe to federate (i.e. carry no internal moderator identifiers or operator-internal signals). Embedded inside escalation records; none of these defs are standalone ATProto records.",
+  "defs": {
+    "imageHashCluster": {
+      "type": "object",
+      "description": "A perceptual-hash (SimHash) match: the subject's content hashes within `distance` Hamming steps of a known-harmful reference hash. Corresponds to ObservationKind::ImageHashCluster in polaris-types.",
+      "required": ["hash", "distance"],
+      "properties": {
+        "hash": {
+          "type": "string",
+          "description": "Hex-encoded perceptual hash of the subject's content. The hash algorithm (e.g. pHash, dHash, SimHash) is implied by the detector version; consumers should treat this as an opaque comparable string unless they know the producing detector's algorithm.",
+          "maxLength": 128
+        },
+        "distance": {
+          "type": "integer",
+          "description": "Hamming distance between `hash` and the reference cluster centroid hash. A value of 0 means an exact match; higher values indicate closer-but-not-identical perceptual similarity. The threshold used by the pattern engine is operator-configured and not transmitted.",
+          "minimum": 0
+        }
+      }
+    },
+    "accountCohort": {
+      "type": "object",
+      "description": "An account-cohort match: the subject account was created in the same narrow time window as other suspicious accounts sharing behavioral fingerprints. Corresponds to ObservationKind::AccountCohort in polaris-types.",
+      "required": ["cohortId", "similarityScore"],
+      "properties": {
+        "cohortId": {
+          "type": "string",
+          "description": "Opaque cohort identifier assigned by the pattern engine. Two observations with the same cohortId belong to the same detected wave. The identifier is not globally unique across instances — it is local to the originating labeler.",
+          "maxLength": 256
+        },
+        "similarityScore": {
+          "type": "number",
+          "description": "Similarity score of this account within the cohort, in the range [0.0, 1.0]. 1.0 means the account is a perfect match to the cohort centroid; values closer to 0.0 indicate peripheral members."
+        }
+      }
+    },
+    "replyBrigade": {
+      "type": "object",
+      "description": "A reply-brigade detection: the subject's replies to a specific thread were part of a coordinated burst of inauthentic engagement. Corresponds to ObservationKind::ReplyBrigade in polaris-types.",
+      "required": ["threadUri"],
+      "properties": {
+        "threadUri": {
+          "type": "string",
+          "format": "at-uri",
+          "description": "AT-URI of the thread that was targeted by the reply brigade. This is the conversation root, not a specific reply. Receivers can use this to correlate brigade detections across instances targeting the same thread."
+        }
+      }
+    },
+    "externalLabel": {
+      "type": "object",
+      "description": "An ATProto label from a third-party upstream labeler that Polaris has ingested and weighted. Corresponds to ObservationKind::ExternalLabel in polaris-types. Useful when escalating: the receiving instance can independently verify the upstream label.",
+      "required": ["source", "labelValue", "weight"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "format": "did",
+          "description": "DID of the upstream labeler that emitted the label. The receiving instance can subscribe to this labeler independently to cross-check the claim."
+        },
+        "labelValue": {
+          "type": "string",
+          "description": "Label value as emitted by the upstream labeler (e.g. '!hide', 'spam', 'csam'). The receiver should interpret this in the context of the upstream labeler's policy, not Polaris's own label vocabulary.",
+          "maxLength": 128
+        },
+        "weight": {
+          "type": "number",
+          "description": "Operator-configured trust weight for this upstream labeler at the time the observation was recorded, in the range [0.0, 1.0]. This reflects the *originating* labeler's calibration and is informational for the receiver — the receiver applies its own weight."
+        }
+      }
+    },
+    "classifierSignal": {
+      "type": "object",
+      "description": "An ML classifier signal: a machine-learning model scored the subject's content and emitted a label with a confidence score. Corresponds to ObservationKind::ClassifierSignal in polaris-types.",
+      "required": ["model", "label", "confidence"],
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Identifier of the classifier model that produced this signal (e.g. 'csam-detector-v3', 'spam-bert-v2'). Opaque to receivers — intended for audit trails and reproducibility. The receiving instance cannot re-run the same model unless it deploys it independently.",
+          "maxLength": 256
+        },
+        "label": {
+          "type": "string",
+          "description": "Classifier-emitted label string. Vocabulary is model-specific and not constrained by this Lexicon. Receivers should treat this as an opaque tag unless they have out-of-band knowledge of the model's label vocabulary.",
+          "maxLength": 128
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Classifier's confidence in the label, in the range [0.0, 1.0]. 1.0 means maximum confidence. This is the model's raw output confidence, not Polaris's cross-detector calibrated confidence (which is on the parent escalation's observation entry)."
+        }
+      }
+    },
+    "observationKind": {
+      "type": "string",
+      "description": "Discriminator tag for the embedded observation union inside escalation records. Values correspond to the ObservationKind enum variants in polaris-types that are safe to federate. Variants carrying internal moderator identifiers (moderatorBehaviorAnomaly) or operator-internal signals (reportVolumeAnomaly) are excluded from the wire format per the privacy boundary policy.",
+      "knownValues": [
+        "imageHashCluster",
+        "accountCohort",
+        "replyBrigade",
+        "externalLabel",
+        "classifierSignal"
+      ]
+    }
+  }
+}

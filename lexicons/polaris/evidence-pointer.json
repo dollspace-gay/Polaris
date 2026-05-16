@@ -1,0 +1,32 @@
+{
+  "lexicon": 1,
+  "id": "gay.dollspace.polaris.evidencePointer",
+  "description": "A content-addressed reference to a preserved evidence CAR bundle. Evidence CARs are stored in the labeler's blob store (S3 or compatible); this pointer carries the CID and enough metadata for a receiving instance to fetch and verify the bundle without trusting the sender's mutable URL.",
+  "defs": {
+    "main": {
+      "type": "object",
+      "description": "Content-addressed pointer to a preserved evidence CAR file. Embedded inside a gay.dollspace.polaris.escalation record; not a standalone ATProto record.",
+      "required": ["carCid", "mediaType", "byteLength"],
+      "properties": {
+        "carCid": {
+          "type": "string",
+          "format": "cid",
+          "description": "CIDv1 of the evidence CAR bundle. The CID commits to the content; a receiver can verify integrity by re-hashing the fetched bytes and comparing to this value."
+        },
+        "mediaType": {
+          "type": "string",
+          "description": "MIME type of the evidence bundle. For standard ATProto CAR files this is 'application/vnd.ipld.car'. Custom bundle formats used by Polaris evidence workers may use a 'application/vnd.polaris.*' subtype.",
+          "knownValues": [
+            "application/vnd.ipld.car",
+            "application/vnd.polaris.evidence-bundle+car"
+          ]
+        },
+        "byteLength": {
+          "type": "integer",
+          "description": "Byte length of the evidence bundle as stored. Used by the receiving labeler to pre-allocate fetch buffers and enforce per-escalation evidence size limits. Must be a positive integer.",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}
