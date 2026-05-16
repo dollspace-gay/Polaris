@@ -1,0 +1,11 @@
+{
+  "uuid": "7fba2ab8-076a-479c-bcd7-030c13c2a243",
+  "display_id": 102,
+  "title": "M5 #42 / PR 2: polaris-lexicons crate scaffold + cargo xtask gen-lexicons codegen task + CI diff gate",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "08aa2123-4977-4c5b-85ef-cada17ba4182",
+  "created_by": "TeIq",
+  "created_at": "2026-05-16T13:34:26.405118176Z",
+  "updated_at": "2026-05-16T13:34:26.405118176Z"
+}
