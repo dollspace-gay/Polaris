@@ -1,0 +1,10 @@
+{
+  "uuid": "02762a94-f898-4702-81fa-37122b6eb85d",
+  "issue_uuid": "dd303366-9ec0-4464-8701-7f6e734cd00e",
+  "author": "TeIq",
+  "content": "## Source\n.design/m5/48-tpm-signing.md — Q1 + Q2 + decomposition PR 1.\n\n## Surface (throwaway)\n- Branch `spike/m48-tpm-esapi`. Runs `swtpm` + minimal seal+sign test via tss-esapi.\n- Evidence written to `.design/m5/48-tpm-spike-results.md` at end.\n\n## Measure\n1. `tss-esapi` current crates.io version + maintainer responsiveness (commits last 6 months).\n2. Linux 6.x kernel TPM driver compatibility.\n3. K-256 (secp256k1) support — verify on at least 2 mainstream TPMs.\n4. P-256 fallback support — verify universally.\n5. Bluesky verifier: does it accept did:key declarations with P-256? Read the proto-blue or Bluesky verifier source.\n\n## Rust-quality notes\n- Throwaway — full bar relaxed. The LANDING code (#156+) follows full rust-quality.\n- Per architect skill: time-box hard. 1-2 days max.\n\n## External references\n- tss-esapi current: https://crates.io/crates/tss-esapi\n- swtpm setup: https://github.com/stefanberger/swtpm\n- did:key spec (multicodec curve identifiers): https://w3c-ccg.github.io/did-method-key/\n\n## Acceptance\n- [ ] `.design/m5/48-tpm-spike-results.md` exists with measurement data + recommendation.\n- [ ] Q1 + Q2 decisions recorded as `--kind decision` comments on #154.\n\n## Blocks\n- Blocked by #154.\n- Blocks #156 (skeleton consumes the curve decision).",
+  "created_at": "2026-05-16T13:56:54.443221973Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAI2jjgOyu/ElrjhwXvfjZyBG2Fmv+mz07tdZcVkmUvXpETDxLrWBOQdy0TH5q2ENyySP5GvlIzhGSxQ7bYxLqAA=="
+}
