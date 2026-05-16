@@ -2,11 +2,12 @@
   "uuid": "464d4aa5-eca7-4f45-816b-aa46ff0b6ba3",
   "display_id": 79,
   "title": "Smoke test: producer slice against polarislabeler.bsky.social",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-15T11:15:48.168621714Z",
-  "updated_at": "2026-05-15T11:15:49.623059978Z",
+  "updated_at": "2026-05-16T19:51:50.479709235Z",
+  "closed_at": "2026-05-16T19:51:50.479709235Z",
   "labels": [
     "test"
   ]
