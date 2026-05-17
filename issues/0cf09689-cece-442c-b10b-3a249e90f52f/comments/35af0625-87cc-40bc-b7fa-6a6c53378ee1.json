@@ -1,0 +1,10 @@
+{
+  "uuid": "35af0625-87cc-40bc-b7fa-6a6c53378ee1",
+  "issue_uuid": "0cf09689-cece-442c-b10b-3a249e90f52f",
+  "author": "TeIq",
+  "content": "Implemented. Migration 40 adds subject_routing table with active/cleared CHECK constraint. POST /api/cases/{id}/divert (idempotent UPSERT on subject) + DELETE (idempotent clear) + GET /api/diverted-subjects list endpoint. Cleared rows stay for audit but the partial index skips them on queue selection. 532 lib tests pass; clippy -D warnings clean. Live route smoke-tested via /healthz on rebuilt backend.",
+  "created_at": "2026-05-17T18:47:24.531644698Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAdf0PiruWwtMuHPTbKSAo0ZEpqfzDy4jKu91vwbl4XLloSxyBfgC4fxz/8N25kDHT4rPT+NqbS9G20e0StBIVCA=="
+}
