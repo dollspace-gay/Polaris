@@ -1,0 +1,10 @@
+{
+  "uuid": "9381f940-3e88-42f5-92f4-e450b3342d4b",
+  "display_id": 183,
+  "title": "labeler_profiles: local cache of labeler display-name + handle, lazily populated",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "TeIq",
+  "created_at": "2026-05-17T14:41:18.676724276Z",
+  "updated_at": "2026-05-17T14:41:18.676724276Z"
+}
