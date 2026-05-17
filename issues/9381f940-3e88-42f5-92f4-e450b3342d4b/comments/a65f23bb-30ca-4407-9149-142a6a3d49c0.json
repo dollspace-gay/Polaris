@@ -1,0 +1,10 @@
+{
+  "uuid": "a65f23bb-30ca-4407-9149-142a6a3d49c0",
+  "issue_uuid": "9381f940-3e88-42f5-92f4-e450b3342d4b",
+  "author": "TeIq",
+  "content": "Implemented. Migration 38 adds labeler_profiles table. case-view's fetch_all_labels_for_subject now LEFT JOINs against labeler_profiles to populate src_display_name + src_handle on every label row. labeler-discovery worker fires a detached tokio task on every new labeler insert that calls app.bsky.labeler.getServices and UPSERTs the profile, so display names trickle in as the network is discovered. 532 lib tests pass; clippy clean.",
+  "created_at": "2026-05-17T18:32:05.763463039Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA/IFUSeU5TDA4R+oJs2EFZ4jEuIt0YkxR/ajLZdNoXPMwmbYJlZEcmDUDywiWrZaDdySApdcgBhwRCeYTPy0SCA=="
+}
