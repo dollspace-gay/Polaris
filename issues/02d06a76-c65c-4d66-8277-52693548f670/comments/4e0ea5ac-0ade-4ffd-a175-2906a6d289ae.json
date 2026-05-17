@@ -1,0 +1,10 @@
+{
+  "uuid": "4e0ea5ac-0ade-4ffd-a175-2906a6d289ae",
+  "issue_uuid": "02d06a76-c65c-4d66-8277-52693548f670",
+  "author": "TeIq",
+  "content": "Implemented. Migration 39 adds scheduled_takedowns table with PENDING/EXECUTED/CANCELLED CHECK constraint. api/scheduled_takedowns.rs exposes POST (schedule), DELETE (cancel), GET (list). Background worker scheduled_takedown_worker polls every 60s, fires up to 50 schedules/cycle via SELECT FOR UPDATE SKIP LOCKED, materialises each as an actions row of kind=takedown in one transaction. 3 integration tests pass (schedule, past-rejection, cancel-idempotence with conflict on double). 532 lib tests pass; clippy -D warnings clean.",
+  "created_at": "2026-05-17T18:44:16.044340440Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASwq2BKymQFUotoIODCUyP15Br6IqIty//jsjXf4JgZYFDwESYtQaGi7lsCO1s67xTlwNmACLzkurr6nT6uFyDA=="
+}
