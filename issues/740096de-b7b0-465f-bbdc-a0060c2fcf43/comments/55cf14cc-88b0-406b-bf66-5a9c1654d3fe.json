@@ -1,0 +1,10 @@
+{
+  "uuid": "55cf14cc-88b0-406b-bf66-5a9c1654d3fe",
+  "issue_uuid": "740096de-b7b0-465f-bbdc-a0060c2fcf43",
+  "author": "TeIq",
+  "content": "Implementation complete. Files: (1) migrations 43 (upstream_labeler_health) + 44 (label_backfill_queue + enum). (2) NEW polaris-backend/src/ingest/label_backfill_worker.rs - SKIP-LOCKED drain + concurrent batch + exponential retry. (3) label_backfill.rs refactored to single reusable backfill_one_labeler with typed BackfillOutcome (Success / TransportFailure / PermanentFailure). (4) upstream_labels.rs: load_enabled_upstreams now filters dormant_until>now(); record_consumer_success + record_consumer_failure write per-labeler health; consumer's run() exit-paths apply dormancy via apply_consumer_dormancy helper. (5) labeler_supervisor.rs: reconcile() logs dormant_count. (6) api/network_context.rs: handler enqueues via INSERT...SELECT...ON CONFLICT DO NOTHING; maybe_run_backfill DELETED. (7) main.rs: spawn_label_backfill_worker.",
+  "created_at": "2026-05-17T22:11:43.902955535Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAM8MhBHMV1VgCu8K2YbD47cjdpBWDZX2M649QmeBdbu2Y1pOgpLwr9t73db7aJM3udnydRzuP7AW+iUz9A62oAg=="
+}
