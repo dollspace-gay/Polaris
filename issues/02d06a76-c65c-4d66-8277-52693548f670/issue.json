@@ -2,11 +2,12 @@
   "uuid": "02d06a76-c65c-4d66-8277-52693548f670",
   "display_id": null,
   "title": "Add ACTION verb: SCHEDULE_TAKEDOWN (deferred takedown with cancel)",
-  "status": "open",
+  "status": "closed",
   "priority": "low",
   "created_by": "TeIq",
   "created_at": "2026-05-17T17:46:55.018653061Z",
-  "updated_at": "2026-05-17T17:49:09.237895100Z",
+  "updated_at": "2026-05-17T18:44:36.935900534Z",
+  "closed_at": "2026-05-17T18:44:36.935900534Z",
   "labels": [
     "backend"
   ]
