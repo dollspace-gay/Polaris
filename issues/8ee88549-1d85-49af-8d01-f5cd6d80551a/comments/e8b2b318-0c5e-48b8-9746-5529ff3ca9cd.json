@@ -1,0 +1,10 @@
+{
+  "uuid": "e8b2b318-0c5e-48b8-9746-5529ff3ca9cd",
+  "issue_uuid": "8ee88549-1d85-49af-8d01-f5cd6d80551a",
+  "author": "TeIq",
+  "content": "Implemented. reports.priority_score column (migration 37, default 0) + PATCH /api/reports/{id}/priority endpoint with 0..=1000 clamp. Indexed for the dashboard's ORDER BY priority_score DESC, created_at DESC pattern.",
+  "created_at": "2026-05-17T18:20:23.895832620Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA7MaWbdLoecQr41uwRuDi/YbjSYBRnPcP9+nTBdDQdBmPjgKeKvr64Qkk1NJMHmcx7xmxU+ZYac9eF3ipixSeCg=="
+}
