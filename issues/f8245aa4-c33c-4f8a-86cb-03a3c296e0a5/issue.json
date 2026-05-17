@@ -1,0 +1,10 @@
+{
+  "uuid": "f8245aa4-c33c-4f8a-86cb-03a3c296e0a5",
+  "display_id": 185,
+  "title": "ingest/upstream_labels: wire WebSocket run-loop (replace park_consumer with real subscribeLabels stream consumer)",
+  "status": "open",
+  "priority": "critical",
+  "created_by": "TeIq",
+  "created_at": "2026-05-17T14:51:28.569725454Z",
+  "updated_at": "2026-05-17T14:51:28.569725454Z"
+}
