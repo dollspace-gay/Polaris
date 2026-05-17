@@ -2,11 +2,12 @@
   "uuid": "08e6dc98-638b-4a0c-a1e7-07b97149a7c8",
   "display_id": 184,
   "title": "third-party labels panel: grouped collapsible view (replace stacked cards)",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "created_by": "TeIq",
   "created_at": "2026-05-17T14:41:21.192017541Z",
-  "updated_at": "2026-05-17T14:43:14.786091643Z",
+  "updated_at": "2026-05-17T18:36:21.096312531Z",
+  "closed_at": "2026-05-17T18:36:21.096312531Z",
   "labels": [
     "frontend"
   ],
