@@ -1,0 +1,10 @@
+{
+  "uuid": "39491f48-c88f-4a11-8cb6-42becbed1aeb",
+  "issue_uuid": "81bc48f6-b675-4742-b38f-63eb2c9e56f2",
+  "author": "TeIq",
+  "content": "Implemented. queue.rs adds checkboxes per row + bulk-action toolbar (hidden until 1+ selected). Toolbar offers [Acknowledge all] / [Escalate all] / [Clear selection]; the spawn_bulk helper groups selected (SubjectId, IncidentId) pairs by incident_id and issues one POST per incident to /api/bulk-actions. Combined succeeded/failed counts are summed and rendered inline. Stop-propagation on checkbox click prevents accidental focus shifts. Frontend client trait grows bulk_action method; DTOs added (BulkSubmitAction / BulkActionOutcome / BulkActionFailure). 158 lib tests + styles_coverage + styles_tokens pass; clippy -D warnings clean.",
+  "created_at": "2026-05-17T19:06:18.031175359Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAzln4UMfs4Xh1dnAbnzfWUSFeZktkAR66JDCFmi/uTx4t4Ag+SqKtx4GvOdCyGHsG7WBN5S0cWQ9kEQm/r0McCw=="
+}
