@@ -2,11 +2,12 @@
   "uuid": "f501a58d-71ca-41ca-a95a-5a5355d0f147",
   "display_id": 193,
   "title": "Add BULK action surface: multi-select reports/subjects + bulk emit",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-17T17:51:24.417193784Z",
-  "updated_at": "2026-05-17T17:52:39.286918859Z",
+  "updated_at": "2026-05-17T18:26:19.192663746Z",
+  "closed_at": "2026-05-17T18:26:19.192663746Z",
   "labels": [
     "backend",
     "frontend"
