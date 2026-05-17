@@ -2,11 +2,12 @@
   "uuid": "e34ea328-4894-4ca0-b26d-8b962979c87a",
   "display_id": 192,
   "title": "Add ACTION verb: MUTE_REPORTER (anti-abuse: ignore reports from spammy DIDs)",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-17T17:46:47.083190275Z",
-  "updated_at": "2026-05-17T17:46:51.426391169Z",
+  "updated_at": "2026-05-17T18:20:52.237590346Z",
+  "closed_at": "2026-05-17T18:20:52.237590346Z",
   "labels": [
     "backend"
   ]
