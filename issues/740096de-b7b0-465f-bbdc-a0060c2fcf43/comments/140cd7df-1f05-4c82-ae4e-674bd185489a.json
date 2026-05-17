@@ -1,0 +1,10 @@
+{
+  "uuid": "140cd7df-1f05-4c82-ae4e-674bd185489a",
+  "issue_uuid": "740096de-b7b0-465f-bbdc-a0060c2fcf43",
+  "author": "TeIq",
+  "content": "Plan: 1) Add migration 43 (consecutive_failures + dormant_until + last_success_at on upstream_labelers). 2) Add migration 44 (label_backfill_queue table + enum). 3) Add health-tracking helpers on upstream_labels.rs (record_success / record_failure). 4) Wire dormancy consult into labeler_supervisor::reconcile. 5) Wire success/failure into UpstreamLabelerConsumer::run on persist + ConsumerError. 6) New label_backfill_worker.rs module with SKIP LOCKED drain loop. 7) Rewrite api/network_context handler to enqueue instead of run inline. 8) DELETE should_backfill+mark_backfill_in_flight+backfill_subject; keep backfill_one_labeler as reusable helper. 9) Spawn worker in main.rs alongside scheduled_takedown_worker. 10) Run sqlx prepare + build/clippy/test, then live probe.",
+  "created_at": "2026-05-17T21:44:39.240535193Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABACA1/1yBnw8lXTvkxA07LFefKnZSSknyJpIuD6hUFgUCshSY9xTW57g7rPUKhHZUnv8RcXVQCXNFJAKmkcUMIAQ=="
+}
