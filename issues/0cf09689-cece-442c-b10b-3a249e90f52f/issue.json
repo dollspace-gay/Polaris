@@ -2,11 +2,12 @@
   "uuid": "0cf09689-cece-442c-b10b-3a249e90f52f",
   "display_id": 194,
   "title": "Add ACTION verb: DIVERT (route subject's reports to alternative queue)",
-  "status": "open",
+  "status": "closed",
   "priority": "low",
   "created_by": "TeIq",
   "created_at": "2026-05-17T17:52:47.784755201Z",
-  "updated_at": "2026-05-17T17:53:08.449177413Z",
+  "updated_at": "2026-05-17T18:48:01.436070449Z",
+  "closed_at": "2026-05-17T18:48:01.436070449Z",
   "labels": [
     "backend"
   ]
