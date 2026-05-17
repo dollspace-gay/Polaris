@@ -2,11 +2,12 @@
   "uuid": "55e3d2b6-83a1-48ce-8613-52c61813e529",
   "display_id": 186,
   "title": "Replace follow-graph actor lists with long-term activity-pattern signals",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-17T16:28:59.495747481Z",
-  "updated_at": "2026-05-17T16:29:02.051644168Z",
+  "updated_at": "2026-05-17T18:04:59.224491200Z",
+  "closed_at": "2026-05-17T18:04:59.224491200Z",
   "labels": [
     "frontend",
     "backend"
