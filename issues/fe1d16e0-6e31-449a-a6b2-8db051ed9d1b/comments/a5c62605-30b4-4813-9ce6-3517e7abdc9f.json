@@ -1,0 +1,10 @@
+{
+  "uuid": "a5c62605-30b4-4813-9ce6-3517e7abdc9f",
+  "issue_uuid": "fe1d16e0-6e31-449a-a6b2-8db051ed9d1b",
+  "author": "TeIq",
+  "content": "Implemented. Deleted: WELL_KNOWN_LABELER_DIDS constant + 16 hardcoded DIDs, LABELER_QUERY_TIMEOUT_SECS, LABELER_QUERY_MAX_PAGES, PLC_DIRECTORY_BASE, build_known_labeler_dids, resolve_labeler_endpoint, query_labels_from_labeler, LabelerInfo struct, fetch_labeler_info_map, the 3 well_known_labeler_list_* unit tests, the 4 extract_did_from_labeler_record_uri tests + helper (will return in #182). fetch_all_labels_for_subject is now a single sqlx::query! against indexed_labels with the (uri = $1 OR uri LIKE $2 || '%') filter; rows are mapped 1:1 to NetworkContextLabel. src_display_name/src_handle are None until #183 lands. 23 network_context unit tests pass. Full backend suite pass. Frontend wasm builds clean. Net: case-view now reads exclusively from the local label index; zero AppView fan-out, zero hardcoded DIDs in source.",
+  "created_at": "2026-05-17T15:16:03.749236992Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAzkG5UjAU7oAxHYPxxsCiaB61NidPoU1IjaP3b1cBIn+fEuOECFDv7kMU6G1rUQi75JhIg6p1qh4uGEmMTAPGAA=="
+}
