@@ -1,0 +1,10 @@
+{
+  "uuid": "e33bacec-5334-463b-bfc6-c5fd595c5584",
+  "issue_uuid": "397888c2-32d8-4f23-b465-4c5dc5825ac0",
+  "author": "TeIq",
+  "content": "Implemented + tested. Migration 35 adds exp + sig columns to indexed_labels. handle_frame persists every verified label keyed by (src, uri, val, neg) with seq-monotonic upsert. 5 integration tests pass (verified_label_lands_in_indexed_labels, assert_then_negate_preserves_both_rows + the 3 pre-existing). Without #37 wired up, this code path runs only under tests — no labels actually arrive over the wire yet.",
+  "created_at": "2026-05-17T14:50:36.777285956Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAIvnc26yOyEYIHVp0JjNHBTNid/X7KN7Z0xerSWCVCdRtv0clfaC82D4rcG8+P54/LThdhgcidIKozUs39hkSDQ=="
+}
