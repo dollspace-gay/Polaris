@@ -1,0 +1,10 @@
+{
+  "uuid": "fe1d16e0-6e31-449a-a6b2-8db051ed9d1b",
+  "display_id": 181,
+  "title": "case-view: replace WELL_KNOWN_LABELER_DIDS + AppView fan-out with local indexed_labels query",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-17T14:41:13.312542181Z",
+  "updated_at": "2026-05-17T14:41:13.312542181Z"
+}
