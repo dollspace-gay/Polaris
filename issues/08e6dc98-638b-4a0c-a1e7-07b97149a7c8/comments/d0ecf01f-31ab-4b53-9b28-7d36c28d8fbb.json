@@ -1,0 +1,10 @@
+{
+  "uuid": "d0ecf01f-31ab-4b53-9b28-7d36c28d8fbb",
+  "issue_uuid": "08e6dc98-638b-4a0c-a1e7-07b97149a7c8",
+  "author": "TeIq",
+  "content": "Implemented. Labels panel redesigned: groups by issuing labeler (one <details> per src DID), each summary shows display-name + @handle + count badge. Filter input at top narrows visible labels by val substring (case-insensitive); rows use hidden attribute so collapse state survives filter. Auto-collapse when total > 10 labels; auto-expand below. All BEM classes added to CSS with tokens-only colors. styles_coverage + styles_tokens tests pass; 158 lib tests pass.",
+  "created_at": "2026-05-17T18:36:19.750182771Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAoNNrfnEuFSgGg+S/S4ivyYruEqWcMv91pZWtA9Kj+azNiYmB9v+2l8Y0Ax+n2OMGO6ErlrTQWj5nPNSmVkTlCA=="
+}
