@@ -1,0 +1,10 @@
+{
+  "uuid": "5236b6ed-e3d8-43cb-8597-f6497eef8f92",
+  "issue_uuid": "9a86a51e-0a82-4834-adb0-d22b00dd1fb6",
+  "author": "TeIq",
+  "content": "APPROVE: supervisor reconcile envelope now shows aborted=N reaped=N. Dormancy filter respected on restart (255 of 463 labelers excluded from spawn). Architecture correct. Steady-state DNS rate verification deferred to /loop wakeup.",
+  "created_at": "2026-05-17T23:14:59.636662634Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA00sNY9coPxwnZibmd8ZiPvH+FGGxF75wMUytRhREy3Lz/L5xwyEmJ//xGo6trwBbg9JIbV4I2BecSCIBhuY/Aw=="
+}
