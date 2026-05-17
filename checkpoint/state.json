@@ -3,10 +3,6 @@
   "next_comment_id": 1,
   "display_id_map": {},
   "locks": {
-    "190": {
-      "agent_id": "TeIq",
-      "claimed_at": "2026-05-17T18:51:57.389179656Z"
-    },
     "193": {
       "agent_id": "TeIq",
       "claimed_at": "2026-05-17T18:25:58.571879935Z"
@@ -1973,11 +1969,16 @@
       "agent_id": "TeIq",
       "agent_seq": 392,
       "timestamp": "2026-05-17T18:51:57.389179656Z"
+    },
+    {
+      "agent_id": "TeIq",
+      "agent_seq": 393,
+      "timestamp": "2026-05-17T19:00:45.887519069Z"
     }
   ],
   "watermark": {
-    "timestamp": "2026-05-17T18:51:57.389179656Z",
+    "timestamp": "2026-05-17T19:00:45.887519069Z",
     "agent_id": "TeIq",
-    "agent_seq": 392
+    "agent_seq": 393
   }
 }
