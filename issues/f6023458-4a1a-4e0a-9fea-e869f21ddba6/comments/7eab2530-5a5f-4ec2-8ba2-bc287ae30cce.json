@@ -1,0 +1,10 @@
+{
+  "uuid": "7eab2530-5a5f-4ec2-8ba2-bc287ae30cce",
+  "issue_uuid": "f6023458-4a1a-4e0a-9fea-e869f21ddba6",
+  "author": "TeIq",
+  "content": "Implemented. ActionKind::Comment variant added; CHECK constraint widened in migration 37; emitter no-ops cleanly; reputation + classifier-feedback paths handle the new variant; ALL_KINDS in the frontend composer now offers Comment. 532 backend lib tests pass.",
+  "created_at": "2026-05-17T18:18:00.958602672Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA3kQpgENm5HWz9AZOS1bBzqUfWs7n7+te2FOujuSBxwwsbPiGYV5pwNO1iCBPMWqSw5advF0WPyAs+RAFnp1JDA=="
+}
