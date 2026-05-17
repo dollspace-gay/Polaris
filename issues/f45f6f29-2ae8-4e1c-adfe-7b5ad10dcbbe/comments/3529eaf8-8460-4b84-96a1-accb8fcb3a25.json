@@ -1,0 +1,10 @@
+{
+  "uuid": "3529eaf8-8460-4b84-96a1-accb8fcb3a25",
+  "issue_uuid": "f45f6f29-2ae8-4e1c-adfe-7b5ad10dcbbe",
+  "author": "TeIq",
+  "content": "Implemented. lettre 0.11 added as workspace dep (rustls-tls, no openssl); migration 41 adds moderator_emails table with queued/sent/failed CHECK; POST /api/cases/{id}/email + GET /api/cases/{id}/emails. Live SMTP delivery via lettre when POLARIS_SMTP_HOST + POLARIS_SMTP_FROM are set; otherwise the row is persisted with status='queued' so the audit trail captures the intent. Credentials tuple enforced as both-or-neither. Recipient address fingerprinted in logs (\"abc***@example.com\") to avoid PII leakage. 3 unit tests pass (email validation, fingerprint redaction). 535 lib tests pass; clippy -D warnings clean.",
+  "created_at": "2026-05-17T18:58:27.756564498Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA06jE5aCYBWxr9PuyO1MuY+Xm8IR0KZxxER5x/EniV8bLz5mfPtKsSbCV9iBDW/3fbQbR4K9dH7a8EmnyJ8mKDA=="
+}
