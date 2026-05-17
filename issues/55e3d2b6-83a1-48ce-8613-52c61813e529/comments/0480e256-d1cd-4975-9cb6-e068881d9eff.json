@@ -1,0 +1,10 @@
+{
+  "uuid": "0480e256-d1cd-4975-9cb6-e068881d9eff",
+  "issue_uuid": "55e3d2b6-83a1-48ce-8613-52c61813e529",
+  "author": "TeIq",
+  "content": "Already shipped as ActivityPattern struct + render_activity_pattern_section earlier this session. Backend computes 30-day daily/24-hour-of-day/7-weekday histograms from feed_pages; frontend renders charts with axis labels. Tests passing.",
+  "created_at": "2026-05-17T18:04:50.560979618Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPrCVbdJCmwi602QoNohRs9iOKn1xxsiElbmtzxH6qbf+LsSZGj2YbvxuEnzHJsLvehr3puRmYEIv6DPfvM4TCw=="
+}
