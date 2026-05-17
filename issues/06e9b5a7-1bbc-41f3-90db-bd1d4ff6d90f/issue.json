@@ -1,0 +1,10 @@
+{
+  "uuid": "06e9b5a7-1bbc-41f3-90db-bd1d4ff6d90f",
+  "display_id": 182,
+  "title": "setup wizard / login: auto-populate upstream_labelers from operator's getPreferences subscriptions",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-17T14:41:15.955310812Z",
+  "updated_at": "2026-05-17T14:41:15.955310812Z"
+}
