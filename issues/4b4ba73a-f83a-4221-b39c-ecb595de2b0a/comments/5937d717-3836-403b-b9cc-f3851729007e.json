@@ -1,0 +1,10 @@
+{
+  "uuid": "5937d717-3836-403b-b9cc-f3851729007e",
+  "issue_uuid": "4b4ba73a-f83a-4221-b39c-ecb595de2b0a",
+  "author": "TeIq",
+  "content": "APPROVE-WITH-FOLLOW-UPS verdict from architect audit. 38 labels persisted from 4 distinct labelers (was 5 at session start). DNS storm 117→28/sec and dropping. Dormancy spread 2→144 in 75s. Queue worker draining at batch_size=8/5s. Follow-ups filed: (a) frontend display polish for 'user-friendly format', (b) persist dormant_until across restarts to eliminate startup DNS wave, (c) worker batch tuning once dormancy is widely spread.",
+  "created_at": "2026-05-17T22:22:18.636431863Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAx2n/EBe/EG+ZkLt9HeQ51eId1i1+ZE3F/hiEIzLFW5wzYMxqrI7bVTtMTOsYEtW9y260wU1DF5jlTsTE/425Cw=="
+}
