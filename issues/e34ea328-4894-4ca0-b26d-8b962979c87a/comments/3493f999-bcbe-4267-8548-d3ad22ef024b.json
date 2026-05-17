@@ -1,0 +1,10 @@
+{
+  "uuid": "3493f999-bcbe-4267-8548-d3ad22ef024b",
+  "issue_uuid": "e34ea328-4894-4ca0-b26d-8b962979c87a",
+  "author": "TeIq",
+  "content": "Implemented. muted_reporters table (migration 37) + admin endpoints + silent-drop in createReport handler. Response shape is identical between accepted and silently-dropped so the muted DID cannot detect the mute. Integration test create_report_silently_drops_muted_reporter passes.",
+  "created_at": "2026-05-17T18:20:47.862871936Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAFBHOYYI+VFClcriBDIV2wSYoG0sO3bymZtTB+9TaVUzaKP2QZ/611GIBkSLC/7pH4kZqO2rKt40aGAygEnruDw=="
+}
