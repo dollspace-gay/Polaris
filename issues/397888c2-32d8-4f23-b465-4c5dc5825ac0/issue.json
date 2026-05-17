@@ -2,11 +2,12 @@
   "uuid": "397888c2-32d8-4f23-b465-4c5dc5825ac0",
   "display_id": 180,
   "title": "ingest/upstream_labels: persist verified labels into indexed_labels (bunnynabbit local-store pattern)",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-17T14:40:48.729584779Z",
-  "updated_at": "2026-05-17T14:40:50.058242703Z",
+  "updated_at": "2026-05-17T15:16:00.386976648Z",
+  "closed_at": "2026-05-17T15:16:00.386976648Z",
   "labels": [
     "backend"
   ]
