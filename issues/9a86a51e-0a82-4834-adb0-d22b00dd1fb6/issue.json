@@ -1,0 +1,10 @@
+{
+  "uuid": "9a86a51e-0a82-4834-adb0-d22b00dd1fb6",
+  "display_id": 200,
+  "title": "Fix supervisor DNS storm by aborting dormant consumers",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-17T23:12:08.043699750Z",
+  "updated_at": "2026-05-17T23:12:08.043699750Z"
+}
