@@ -2,11 +2,12 @@
   "uuid": "f6023458-4a1a-4e0a-9fea-e869f21ddba6",
   "display_id": 188,
   "title": "Add ACTION verb: COMMENT (moderator note with no state change)",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-17T17:46:15.721936116Z",
-  "updated_at": "2026-05-17T17:46:29.842130324Z",
+  "updated_at": "2026-05-17T18:18:02.391673082Z",
+  "closed_at": "2026-05-17T18:18:02.391673082Z",
   "labels": [
     "backend",
     "frontend"
