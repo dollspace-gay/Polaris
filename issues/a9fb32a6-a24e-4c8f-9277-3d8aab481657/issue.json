@@ -2,11 +2,12 @@
   "uuid": "a9fb32a6-a24e-4c8f-9277-3d8aab481657",
   "display_id": 179,
   "title": "Label panel: show labeler name, target URI, formatted date, paginate to get all labels",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-17T14:16:09.036428518Z",
-  "updated_at": "2026-05-17T14:43:16.095748243Z",
+  "updated_at": "2026-05-17T15:16:06.423263713Z",
+  "closed_at": "2026-05-17T15:16:06.423263713Z",
   "labels": [
     "bug"
   ],
