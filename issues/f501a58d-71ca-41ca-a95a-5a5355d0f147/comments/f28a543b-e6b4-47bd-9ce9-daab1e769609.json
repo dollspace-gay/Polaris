@@ -1,0 +1,10 @@
+{
+  "uuid": "f28a543b-e6b4-47bd-9ce9-daab1e769609",
+  "issue_uuid": "f501a58d-71ca-41ca-a95a-5a5355d0f147",
+  "author": "TeIq",
+  "content": "Backend implementation complete. POST /api/bulk-actions accepts {subject_ids: Vec, body: SubmitAction}, validates body once, applies per-subject with PromiseSettled-style succeeded/failed split. Cap at 50 subjects/batch (above that → use pattern-actions). Emit-shaped kinds (Label/Takedown) honour the signing-key precondition. 3 integration tests pass (3-subject batch, empty rejection, oversize rejection). Frontend multi-select UI tracked as follow-up #196.",
+  "created_at": "2026-05-17T18:26:06.501915269Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAy6WOG8j11+0/O3WDcgkDr/KNTHNqywVar+gt7AEz+nZM8qy3SrIBrfHZNGvyNXWyEFAAh1tCtaqxkcGgMK2mDA=="
+}
