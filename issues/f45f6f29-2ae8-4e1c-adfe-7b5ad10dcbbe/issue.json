@@ -1,0 +1,10 @@
+{
+  "uuid": "f45f6f29-2ae8-4e1c-adfe-7b5ad10dcbbe",
+  "display_id": 190,
+  "title": "Add ACTION verb: EMAIL (moderation email to subject via SMTP)",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "TeIq",
+  "created_at": "2026-05-17T17:46:36.188565498Z",
+  "updated_at": "2026-05-17T17:46:36.188565498Z"
+}
