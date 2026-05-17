@@ -1,0 +1,10 @@
+{
+  "uuid": "8b9c08e5-ad3b-40c0-9c61-436a440b03cf",
+  "display_id": 198,
+  "title": "Persist dormant_until across backend restarts to eliminate startup DNS wave",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "TeIq",
+  "created_at": "2026-05-17T22:22:23.107495731Z",
+  "updated_at": "2026-05-17T22:22:23.107495731Z"
+}
