@@ -6,8 +6,11 @@
   "priority": "medium",
   "created_by": "TeIq",
   "created_at": "2026-05-17T14:41:21.192017541Z",
-  "updated_at": "2026-05-17T14:41:22.453941460Z",
+  "updated_at": "2026-05-17T14:43:14.786091643Z",
   "labels": [
     "frontend"
+  ],
+  "blockers": [
+    "fe1d16e0-6e31-449a-a6b2-8db051ed9d1b"
   ]
 }
