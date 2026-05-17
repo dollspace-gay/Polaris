@@ -6,5 +6,8 @@
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-17T17:46:15.721936116Z",
-  "updated_at": "2026-05-17T17:46:15.721936116Z"
+  "updated_at": "2026-05-17T17:46:17.071253166Z",
+  "labels": [
+    "backend"
+  ]
 }
