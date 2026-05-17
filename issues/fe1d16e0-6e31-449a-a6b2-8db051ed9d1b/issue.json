@@ -6,8 +6,11 @@
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-17T14:41:13.312542181Z",
-  "updated_at": "2026-05-17T14:41:14.586443600Z",
+  "updated_at": "2026-05-17T14:43:13.374167188Z",
   "labels": [
     "backend"
+  ],
+  "blockers": [
+    "397888c2-32d8-4f23-b465-4c5dc5825ac0"
   ]
 }
