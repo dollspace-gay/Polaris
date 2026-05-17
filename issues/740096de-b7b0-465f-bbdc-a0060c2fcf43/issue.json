@@ -1,0 +1,10 @@
+{
+  "uuid": "740096de-b7b0-465f-bbdc-a0060c2fcf43",
+  "display_id": 197,
+  "title": "Stop DNS storm + persistent label backfill queue so third-party labels panel surfaces every labeler's labels",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-17T21:40:34.797178207Z",
+  "updated_at": "2026-05-17T21:40:34.797178207Z"
+}
