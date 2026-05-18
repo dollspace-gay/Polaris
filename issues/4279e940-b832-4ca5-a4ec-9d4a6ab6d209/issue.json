@@ -1,0 +1,11 @@
+{
+  "uuid": "4279e940-b832-4ca5-a4ec-9d4a6ab6d209",
+  "display_id": 238,
+  "title": "Admin LLM audit endpoint + frontend page",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "38a78c72-404f-483c-807a-8f5a08f37e83",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T08:01:37.797377184Z",
+  "updated_at": "2026-05-18T08:01:37.797377184Z"
+}
