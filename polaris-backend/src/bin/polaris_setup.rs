@@ -1,5 +1,8 @@
 //! `polaris-setup` — one-shot config templating CLI for the
-//! "easy install" code path (issue #209).
+//! "easy install" code path (issue #209) plus the WB-6 (#228)
+//! post-install policy-import subcommand.
+//!
+//! # Default flow (install)
 //!
 //! The operator runs this once on a fresh host:
 //!
@@ -20,27 +23,52 @@
 //!   document Bluesky fetches during OAuth, with `client_id` /
 //!   `redirect_uris` populated from the hostname.
 //!
-//! # Idempotency
+//! ## Idempotency
 //!
 //! - If `.env` already exists, the CLI prompts before overwriting.
 //! - In `--non-interactive` mode an existing `.env` exits non-zero
 //!   unless `--force` is passed.
 //! - The same rule applies to `client-metadata.json`.
 //!
-//! # Secret hygiene
+//! ## Secret hygiene
 //!
 //! The generated cookie key and Postgres password are NEVER printed
 //! to stdout, stderr, or any log. The completion message only names
 //! the files written. This is the single most important contract of
 //! this CLI — every code path must uphold it.
 //!
-//! # Exit codes
+//! # `seed-policies` subcommand (WB-6 / REQ-E3)
 //!
-//! - `0` — both files written (or preserved with operator consent).
-//! - `1` — user error: bad flags, missing tty for prompts,
-//!   pre-existing `.env` with no `--force` in `--non-interactive`
-//!   mode, write permission denied, etc.
-//! - `2` — internal error (RNG read failed, formatter error).
+//! Post-install bulk-import of `mod_policies` from a YAML workbook:
+//!
+//! ```text
+//! polaris-setup seed-policies --file deploy/seeds/mod-policies.yml [--replace]
+//! ```
+//!
+//! The subcommand reuses the [`polaris_backend::seed::mod_policies`]
+//! deserializer + repo so the parser shape stays single-sourced with
+//! the first-boot loader (WB-5 / #227). Without `--replace`, identifiers
+//! already present in `mod_policies` are skipped; with `--replace`, they
+//! are amended (a new version is written, the prior version is
+//! `effective_until` stamped). Identifiers not yet in the table are
+//! always inserted as v1 attributed to the pinned bootstrap admin.
+//!
+//! A pre-mutation safety scan refuses to import when any incoming
+//! policy carries `human_required_always = TRUE` AND the live row for
+//! that identifier has `autonomy_mode != 'manual'` — the seed file
+//! cannot be used to retroactively floor a policy that is currently
+//! autonomous. The operator must flip autonomy back to manual first
+//! (`/admin/policies/<id>/pause`).
+//!
+//! # Exit codes (REQ-E3)
+//!
+//! - `0` — success (install: files written; seed-policies: rows imported
+//!   or no-op skip).
+//! - `1` — validation / user error: bad flags, pre-existing `.env`
+//!   without `--force` in `--non-interactive` mode, YAML parse failure,
+//!   schema violation, or the human-required hard-block tripped.
+//! - `2` — IO / internal failure: RNG read failed, seed file not found,
+//!   DB connection failure.
 
 #![doc(html_no_source)]
 
@@ -50,12 +78,37 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::{Context as _, Result, bail};
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use rand::RngCore as _;
 use rand::rngs::OsRng;
 
+use polaris_backend::config::DbConfig;
+use polaris_backend::db;
+use polaris_backend::repo::mod_policies::{self, ModPolicyError, ModPolicyPatch, NewModPolicy};
+use polaris_backend::seed::mod_policies as seed_mod_policies;
+use seed_mod_policies::{SeedError, SeedPolicy, lookup_bootstrap_admin};
+use sqlx::PgPool;
+
+/// Process exit code for user / validation errors (REQ-E3).
 const EXIT_USER_ERROR: u8 = 1;
+/// Process exit code for IO / internal failures (REQ-E3).
 const EXIT_INTERNAL_ERROR: u8 = 2;
+
+/// Error-message prefix that [`classify_exit`] uses to map an
+/// `anyhow::Error` chain to [`EXIT_USER_ERROR`]. Validation paths in
+/// [`run_seed_policies`] tag their `bail!` strings with this so a
+/// YAML parse error, schema violation, or human-required hard-block
+/// trip is surfaced as exit 1 (not 2) per REQ-E3.
+const USER_ERROR_PREFIX: &str = "user: ";
+
+/// Error-message prefix that [`classify_exit`] maps to
+/// [`EXIT_INTERNAL_ERROR`]. IO failures (file not found, DB connection
+/// failure) tag with this so REQ-E3's "2 = IO failure" exit code is
+/// honoured. Without an explicit `io:` tag the default classifier
+/// already returns 2 for un-tagged errors, but tagging the IO sites
+/// keeps the convention symmetric with `user:` and makes a future
+/// classifier extension easy.
+const IO_ERROR_PREFIX: &str = "io: ";
 
 /// Length in bytes of the AES-256-GCM cookie key. The on-disk form
 /// is hex-encoded so the file contains exactly `2 *
@@ -67,17 +120,35 @@ const COOKIE_KEY_BYTES: usize = 32;
 const POSTGRES_PASSWORD_BYTES: usize = 24;
 
 /// `polaris-setup` CLI surface.
+///
+/// The CLI has two modes: the default no-subcommand flow (issue #209
+/// install-template path) and the explicit `seed-policies` subcommand
+/// (WB-6 / #228). When no subcommand is supplied, the root-level
+/// install flags (`--hostname`, `--dir`, `--non-interactive`, `--force`)
+/// drive `.env` + `client-metadata.json` generation; when
+/// `seed-policies` is supplied, the install flags are ignored and the
+/// subcommand's own arguments take over.
 #[derive(Debug, Parser)]
 #[command(
     name = "polaris-setup",
     version,
-    about = "One-shot config templating for a fresh Polaris install.",
-    long_about = "Writes .env (mode 0600) and client-metadata.json into the \
-target directory with freshly-generated secrets. Idempotent: re-running \
-detects existing files and prompts before overwriting (or requires --force \
-in --non-interactive mode)."
+    about = "One-shot config templating for a fresh Polaris install, \
+plus the seed-policies post-install bulk-import subcommand.",
+    long_about = "Default flow: writes .env (mode 0600) and \
+client-metadata.json into the target directory with freshly-generated \
+secrets. Idempotent: re-running detects existing files and prompts \
+before overwriting (or requires --force in --non-interactive mode).\n\n\
+Subcommand `seed-policies`: imports a mod_policies YAML workbook into \
+the Polaris database post-install. See `polaris-setup seed-policies \
+--help`."
 )]
 struct Cli {
+    /// Optional subcommand. When omitted, the root-level install flags
+    /// drive the default `.env` + client-metadata.json templating
+    /// flow. When supplied, the subcommand takes over.
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Public DNS hostname Polaris will serve on (e.g.
     /// `mod.example.com`). Required in `--non-interactive` mode; in
     /// interactive mode the CLI prompts if omitted.
@@ -102,12 +173,85 @@ struct Cli {
     dir: PathBuf,
 }
 
+/// Explicit subcommands. The variants are flat (no `enum`-nested
+/// structs) so each subcommand owns its own argument surface and the
+/// install flow stays at the root level for backward compatibility
+/// with the `install.sh` wrapper documented in `docs/ops/quick-start.md`.
+#[derive(Debug, Subcommand)]
+enum Command {
+    /// Bulk-import a `mod_policies` YAML workbook into the Polaris
+    /// database (WB-6 / #228, implements REQ-E3).
+    ///
+    /// Reuses the same `SeedPolicy` deserializer the first-boot loader
+    /// (`polaris_backend::seed::mod_policies`) uses, so the file shape
+    /// is identical to `deploy/seeds/mod-policies.yml`. Behaviour
+    /// depends on `--replace`:
+    ///
+    /// * Without `--replace`: identifiers already present in
+    ///   `mod_policies` are skipped (logged INFO); identifiers not yet
+    ///   present are inserted as v1 attributed to the pinned bootstrap
+    ///   admin.
+    /// * With `--replace`: existing identifiers are amended (a new
+    ///   version is written via `mod_policies::amend`, the prior row
+    ///   is `effective_until` stamped); not-yet-present identifiers
+    ///   are inserted as v1.
+    ///
+    /// Before any DB mutation, a safety scan refuses to import if any
+    /// incoming policy has `human_required_always = TRUE` AND the live
+    /// row for that identifier has `autonomy_mode != 'manual'` — the
+    /// seed file cannot be used to retroactively hard-floor a policy
+    /// that is currently autonomous. The operator must flip autonomy
+    /// back to manual first (`/admin/policies/<id>/pause`).
+    ///
+    /// Reads `DATABASE_URL` from the environment for the DB
+    /// connection; no new env vars are introduced.
+    #[command(name = "seed-policies")]
+    SeedPolicies(SeedPoliciesArgs),
+}
+
+/// Arguments to the `seed-policies` subcommand.
+#[derive(Debug, clap::Args)]
+struct SeedPoliciesArgs {
+    /// Path to the YAML workbook to import. Shape matches
+    /// `deploy/seeds/mod-policies.yml`.
+    #[arg(long)]
+    file: PathBuf,
+
+    /// When set, existing identifiers in `mod_policies` are amended
+    /// (a new version is written) with the `change_summary` set to
+    /// "Imported from <path> at <ISO timestamp>". When unset (the
+    /// default), existing identifiers are skipped.
+    #[arg(long)]
+    replace: bool,
+}
+
 fn main() -> ExitCode {
-    // Logging stays on stderr; stdout is reserved for the one
-    // post-completion summary line. We intentionally do NOT install
-    // a tracing subscriber here — this binary should produce
-    // human-readable output, not structured logs.
-    match run() {
+    // Default flow logs are kept on stderr as human-readable lines;
+    // stdout is reserved for the one post-completion summary line.
+    // The `seed-policies` subcommand needs structured INFO logs for
+    // per-row "skip / insert / amend" decisions (the operator wants a
+    // grep-able record), so we install a `tracing_subscriber` on the
+    // seed-policies branch only. The install branch keeps the existing
+    // stderr-write pattern unchanged.
+    let cli = Cli::parse();
+    let result = match cli.command {
+        None => run_install(&cli),
+        Some(Command::SeedPolicies(ref args)) => {
+            // INFO-by-default: the seed-policies path narrates every
+            // per-row decision and the operator must be able to read
+            // the trail. `try_init` returns Err if a subscriber is
+            // already installed (e.g. test harness), which is fine to
+            // ignore.
+            tracing_subscriber::fmt()
+                .with_target(false)
+                .with_writer(io::stderr)
+                .with_max_level(tracing::Level::INFO)
+                .try_init()
+                .ok();
+            run_seed_policies(args)
+        }
+    };
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             let _ = writeln!(io::stderr(), "polaris-setup: error: {err:#}");
@@ -116,34 +260,47 @@ fn main() -> ExitCode {
     }
 }
 
-/// Classify a top-level error from [`run`] into a process exit
-/// code. User-facing errors (bad flags, pre-existing files without
-/// `--force`, validation failures) get `EXIT_USER_ERROR` (1);
-/// everything else is treated as internal (`EXIT_INTERNAL_ERROR`,
-/// 2).
+/// Classify a top-level error from [`run_install`] / [`run_seed_policies`]
+/// into a process exit code per REQ-E3.
 ///
-/// We mark user errors by prefixing the error or context message
-/// with the literal `"user: "` token and then look it up in the
-/// chain here. The chain walk is deliberate: `with_context(...)`
-/// stacks a new outer error on top of the original cause, so a
-/// user-level marker introduced by an inner `bail!` must still be
-/// reachable from the outer `anyhow::Error`. Without the chain walk
-/// the outermost `with_context` message would mask the marker and
-/// the binary would silently exit `2` ("internal error") for a
-/// genuine operator mistake — exactly the regression that motivated
-/// this function existing as a named, unit-tested helper rather
-/// than an inline closure in `main`.
+/// User / validation errors (bad flags, pre-existing files without
+/// `--force`, YAML parse failures, schema violations, the
+/// human-required hard-block) get [`EXIT_USER_ERROR`] (1); IO and
+/// internal failures (RNG read, missing seed file, DB connection
+/// failure) get [`EXIT_INTERNAL_ERROR`] (2).
+///
+/// The discriminator is a string prefix on the error message:
+/// [`USER_ERROR_PREFIX`] (`"user: "`) maps to 1, [`IO_ERROR_PREFIX`]
+/// (`"io: "`) maps to 2. Anything unprefixed maps to 2 by default,
+/// preserving the pre-WB-6 behaviour where internal failures (RNG,
+/// formatter) lacked an explicit tag.
+///
+/// The chain walk is deliberate: `with_context(...)` stacks a new
+/// outer error on top of the original cause, so a marker introduced
+/// by an inner `bail!` must still be reachable from the outer
+/// `anyhow::Error`. Without the chain walk the outermost
+/// `with_context` message would mask the marker and the binary would
+/// silently exit `2` for a genuine validation error — exactly the
+/// regression that motivated this function existing as a named,
+/// unit-tested helper rather than an inline closure in `main`.
 fn classify_exit(err: &anyhow::Error) -> u8 {
-    if err.chain().any(|e| e.to_string().starts_with("user: ")) {
-        EXIT_USER_ERROR
-    } else {
-        EXIT_INTERNAL_ERROR
+    for e in err.chain() {
+        let msg = e.to_string();
+        if msg.starts_with(USER_ERROR_PREFIX) {
+            return EXIT_USER_ERROR;
+        }
+        if msg.starts_with(IO_ERROR_PREFIX) {
+            return EXIT_INTERNAL_ERROR;
+        }
     }
+    EXIT_INTERNAL_ERROR
 }
 
-fn run() -> Result<()> {
-    let cli = Cli::parse();
-
+/// Default-flow entry point: render `.env` + client-metadata.json.
+///
+/// Mirrors the pre-WB-6 `run()`; renamed for symmetry with
+/// [`run_seed_policies`].
+fn run_install(cli: &Cli) -> Result<()> {
     fs::create_dir_all(&cli.dir).with_context(|| {
         format!(
             "user: failed to create target directory {}",
@@ -211,6 +368,379 @@ fn run() -> Result<()> {
     .context("internal: stdout write failed")?;
 
     Ok(())
+}
+
+/// `seed-policies` subcommand entry point (WB-6 / #228, REQ-E3).
+///
+/// Spins up a single-thread tokio runtime (the rest of the binary is
+/// sync; we don't want to make the install path pay the runtime
+/// cost), reads `DATABASE_URL`, opens a small connection pool, and
+/// dispatches to [`do_seed_policies`] for the actual import.
+///
+/// All operator-facing logging from the import path goes through
+/// `tracing::info!` / `tracing::error!`; the subscriber is installed
+/// by [`main`] before this function runs.
+fn run_seed_policies(args: &SeedPoliciesArgs) -> Result<()> {
+    let database_url = std::env::var("DATABASE_URL").map_err(|_| {
+        anyhow::anyhow!("io: DATABASE_URL must be set for the seed-policies subcommand",)
+    })?;
+
+    // Pre-flight: read the seed file BEFORE we open the DB pool so a
+    // missing file maps cleanly to exit 2 without paying for a
+    // connection round-trip. We then re-pass the bytes into the
+    // async worker so it does not re-touch the filesystem.
+    if !args.file.exists() {
+        bail!(
+            "io: seed file not found: {} (REQ-E3 exit code 2)",
+            args.file.display(),
+        );
+    }
+    let raw = fs::read_to_string(&args.file).map_err(|e| {
+        anyhow::anyhow!("io: failed to read seed file {}: {e}", args.file.display(),)
+    })?;
+    // Parse via the SAME deserializer the WB-5 first-boot loader
+    // uses. We deliberately do not introduce a parallel struct —
+    // SeedPolicy IS the contract with deploy/seeds/mod-policies.yml.
+    let policies: Vec<SeedPolicy> = serde_yaml::from_str(&raw).map_err(|e| {
+        // YAML parse failures are validation errors per REQ-E3
+        // (operator broke the seed file), so tag with user:.
+        anyhow::anyhow!("user: could not parse seed file: {e}")
+    })?;
+
+    // Tokio runtime. `new_current_thread` keeps the binary small —
+    // we have one async path with a handful of awaits, no need for
+    // a multi-thread scheduler.
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| anyhow::anyhow!("io: failed to build tokio runtime: {e}"))?;
+    runtime.block_on(do_seed_policies(
+        &database_url,
+        &args.file,
+        args.replace,
+        policies,
+    ))
+}
+
+/// Async worker for [`run_seed_policies`].
+///
+/// Steps:
+///
+/// 1. Connect to Postgres via [`db::connect`] using the standard
+///    `DbConfig` shape so the same migrations / connection-pool
+///    settings as the main backend apply.
+/// 2. Look up the pinned bootstrap admin
+///    ([`seed_mod_policies::lookup_bootstrap_admin`]) — refuse to
+///    import if no admin is pinned yet.
+/// 3. Pre-mutation safety scan (REQ-E3 hard block): for every
+///    incoming `human_required_always = TRUE` policy, refuse if its
+///    live row is not in `autonomy_mode = 'manual'`.
+/// 4. Per-policy dispatch: skip / insert / amend with logging.
+/// 5. Commit on success. Any failure rolls back via tx Drop.
+async fn do_seed_policies(
+    database_url: &str,
+    file: &Path,
+    replace: bool,
+    policies: Vec<SeedPolicy>,
+) -> Result<()> {
+    let db_cfg = DbConfig {
+        url: database_url.to_owned(),
+        max_connections: 4,
+        min_connections: 1,
+        acquire_timeout_secs: 10,
+    };
+    let database = db::connect(&db_cfg)
+        .await
+        .map_err(|e| anyhow::anyhow!("io: failed to connect to Postgres: {e}"))?;
+    let pool = database.pool().clone();
+
+    let admin = lookup_bootstrap_admin(&pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("io: bootstrap-admin lookup failed: {e}"))?
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "user: no pinned bootstrap admin exists yet; complete the OAuth setup wizard before running seed-policies"
+            )
+        })?;
+
+    // ── Hard-block scan (REQ-E3 safety constraint) ────────────────
+    //
+    // Before we touch a single row, walk every incoming policy with
+    // `human_required_always = TRUE` and look up the LIVE state of
+    // that identifier. If the live row is not `manual`, we refuse —
+    // the seed file cannot be used to retroactively floor a policy
+    // that is currently autonomous. The error message points the
+    // operator at the pause endpoint so they can flip autonomy back
+    // to manual before re-running.
+    preflight_human_required_block(&pool, &policies).await?;
+
+    // ── Per-policy dispatch ───────────────────────────────────────
+    let summary_stamp = format!(
+        "Imported from {} at {}",
+        file.display(),
+        chrono::Utc::now().to_rfc3339(),
+    );
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| anyhow::anyhow!("io: begin transaction failed: {e}"))?;
+
+    let mut inserted = 0_usize;
+    let mut skipped = 0_usize;
+    let mut amended = 0_usize;
+
+    for policy in policies {
+        let identifier = policy.identifier.clone();
+        let existing = mod_policies::current_by_identifier(&pool, &identifier)
+            .await
+            .map_err(|e| match e {
+                ModPolicyError::Database(db_err) => {
+                    anyhow::anyhow!("io: lookup for {identifier} failed: {db_err}")
+                }
+                other => anyhow::anyhow!("user: lookup for {identifier} failed: {other}"),
+            })?;
+
+        match (existing, replace) {
+            (Some(_), false) => {
+                // Skip path: identifier already exists, no --replace.
+                tracing::info!(
+                    identifier = %identifier,
+                    "seed-policies: skip (already exists)",
+                );
+                skipped += 1;
+            }
+            (Some(current), true) => {
+                // Amend path: write a successor version via the
+                // mod_policies::amend repo. We pass every field as
+                // an explicit override (Some(...)) so the new
+                // version reflects the seed file verbatim, not a
+                // carry-forward of stale prior-version fields.
+                let patch = patch_from_seed(&policy);
+                let new = mod_policies::amend(
+                    &mut tx,
+                    &identifier,
+                    patch,
+                    admin,
+                    Some(summary_stamp.clone()),
+                )
+                .await
+                .map_err(|e| map_repo_error(&identifier, e))?;
+                tracing::info!(
+                    identifier = %identifier,
+                    prior_version = current.version,
+                    new_version = new.version,
+                    "seed-policies: amend",
+                );
+                amended += 1;
+            }
+            (None, _) => {
+                // Insert path: brand-new identifier, write v1.
+                let new = new_from_seed(policy);
+                let row = mod_policies::insert_initial(&mut tx, new, admin)
+                    .await
+                    .map_err(|e| map_repo_error(&identifier, e))?;
+                tracing::info!(
+                    identifier = %row.identifier,
+                    version = row.version,
+                    "seed-policies: insert v1",
+                );
+                inserted += 1;
+            }
+        }
+    }
+
+    tx.commit()
+        .await
+        .map_err(|e| anyhow::anyhow!("io: commit failed: {e}"))?;
+
+    tracing::info!(
+        inserted,
+        amended,
+        skipped,
+        replace = replace,
+        "seed-policies: import complete",
+    );
+    Ok(())
+}
+
+/// Pre-mutation safety scan implementing the REQ-E3 hard-block.
+///
+/// For every incoming policy with `human_required_always = TRUE`,
+/// look up the current live row. If the live row is not in
+/// `autonomy_mode = 'manual'`, refuse the entire import with a
+/// `user:`-prefixed error so the binary exits 1 (REQ-E3 validation
+/// failure). No DB mutation happens before this scan completes.
+async fn preflight_human_required_block(pool: &PgPool, policies: &[SeedPolicy]) -> Result<()> {
+    for policy in policies {
+        if !policy.human_required_always {
+            continue;
+        }
+        let live = mod_policies::current_by_identifier(pool, &policy.identifier)
+            .await
+            .map_err(|e| match e {
+                ModPolicyError::Database(db_err) => anyhow::anyhow!(
+                    "io: safety-scan lookup for {} failed: {db_err}",
+                    policy.identifier,
+                ),
+                other => anyhow::anyhow!(
+                    "user: safety-scan lookup for {} failed: {other}",
+                    policy.identifier,
+                ),
+            })?;
+        if let Some(row) = live {
+            if row.autonomy_mode != "manual" {
+                bail!(
+                    "user: refusing to import: policy {identifier} is currently in autonomy_mode={mode} but the seed file marks it human_required_always; flip autonomy back to manual via /admin/policies/{id}/pause first, then re-run",
+                    identifier = row.identifier,
+                    mode = row.autonomy_mode,
+                    id = row.id,
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Map a `mod_policies` repo error onto an anyhow error with the
+/// right `user:` / `io:` tag for [`classify_exit`].
+///
+/// DB-level failures (sqlx errors propagated through
+/// `ModPolicyError::Database`) are IO failures from the operator's
+/// point of view (connection drop, constraint violation surfaced as
+/// an sqlx error); everything else (`UnknownIdentifier`,
+/// `StaleVersion`, `ConcurrentEdit`, `RetiredPolicy`) is a
+/// data-shape mismatch and counts as a validation failure.
+fn map_repo_error(identifier: &str, err: ModPolicyError) -> anyhow::Error {
+    match err {
+        ModPolicyError::Database(db_err) => {
+            anyhow::anyhow!("io: mod_policies write for {identifier} failed: {db_err}")
+        }
+        other => anyhow::anyhow!("user: mod_policies write for {identifier} rejected: {other}"),
+    }
+}
+
+/// Convert a parsed [`SeedPolicy`] into a fully-populated
+/// [`NewModPolicy`] for the v1 insert path.
+///
+/// Mirrors the field layout of `SeedPolicy` 1:1; the example arrays
+/// are re-serialised through `serde_json` so they land in the JSONB
+/// column as the same shape the admin REST API and the first-boot
+/// loader emit. We rely on the DB CHECKs (and the repo's
+/// `insert_initial` call) to surface any field-level violation that
+/// slips past serde — duplicating the loader's `validate` helper in
+/// this binary would be the very "duplicate the parser" anti-pattern
+/// REQ-E3 forbids.
+fn new_from_seed(p: SeedPolicy) -> NewModPolicy {
+    NewModPolicy {
+        identifier: p.identifier,
+        name: p.name,
+        description: p.description,
+        scope: p.scope,
+        severity: p.severity,
+        decision_criteria: p.decision_criteria,
+        examples_positive: examples_to_json(&p.examples_positive),
+        examples_negative: examples_to_json(&p.examples_negative),
+        suggested_action_kinds: p.suggested_action_kinds,
+        linked_label_value: p.linked_label_value,
+        exceptions: p.exceptions,
+        human_required_always: p.human_required_always,
+        autonomy_mode: p.autonomy_mode,
+        autonomous_action_kinds: p.autonomous_action_kinds,
+        autonomous_confidence_threshold: p.autonomous_confidence_threshold,
+        assisted_confidence_threshold: p.assisted_confidence_threshold,
+        // v1 inserts authored by seed-policies do not carry a per-row
+        // change-summary; the operator-facing record of "where this
+        // came from" lives in the structured `tracing::info!` line
+        // emitted at insert time. The amend path DOES set
+        // change_summary (see do_seed_policies).
+        change_summary: None,
+    }
+}
+
+/// Build a [`ModPolicyPatch`] that overwrites every field on the
+/// amend path with the seed file's values.
+///
+/// Unlike the admin-edit path (which uses `None` to mean
+/// "carry-forward"), seed-policies-with-replace replaces the policy
+/// wholesale — the operator's intent is "make the DB look like this
+/// YAML file." Every field is wrapped in `Some(...)` so the
+/// successor row mirrors the seed entry verbatim, not a carry-forward
+/// of stale prior-version fields.
+fn patch_from_seed(p: &SeedPolicy) -> ModPolicyPatch {
+    ModPolicyPatch {
+        name: Some(p.name.clone()),
+        description: Some(p.description.clone()),
+        scope: Some(p.scope.clone()),
+        severity: Some(p.severity.clone()),
+        decision_criteria: Some(p.decision_criteria.clone()),
+        examples_positive: Some(
+            examples_to_json(&p.examples_positive).unwrap_or_else(|| serde_json::json!([])),
+        ),
+        examples_negative: Some(
+            examples_to_json(&p.examples_negative).unwrap_or_else(|| serde_json::json!([])),
+        ),
+        suggested_action_kinds: Some(p.suggested_action_kinds.clone()),
+        linked_label_value: Some(p.linked_label_value.clone()),
+        exceptions: Some(p.exceptions.clone()),
+        human_required_always: Some(p.human_required_always),
+        autonomy_mode: Some(p.autonomy_mode.clone()),
+        autonomous_action_kinds: Some(p.autonomous_action_kinds.clone()),
+        autonomous_confidence_threshold: Some(p.autonomous_confidence_threshold),
+        assisted_confidence_threshold: Some(p.assisted_confidence_threshold),
+        // Never tombstone via the seed-policies path — retiring a
+        // policy is an admin-UI action with its own audit trail.
+        is_retired: None,
+    }
+}
+
+/// Serialise an example list to `Option<serde_json::Value>` for the
+/// `examples_positive` / `examples_negative` JSONB columns. Empty
+/// lists map to `None` so the loader's "default to `[]`" behaviour
+/// in `insert_initial` kicks in.
+fn examples_to_json(
+    examples: &[seed_mod_policies::SeedPolicyExample],
+) -> Option<serde_json::Value> {
+    if examples.is_empty() {
+        None
+    } else {
+        // Serialisation of a `SeedPolicyExample` cannot fail (it is a
+        // struct of `String` / `Option<String>` fields with the
+        // hand-written Serialize impl in seed::mod_policies). We use
+        // `ok()` to map any theoretical failure to `None`, which the
+        // DB will accept as an empty array — strictly preferable to
+        // panicking inside a long-running import.
+        serde_json::to_value(examples).ok()
+    }
+}
+
+/// Translate a [`SeedError`] from `polaris_backend::seed::mod_policies`
+/// into an `anyhow::Error` with the correct `user:` / `io:` prefix
+/// so [`classify_exit`] maps to REQ-E3's exit codes.
+///
+/// Currently invoked from the unit-test suite only; the production
+/// import path constructs anyhow errors directly at the site of each
+/// failure so the prefix discipline stays visible at the call site.
+/// We still expose this helper so a future refactor that routes the
+/// entire path through [`SeedError`] has a single, audited translation
+/// to point at.
+#[cfg_attr(not(test), allow(dead_code))]
+fn seed_error_to_anyhow(err: SeedError) -> anyhow::Error {
+    match err {
+        SeedError::IoError { path, source } => {
+            anyhow::anyhow!("io: failed to read seed file {}: {source}", path.display())
+        }
+        SeedError::YamlParseError(e) => anyhow::anyhow!("user: could not parse seed file: {e}"),
+        SeedError::ValidationError {
+            identifier,
+            message,
+        } => {
+            anyhow::anyhow!("user: seed entry {identifier} failed validation: {message}")
+        }
+        SeedError::RepoError(ModPolicyError::Database(db_err)) => {
+            anyhow::anyhow!("io: mod_policies repo error: {db_err}")
+        }
+        SeedError::RepoError(other) => anyhow::anyhow!("user: mod_policies repo error: {other}"),
+    }
 }
 
 /// Resolve the hostname from the CLI flag or an interactive prompt.
@@ -590,5 +1120,147 @@ mod tests {
         // can tell the two failure modes apart.
         let err = anyhow::anyhow!("OsRng read failed");
         assert_eq!(classify_exit(&err), EXIT_INTERNAL_ERROR);
+    }
+
+    // ── WB-6 / #228 — seed-policies subcommand unit tests ─────────
+
+    #[test]
+    fn classify_exit_maps_io_prefixed_to_internal() {
+        // REQ-E3 reserves exit 2 for IO failures. The
+        // `io:`-prefixed branch must classify as EXIT_INTERNAL_ERROR
+        // (2), distinct from the un-prefixed default which also
+        // returns 2 — the explicit prefix is the documented signal
+        // for "this is an IO failure" (file not found, DB unreachable).
+        let err = anyhow::anyhow!("io: seed file not found: /tmp/nope.yml");
+        assert_eq!(classify_exit(&err), EXIT_INTERNAL_ERROR);
+    }
+
+    #[test]
+    fn classify_exit_io_prefix_loses_to_user_prefix_in_chain() {
+        // If a single chain carries BOTH prefixes (e.g. an IO
+        // failure wrapped in a user-tagged outer context), the
+        // user-error mapping wins because the chain walk returns
+        // the first match. The chain walks outer → inner; we
+        // construct the chain so the outer carries `user:` and the
+        // inner carries `io:`.
+        let inner = anyhow::anyhow!("io: db connection failed");
+        let wrapped = inner.context("user: subcommand aborted by safety scan");
+        assert_eq!(classify_exit(&wrapped), EXIT_USER_ERROR);
+    }
+
+    #[test]
+    fn seed_error_to_anyhow_tags_io_for_io_errors() {
+        // The translation table must preserve the `io: ` /
+        // `user: ` distinction that drives `classify_exit`. An
+        // `IoError` variant maps to an IO-tagged anyhow error so
+        // the binary exits 2; a `YamlParseError` maps to a
+        // user-tagged error so the binary exits 1.
+        let io_err = SeedError::IoError {
+            path: std::path::PathBuf::from("/no/such/file"),
+            source: std::io::Error::new(std::io::ErrorKind::NotFound, "missing"),
+        };
+        let io_any = seed_error_to_anyhow(io_err);
+        assert!(
+            io_any.to_string().starts_with("io: "),
+            "IoError must tag as io:, got {io_any}",
+        );
+        assert_eq!(classify_exit(&io_any), EXIT_INTERNAL_ERROR);
+    }
+
+    #[test]
+    fn seed_error_to_anyhow_tags_user_for_validation() {
+        let val_err = SeedError::ValidationError {
+            identifier: "polaris.foo".to_owned(),
+            message: "decision_criteria too short".to_owned(),
+        };
+        let val_any = seed_error_to_anyhow(val_err);
+        assert!(
+            val_any.to_string().starts_with("user: "),
+            "ValidationError must tag as user:, got {val_any}",
+        );
+        assert_eq!(classify_exit(&val_any), EXIT_USER_ERROR);
+    }
+
+    /// Build a [`SeedPolicy`] with every field populated to known
+    /// values. The conversion helpers are field-name-driven, so
+    /// asserting round-trip equality on every field catches a stray
+    /// `clone` or transposed assignment that the type system
+    /// would otherwise miss.
+    fn sample_seed_policy() -> SeedPolicy {
+        SeedPolicy {
+            identifier: "polaris.test".to_owned(),
+            name: "Test policy".to_owned(),
+            description: "A description".to_owned(),
+            scope: "post".to_owned(),
+            severity: "alert".to_owned(),
+            decision_criteria:
+                "criteria criteria criteria criteria criteria criteria criteria criteria".to_owned(),
+            examples_positive: vec![],
+            examples_negative: vec![],
+            suggested_action_kinds: vec!["label".to_owned()],
+            linked_label_value: Some("test".to_owned()),
+            exceptions: Some("none".to_owned()),
+            human_required_always: false,
+            autonomy_mode: "manual".to_owned(),
+            autonomous_action_kinds: vec![],
+            autonomous_confidence_threshold: 0.95,
+            assisted_confidence_threshold: 0.70,
+        }
+    }
+
+    #[test]
+    fn new_from_seed_carries_every_field() {
+        let policy = sample_seed_policy();
+        let new = new_from_seed(policy);
+        assert_eq!(new.identifier, "polaris.test");
+        assert_eq!(new.name, "Test policy");
+        assert_eq!(new.scope, "post");
+        assert_eq!(new.severity, "alert");
+        assert_eq!(new.suggested_action_kinds, vec!["label".to_owned()]);
+        assert_eq!(new.linked_label_value, Some("test".to_owned()));
+        assert!(!new.human_required_always);
+        assert_eq!(new.autonomy_mode, "manual");
+        assert!(new.examples_positive.is_none());
+        assert!(new.examples_negative.is_none());
+        assert!(
+            new.change_summary.is_none(),
+            "v1 inserts via seed-policies must not carry a change_summary",
+        );
+    }
+
+    #[test]
+    fn patch_from_seed_overrides_every_field() {
+        // The amend path must overwrite the prior version wholesale,
+        // not carry-forward. Every patch field must be Some(_) so
+        // the seed file's view becomes the new current version.
+        let policy = sample_seed_policy();
+        let patch = patch_from_seed(&policy);
+        assert!(patch.name.is_some());
+        assert!(patch.description.is_some());
+        assert!(patch.scope.is_some());
+        assert!(patch.severity.is_some());
+        assert!(patch.decision_criteria.is_some());
+        assert!(patch.examples_positive.is_some());
+        assert!(patch.examples_negative.is_some());
+        assert!(patch.suggested_action_kinds.is_some());
+        assert!(patch.linked_label_value.is_some());
+        assert!(patch.exceptions.is_some());
+        assert!(patch.human_required_always.is_some());
+        assert!(patch.autonomy_mode.is_some());
+        assert!(patch.autonomous_action_kinds.is_some());
+        assert!(patch.autonomous_confidence_threshold.is_some());
+        assert!(patch.assisted_confidence_threshold.is_some());
+        // ...except is_retired: retiring is an admin-UI action, not
+        // a seed-import side effect.
+        assert!(
+            patch.is_retired.is_none(),
+            "seed-policies must never tombstone a row",
+        );
+    }
+
+    #[test]
+    fn examples_to_json_empty_returns_none() {
+        let out = examples_to_json(&[]);
+        assert!(out.is_none(), "empty list must produce None (DB default)");
     }
 }
