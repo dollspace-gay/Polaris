@@ -495,13 +495,16 @@ aws-sdk-s3 = { version = "1", default-features = false, features = [
 #   scope `https://vault.azure.net/.default`. Standard form-encoded
 #   request, no SDK required.
 
-# `jsonwebtoken` 9.x: MIT. Pure-Rust JWT signer used by the GCP
+# `jsonwebtoken` 10.x: MIT. Pure-Rust JWT signer used by the GCP
 # OAuth2 service-account flow. Gated through the same
 # `kms-integration` feature so the default build doesn't pay for it.
 # (Note: jsonwebtoken is already transitively present via
 # `proto-blue`'s atproto OAuth wiring — re-declared at the workspace
 # level here so the major pin is explicit at every consumer site.)
-jsonwebtoken = { version = "9", default-features = false, features = [
+# 10.x closes GHSA (jsonwebtoken type-confusion authorization-bypass);
+# `use_pem` stays on to enable the PEM-encoded private-key path the
+# GCP/APNs/FCM signers use.
+jsonwebtoken = { version = "10", default-features = false, features = [
     "use_pem",
 ] }
 
