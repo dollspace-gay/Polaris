@@ -6,5 +6,8 @@
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-18T19:13:28.724034328Z",
-  "updated_at": "2026-05-18T19:13:28.724034328Z"
+  "updated_at": "2026-05-18T19:13:30.505530392Z",
+  "labels": [
+    "bug"
+  ]
 }
