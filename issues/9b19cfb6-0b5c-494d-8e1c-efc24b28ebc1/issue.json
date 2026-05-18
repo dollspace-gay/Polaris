@@ -2,12 +2,13 @@
   "uuid": "9b19cfb6-0b5c-494d-8e1c-efc24b28ebc1",
   "display_id": 237,
   "title": "Case-view LLM recommendation panel + DTOs",
-  "status": "open",
+  "status": "closed",
   "priority": "medium",
   "parent_uuid": "38a78c72-404f-483c-807a-8f5a08f37e83",
   "created_by": "TeIq",
   "created_at": "2026-05-18T08:00:51.618339054Z",
-  "updated_at": "2026-05-18T08:21:02.912228250Z",
+  "updated_at": "2026-05-18T13:55:41.067354275Z",
+  "closed_at": "2026-05-18T13:55:41.067354275Z",
   "labels": [
     "rust"
   ],
