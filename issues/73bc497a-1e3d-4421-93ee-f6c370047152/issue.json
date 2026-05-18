@@ -2,12 +2,13 @@
   "uuid": "73bc497a-1e3d-4421-93ee-f6c370047152",
   "display_id": 231,
   "title": "Extend polaris-classifier-v1.proto with Recommend RPC + message types",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "parent_uuid": "38a78c72-404f-483c-807a-8f5a08f37e83",
   "created_by": "TeIq",
   "created_at": "2026-05-18T07:51:50.998809057Z",
-  "updated_at": "2026-05-18T07:51:55.943292966Z",
+  "updated_at": "2026-05-18T09:42:38.734899222Z",
+  "closed_at": "2026-05-18T09:42:38.734899222Z",
   "labels": [
     "rust"
   ]
