@@ -259,6 +259,15 @@ pub fn to_lexicon_observation_kind(
         ObservationKind::ModeratorBehaviorAnomaly { .. } => Err(MappingError::UnsupportedVariant {
             discriminator: "moderator_behavior_anomaly",
         }),
+        // privacy: LlmRecommendation carries the LLM's structured judgement
+        // over the local case bundle plus the operator's prompt-template
+        // identifier; the full RecommendResponse lives in the row's
+        // free-form `evidence` JSONB. Never federated — every per-deployment
+        // LLM adapter is the operator's choice (REQ-A1) and its outputs are
+        // internal signal, not a cross-instance contract.
+        ObservationKind::LlmRecommendation { .. } => Err(MappingError::UnsupportedVariant {
+            discriminator: "llm_recommendation",
+        }),
     }
 }
 

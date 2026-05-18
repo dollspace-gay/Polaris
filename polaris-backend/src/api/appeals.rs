@@ -502,6 +502,7 @@ async fn perform_reversal(
         policy_refs: Vec::<PolicyId>::new(),
         reversible_until: now + REVERSAL_REVERSIBLE_WINDOW,
         reverses_action_id: Some(original.id),
+        llm_audit: None,
     };
     let inserted = state.actions.insert(new_action).await?;
     state

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO actions (\n            incident_id, subject_id, moderator_id, kind, label_value,\n            reasoning, policy_refs, reversible_until, reverses_action_id\n        )\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n        RETURNING id, incident_id, subject_id, moderator_id, kind, label_value,\n                  reasoning, policy_refs, reversible_until, reverses_action_id,\n                  emitted_to_atproto, evidence_car_cid, created_at\n        ",
+  "query": "\n        INSERT INTO actions (\n            incident_id, subject_id, moderator_id, kind, label_value,\n            reasoning, policy_refs, reversible_until, reverses_action_id,\n            actor_kind, llm_observation_id, model, model_version,\n            prompt_template_id, recommendation_confidence, input_hash\n        )\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,\n                $10, $11, $12, $13, $14, $15, $16)\n        RETURNING id, incident_id, subject_id, moderator_id, kind, label_value,\n                  reasoning, policy_refs, reversible_until, reverses_action_id,\n                  emitted_to_atproto, evidence_car_cid, created_at\n        ",
   "describe": {
     "columns": [
       {
@@ -79,7 +79,14 @@
         "Text",
         "TextArray",
         "Timestamptz",
-        "Uuid"
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Float4",
+        "Text"
       ]
     },
     "nullable": [
@@ -98,5 +105,5 @@
       false
     ]
   },
-  "hash": "25585bc2d4a23fd0bbd290ec340d585a741464c7a459ff43b54be8ff1291aeb3"
+  "hash": "c8bdf74513cc43672f100ad0dbe64542f113cb7598a31789dbf0a824c130a4cb"
 }

@@ -130,6 +130,7 @@ async fn emitted_label_src_is_labeler_did_not_moderator_id()
             policy_refs: vec![PolicyId::new("polaris.spam")],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
 
@@ -330,6 +331,7 @@ async fn audit_log_actor_carries_moderator_id_on_action_commit()
             policy_refs: vec![PolicyId::new("polaris.spam")],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
 

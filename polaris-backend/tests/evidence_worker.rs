@@ -186,6 +186,7 @@ async fn seed_action_against_record(
             policy_refs: vec![PolicyId::new("community-guidelines.spam.v1")],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
     Ok((action.id.into_uuid(), subject_uri))
@@ -487,6 +488,7 @@ async fn account_subject_does_not_enqueue_evidence_job() -> Result<(), Box<dyn s
             policy_refs: vec![],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
 

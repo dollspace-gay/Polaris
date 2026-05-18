@@ -123,6 +123,7 @@ async fn insert_original_action(
             policy_refs: vec![PolicyId::new("polaris.spam")],
             reversible_until,
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
     Ok(action)
@@ -249,6 +250,7 @@ async fn reversal_workflow_end_to_end() -> Result<(), Box<dyn std::error::Error>
             policy_refs: vec![],
             reversible_until: Utc::now() + REVERSAL_REVERSIBLE_WINDOW,
             reverses_action_id: Some(action_x.id),
+            llm_audit: None,
         })
         .await?;
     assert_eq!(reversal_one.kind, ActionKind::Reverse);
@@ -315,6 +317,7 @@ async fn reversal_workflow_end_to_end() -> Result<(), Box<dyn std::error::Error>
             policy_refs: vec![],
             reversible_until: Utc::now() + REVERSAL_REVERSIBLE_WINDOW,
             reverses_action_id: Some(action_z.id),
+            llm_audit: None,
         })
         .await?;
     assert_eq!(reversal_three.kind, ActionKind::Reverse);

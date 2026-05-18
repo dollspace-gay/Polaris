@@ -73,6 +73,7 @@ async fn action_rows_record_moderator_id_and_timestamp() -> Result<(), Box<dyn s
                 policy_refs: vec![PolicyId::new("polaris.spam")],
                 reversible_until: Utc::now() + chrono::Duration::hours(24),
                 reverses_action_id: None,
+                llm_audit: None,
             })
             .await?;
         action_ids.push(action.id);
@@ -164,6 +165,7 @@ async fn moderator_behavior_anomaly_fires_on_action_burst() -> Result<(), Box<dy
                 policy_refs: vec![PolicyId::new("polaris.spam")],
                 reversible_until: Utc::now() + chrono::Duration::hours(24),
                 reverses_action_id: None,
+                llm_audit: None,
             })
             .await?;
     }

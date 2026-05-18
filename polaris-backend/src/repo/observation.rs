@@ -278,6 +278,13 @@ mod tests {
                 action_count: 137,
                 window_secs: 3600,
             },
+            ObservationKind::LlmRecommendation {
+                model: "claude-sonnet-4-6".to_owned(),
+                model_version: "2026-01-15".to_owned(),
+                prompt_template_id: "polaris.case-review.v1".to_owned(),
+                recommended_action_kind: "label".to_owned(),
+                confidence: 0.87,
+            },
         ];
         for k in cases {
             let (disc, payload) = split_kind(&k).expect("split");

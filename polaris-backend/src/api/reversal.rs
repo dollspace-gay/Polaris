@@ -185,6 +185,7 @@ fn build_reversal_row(
         policy_refs: vec![],
         reversible_until: now + REVERSAL_REVERSIBLE_WINDOW,
         reverses_action_id: Some(original.id),
+        llm_audit: None,
     }
 }
 

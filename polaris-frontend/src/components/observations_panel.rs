@@ -146,6 +146,24 @@ fn format_observation(kind: &ObservationKind) -> (&'static str, String) {
             // rather than crashing the case view.
             "(rendered by ClassifierPanel)".to_owned(),
         ),
+        ObservationKind::LlmRecommendation {
+            model,
+            recommended_action_kind,
+            confidence,
+            ..
+        } => (
+            // LLM-3 (#233) lands the typed variant + DB schema; the
+            // dedicated `LlmRecommendationPanel` (REQ-J1, LLM-11) will
+            // render the full envelope. Until that panel ships,
+            // surfacing a minimal chip in the existing observations
+            // panel keeps the signal visible without requiring the
+            // moderator to refresh after the LLM-11 PR lands.
+            "LLM recommendation",
+            format!(
+                "{model} suggests {recommended_action_kind} \
+                 (confidence {confidence:.2})"
+            ),
+        ),
     }
 }
 

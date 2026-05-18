@@ -191,6 +191,7 @@ async fn seed_label_action(
             policy_refs: vec![PolicyId::new("polaris.spam")],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
 

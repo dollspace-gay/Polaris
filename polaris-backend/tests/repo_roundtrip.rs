@@ -206,6 +206,7 @@ async fn each_repo_round_trips_through_postgres() -> Result<(), Box<dyn std::err
         policy_refs: vec![PolicyId::new("community-guidelines.spam.v1")],
         reversible_until: Utc::now() + chrono::Duration::hours(24),
         reverses_action_id: None,
+        llm_audit: None,
     };
     let inserted_action = action_repo.insert(new_action.clone()).await?;
     assert_eq!(inserted_action.incident_id, inserted_incident.id);
@@ -248,6 +249,7 @@ async fn each_repo_round_trips_through_postgres() -> Result<(), Box<dyn std::err
             policy_refs: vec![],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: Some(inserted_action.id),
+            llm_audit: None,
         })
         .await?;
     assert_eq!(reverse_action.kind, ActionKind::Reverse);

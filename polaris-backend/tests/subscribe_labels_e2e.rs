@@ -353,6 +353,7 @@ async fn emitted_label_arrives_via_ws_and_verifies() -> Result<(), TestError> {
             policy_refs: vec![PolicyId::new("polaris.spam")],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
 
@@ -616,6 +617,7 @@ async fn tampered_cbor_is_rejected_by_verify_label() -> Result<(), TestError> {
             policy_refs: vec![PolicyId::new("polaris.spam")],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
     let subject_ref = SubjectRef {

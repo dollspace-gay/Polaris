@@ -113,6 +113,7 @@ async fn seed_action_and_policy(pool: &PgPool) -> Result<(Uuid, Uuid), Box<dyn s
             policy_refs: vec![PolicyId::new("polaris.harassment".to_owned())],
             reversible_until: chrono::Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
 

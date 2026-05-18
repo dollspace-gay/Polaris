@@ -74,6 +74,74 @@ pub struct NewAction {
     /// service layer that calls into the repo is responsible for asserting
     /// the policy. The repo just inserts what it's given.
     pub reverses_action_id: Option<ActionId>,
+    /// LLM-assist audit envelope (REQ-F1, migration 51).
+    ///
+    /// `None` — the default for every caller pre-LLM-5 (#242) — produces
+    /// a row with `actor_kind = 'human'` and every LLM column NULL,
+    /// identical to the pre-LLM-3 schema's behaviour.
+    ///
+    /// `Some(fields)` — emitted by the LLM dispatcher when an
+    /// autonomous-mode policy fires — sets `actor_kind =
+    /// 'autonomous_agent'` and populates the full audit envelope. The
+    /// database CHECK `actions_autonomous_audit_complete` (migration
+    /// 51) rejects partial envelopes at insert time, so the typed
+    /// `Some` shape is the only way to land an autonomous row.
+    pub llm_audit: Option<LlmAuditFields>,
+}
+
+/// The audit envelope an LLM-emitted (autonomous) action carries
+/// (`.design/llm-moderation-assist.md` REQ-F1).
+///
+/// Every field is load-bearing: a future investigator reading a
+/// reversal row needs to know which model produced the bad
+/// decision, which prompt template was in force, what input the
+/// LLM saw, and which observation backs the action. The database
+/// CHECK `actions_autonomous_audit_complete` (migration 51)
+/// rejects an autonomous row with any of these missing, so this
+/// struct is the typed shape that satisfies that contract.
+///
+/// Construct via the dispatcher path in LLM-5 (#242); pre-LLM-5
+/// call sites pass `llm_audit: None` and never construct an
+/// `LlmAuditFields`.
+///
+/// # Examples
+///
+/// ```rust,no_run
+/// use polaris_backend::repo::action::LlmAuditFields;
+/// use polaris_types::ObservationId;
+///
+/// let envelope = LlmAuditFields {
+///     llm_observation_id: ObservationId(uuid::Uuid::new_v4()),
+///     model: "claude-sonnet-4-6".to_owned(),
+///     model_version: "2026-01-15".to_owned(),
+///     prompt_template_id: "polaris.case-review.v1".to_owned(),
+///     recommendation_confidence: 0.97,
+///     input_hash: "deadbeef".repeat(8),
+/// };
+/// assert_eq!(envelope.model, "claude-sonnet-4-6");
+/// ```
+#[derive(Debug, Clone)]
+pub struct LlmAuditFields {
+    /// The `LlmRecommendation` observation row that produced this
+    /// action. The observation's `evidence` JSONB carries the full
+    /// `RecommendResponse` payload (REQ-B2) for replay.
+    pub llm_observation_id: polaris_types::ObservationId,
+    /// Model identifier as reported by the adapter (e.g.
+    /// `"claude-sonnet-4-6"`).
+    pub model: String,
+    /// Model-version string snapshotted from the adapter.
+    pub model_version: String,
+    /// Opaque adapter-stable identifier for the prompt template the
+    /// adapter ran. The adapter owns versioning; Polaris audits it
+    /// without interpreting it.
+    pub prompt_template_id: String,
+    /// 0.0–1.0 confidence reported by the LLM for the action it
+    /// recommended. Stored as REAL on the row.
+    pub recommendation_confidence: f32,
+    /// SHA-256 hex of the canonicalised `RecommendRequest` payload.
+    /// Lets a future audit prove determinism: same case bundle ⇒ same
+    /// decision.
+    pub input_hash: String,
 }
 
 /// Compile-time contract for the action repository.
@@ -457,13 +525,40 @@ async fn insert_action_in_tx(
             .collect(),
     };
 
+    // REQ-F1: when an LLM audit envelope is present the row is an
+    // autonomous-agent emission and the migration-51 CHECK constraint
+    // requires every audit column to be NOT NULL. Pulling the fields
+    // out into typed `Option<_>` bindings keeps the macro's parameter
+    // map readable and routes the `None` default (human-emitted row)
+    // through the same INSERT as the LLM dispatcher path. The DB
+    // CHECK is the load-bearing invariant: a partial envelope is
+    // rejected at the boundary regardless of whether the caller went
+    // through this typed struct.
+    let actor_kind: &str = if new.llm_audit.is_some() {
+        "autonomous_agent"
+    } else {
+        "human"
+    };
+    let llm_observation_id = new.llm_audit.as_ref().map(|f| f.llm_observation_id.0);
+    let llm_model = new.llm_audit.as_ref().map(|f| f.model.as_str());
+    let llm_model_version = new.llm_audit.as_ref().map(|f| f.model_version.as_str());
+    let llm_prompt_template_id = new
+        .llm_audit
+        .as_ref()
+        .map(|f| f.prompt_template_id.as_str());
+    let llm_recommendation_confidence = new.llm_audit.as_ref().map(|f| f.recommendation_confidence);
+    let llm_input_hash = new.llm_audit.as_ref().map(|f| f.input_hash.as_str());
+
     let row = sqlx::query!(
         r#"
         INSERT INTO actions (
             incident_id, subject_id, moderator_id, kind, label_value,
-            reasoning, policy_refs, reversible_until, reverses_action_id
+            reasoning, policy_refs, reversible_until, reverses_action_id,
+            actor_kind, llm_observation_id, model, model_version,
+            prompt_template_id, recommendation_confidence, input_hash
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+                $10, $11, $12, $13, $14, $15, $16)
         RETURNING id, incident_id, subject_id, moderator_id, kind, label_value,
                   reasoning, policy_refs, reversible_until, reverses_action_id,
                   emitted_to_atproto, evidence_car_cid, created_at
@@ -477,6 +572,13 @@ async fn insert_action_in_tx(
         &policy_refs,
         new.reversible_until,
         new.reverses_action_id.map(|a| a.0),
+        actor_kind,
+        llm_observation_id,
+        llm_model,
+        llm_model_version,
+        llm_prompt_template_id,
+        llm_recommendation_confidence,
+        llm_input_hash,
     )
     .fetch_one(&mut **tx)
     .await?;

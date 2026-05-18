@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT actor_kind, llm_observation_id, model, model_version,\n                  prompt_template_id, recommendation_confidence, input_hash\n             FROM actions WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "actor_kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "llm_observation_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "model_version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "prompt_template_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "recommendation_confidence",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 6,
+        "name": "input_hash",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "91235e33c95095a3b78a48d558045b748981740198db4d11dd794bda2f84a53f"
+}

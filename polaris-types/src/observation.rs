@@ -101,6 +101,44 @@ pub enum ObservationKind {
         /// and to keep the wire form JSON-numeric.
         window_secs: i64,
     },
+    /// LLM moderation-assist recommendation
+    /// (`.design/llm-moderation-assist.md` REQ-B1 / REQ-B2).
+    ///
+    /// Persisted by the LLM dispatcher on every `Recommend` RPC. The
+    /// variant carries the identification + headline-summary fields
+    /// (model, prompt template, confidence) so consumers reading just
+    /// the typed enum can render a chip in the case-view sidebar
+    /// without parsing JSON. The *full* `RecommendResponse` payload —
+    /// every `recommended_action`, the reasoning, caveats, the input
+    /// hash, and the request content-hash — lives in the row's
+    /// free-form `evidence` JSONB column verbatim (REQ-B2) for audit
+    /// and replay. Downstream consumers (the autonomous action
+    /// audit-trail, the queue draft, the dry-run report) read that
+    /// JSONB; the typed enum is the discriminator plus the headline.
+    ///
+    /// Mirrors the `ClassifierSignal` variant's shape (model, label,
+    /// confidence) so the two LLM/ML observation kinds present a
+    /// consistent surface to UI code that aggregates them.
+    LlmRecommendation {
+        /// Model identifier as reported by the LLM adapter
+        /// (e.g. `"claude-sonnet-4-6"`). Audited (REQ-A3).
+        model: String,
+        /// Model-version string (e.g. `"2026-01-15"`). Same role.
+        model_version: String,
+        /// Opaque adapter-stable identifier for the prompt template
+        /// the adapter ran. The adapter is responsible for stable
+        /// versioning; Polaris audits it without interpreting it.
+        prompt_template_id: String,
+        /// Top recommended action's verb (one of `label`, `warn`,
+        /// `takedown`, `escalate`, `no_action`). The full list of
+        /// recommendations — most LLM responses have one but the
+        /// design permits multiple — is in `evidence.recommended_actions`.
+        recommended_action_kind: String,
+        /// Headline confidence (top recommendation's confidence,
+        /// 0.0–1.0). Matches the wire form REAL on
+        /// `actions.recommendation_confidence`.
+        confidence: f32,
+    },
 }
 
 impl ObservationKind {
@@ -115,6 +153,7 @@ impl ObservationKind {
             Self::ExternalLabel { .. } => "external_label",
             Self::ClassifierSignal { .. } => "classifier_signal",
             Self::ModeratorBehaviorAnomaly { .. } => "moderator_behavior_anomaly",
+            Self::LlmRecommendation { .. } => "llm_recommendation",
         }
     }
 }
@@ -204,6 +243,25 @@ mod tests {
         let back: ObservationKind = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(ok, back);
         assert_eq!(ok.discriminator(), "moderator_behavior_anomaly");
+    }
+
+    #[test]
+    fn observation_kind_llm_recommendation_round_trips_through_serde() {
+        let ok = ObservationKind::LlmRecommendation {
+            model: "claude-sonnet-4-6".to_owned(),
+            model_version: "2026-01-15".to_owned(),
+            prompt_template_id: "polaris.case-review.v1".to_owned(),
+            recommended_action_kind: "label".to_owned(),
+            confidence: 0.91,
+        };
+        let json = serde_json::to_string(&ok).expect("serialize");
+        assert!(
+            json.contains("\"kind\":\"llm_recommendation\""),
+            "expected discriminator in wire form, got {json}",
+        );
+        let back: ObservationKind = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(ok, back);
+        assert_eq!(ok.discriminator(), "llm_recommendation");
     }
 
     #[test]

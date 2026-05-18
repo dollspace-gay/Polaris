@@ -233,6 +233,7 @@ async fn seed_action_against_record(
             policy_refs: vec![PolicyId::new("community-guidelines.spam.v1")],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
     Ok(action.id.into_uuid())

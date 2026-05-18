@@ -175,6 +175,7 @@ async fn emit_label_signs_persists_and_verifies() -> Result<(), Box<dyn std::err
             policy_refs: vec![PolicyId::new("polaris.spam")],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
 
@@ -300,6 +301,7 @@ async fn emit_takedown_with_revoked_value_emits_negation() -> Result<(), Box<dyn
             policy_refs: vec![PolicyId::new("polaris.spam")],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            llm_audit: None,
         })
         .await?;
 

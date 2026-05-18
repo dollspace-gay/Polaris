@@ -477,13 +477,18 @@ fn project_signal(
         }
         ObservationKind::ExternalLabel { .. }
         | ObservationKind::ClassifierSignal { .. }
-        | ObservationKind::ModeratorBehaviorAnomaly { .. } => {
+        | ObservationKind::ModeratorBehaviorAnomaly { .. }
+        | ObservationKind::LlmRecommendation { .. } => {
             // ExternalLabel / ClassifierSignal are subject-level (not
             // pattern-level); ModeratorBehaviorAnomaly is a T1 mitigation
             // signal keyed on a synthetic moderator-anomaly subject and
             // surfaces on its own panel, not on the coordinated-signal
-            // dashboard. The SQL filter already excludes these kinds —
-            // the projection stays defensive.
+            // dashboard. LlmRecommendation is per-case advisory output
+            // from the LLM-assist subsystem (`.design/llm-moderation-
+            // assist.md`); it surfaces in the case-view sidebar (REQ-J1)
+            // and on the autonomous-action audit page (REQ-F4), not on
+            // the coordinated-signal dashboard. The SQL filter already
+            // excludes these kinds — the projection stays defensive.
             return None;
         }
     })

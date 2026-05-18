@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO pending_auto_actions\n                (incident_id, subject_id, recommended_action,\n                 llm_observation_id, cited_policy_versions, state)\n            VALUES ($1, $2, '{}'::jsonb, $3, '[]'::jsonb, $4)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "31460ce43fc553052442af165ad725d2ab31d8db3402aa7437abff34cf4f8eeb"
+}

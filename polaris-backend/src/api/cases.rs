@@ -969,6 +969,7 @@ fn build_new_action(
         policy_refs: typed.policy_refs,
         reversible_until: typed.reversible_until,
         reverses_action_id: typed.reverses_action_id,
+        llm_audit: None,
     }
 }
 
