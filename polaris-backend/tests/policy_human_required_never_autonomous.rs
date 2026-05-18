@@ -294,6 +294,8 @@ async fn seed_policy(
             autonomous_action_kinds,
             autonomous_confidence_threshold: 0.95,
             assisted_confidence_threshold: 0.70,
+            autonomous_rate_limit_per_hour: None,
+            autonomous_reversal_breaker_threshold: None,
             change_summary: None,
         },
         moderator_id,

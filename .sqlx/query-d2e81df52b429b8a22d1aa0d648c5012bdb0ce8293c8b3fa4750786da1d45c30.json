@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(*) AS \"count!\"\n        FROM actions a\n        JOIN action_policy_citations c ON c.action_id = a.id\n        WHERE c.policy_identifier = $1\n          AND a.actor_kind = 'autonomous_agent'\n          AND a.created_at >= now() - INTERVAL '1 hour'\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d2e81df52b429b8a22d1aa0d648c5012bdb0ce8293c8b3fa4750786da1d45c30"
+}

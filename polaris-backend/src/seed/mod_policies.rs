@@ -438,6 +438,11 @@ fn into_new(p: SeedPolicy) -> Result<NewModPolicy, SeedError> {
         autonomous_action_kinds: p.autonomous_action_kinds,
         autonomous_confidence_threshold: p.autonomous_confidence_threshold,
         assisted_confidence_threshold: p.assisted_confidence_threshold,
+        // The seed loader does not configure the LLM-6 safety-floor
+        // tuning columns; the DB defaults (60/hr, 0.15) take effect.
+        // Operators tune via the admin UI after seeding.
+        autonomous_rate_limit_per_hour: None,
+        autonomous_reversal_breaker_threshold: None,
         // The seed loader does not author per-row change-summaries —
         // the initial v1 insert is implicitly "seeded from
         // mod-policies.yml". Operators editing this policy from the

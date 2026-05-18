@@ -140,6 +140,8 @@ async fn seed_action_and_policy(pool: &PgPool) -> Result<(Uuid, Uuid), Box<dyn s
             autonomous_action_kinds: vec![],
             autonomous_confidence_threshold: 0.95,
             assisted_confidence_threshold: 0.70,
+            autonomous_rate_limit_per_hour: None,
+            autonomous_reversal_breaker_threshold: None,
             change_summary: None,
         },
         mod_id,

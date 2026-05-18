@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO mod_policies (\n            identifier, version, name, description,\n            scope, severity, decision_criteria,\n            examples_positive, examples_negative,\n            suggested_action_kinds, linked_label_value, exceptions,\n            human_required_always,\n            autonomy_mode, autonomous_action_kinds,\n            autonomous_confidence_threshold,\n            assisted_confidence_threshold,\n            autonomous_rate_limit_per_hour,\n            autonomous_reversal_breaker_threshold,\n            autonomous_paused_until,\n            is_retired,\n            created_by_moderator_id, change_summary, supersedes_id\n        )\n        VALUES (\n            $1, $2, $3, $4,\n            $5, $6, $7,\n            $8, $9,\n            $10, $11, $12,\n            $13,\n            $14, $15,\n            $16,\n            $17,\n            $18,\n            $19,\n            now() + make_interval(hours => $20::INT),\n            $21,\n            $22, $23, $24\n        )\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Jsonb",
+        "TextArray",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "TextArray",
+        "Float4",
+        "Float4",
+        "Int4",
+        "Float4",
+        "Int4",
+        "Bool",
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1465946114e54d6b2f5114af249d2b55c3e11125783852dc90be7d7855e5e60d"
+}

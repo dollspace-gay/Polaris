@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            id, identifier, version, name, description,\n            scope, severity, decision_criteria,\n            examples_positive, examples_negative,\n            suggested_action_kinds, linked_label_value, exceptions,\n            human_required_always,\n            autonomy_mode, autonomous_action_kinds,\n            autonomous_confidence_threshold,\n            assisted_confidence_threshold,\n            autonomous_paused_until,\n            is_retired, created_at, created_by_moderator_id,\n            effective_from, effective_until,\n            supersedes_id, change_summary\n        FROM mod_policies\n        WHERE identifier = $1 AND version = $2\n        ",
+  "query": "\n        SELECT\n            id, version, name, description,\n            scope, severity, decision_criteria,\n            examples_positive, examples_negative,\n            suggested_action_kinds, linked_label_value, exceptions,\n            human_required_always,\n            autonomy_mode, autonomous_action_kinds,\n            autonomous_confidence_threshold,\n            assisted_confidence_threshold,\n            autonomous_rate_limit_per_hour,\n            autonomous_reversal_breaker_threshold,\n            is_retired, created_by_moderator_id\n        FROM mod_policies\n        WHERE identifier = $1 AND effective_until IS NULL\n        FOR UPDATE\n        ",
   "describe": {
     "columns": [
       {
@@ -10,93 +10,93 @@
       },
       {
         "ordinal": 1,
-        "name": "identifier",
-        "type_info": "Text"
-      },
-      {
-        "ordinal": 2,
         "name": "version",
         "type_info": "Int4"
       },
       {
-        "ordinal": 3,
+        "ordinal": 2,
         "name": "name",
         "type_info": "Text"
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "description",
         "type_info": "Text"
       },
       {
-        "ordinal": 5,
+        "ordinal": 4,
         "name": "scope",
         "type_info": "Text"
       },
       {
-        "ordinal": 6,
+        "ordinal": 5,
         "name": "severity",
         "type_info": "Text"
       },
       {
-        "ordinal": 7,
+        "ordinal": 6,
         "name": "decision_criteria",
         "type_info": "Text"
       },
       {
-        "ordinal": 8,
+        "ordinal": 7,
         "name": "examples_positive",
         "type_info": "Jsonb"
       },
       {
-        "ordinal": 9,
+        "ordinal": 8,
         "name": "examples_negative",
         "type_info": "Jsonb"
       },
       {
-        "ordinal": 10,
+        "ordinal": 9,
         "name": "suggested_action_kinds",
         "type_info": "TextArray"
       },
       {
-        "ordinal": 11,
+        "ordinal": 10,
         "name": "linked_label_value",
         "type_info": "Text"
       },
       {
-        "ordinal": 12,
+        "ordinal": 11,
         "name": "exceptions",
         "type_info": "Text"
       },
       {
-        "ordinal": 13,
+        "ordinal": 12,
         "name": "human_required_always",
         "type_info": "Bool"
       },
       {
-        "ordinal": 14,
+        "ordinal": 13,
         "name": "autonomy_mode",
         "type_info": "Text"
       },
       {
-        "ordinal": 15,
+        "ordinal": 14,
         "name": "autonomous_action_kinds",
         "type_info": "TextArray"
       },
       {
-        "ordinal": 16,
+        "ordinal": 15,
         "name": "autonomous_confidence_threshold",
         "type_info": "Float4"
       },
       {
-        "ordinal": 17,
+        "ordinal": 16,
         "name": "assisted_confidence_threshold",
         "type_info": "Float4"
       },
       {
+        "ordinal": 17,
+        "name": "autonomous_rate_limit_per_hour",
+        "type_info": "Int4"
+      },
+      {
         "ordinal": 18,
-        "name": "autonomous_paused_until",
-        "type_info": "Timestamptz"
+        "name": "autonomous_reversal_breaker_threshold",
+        "type_info": "Float4"
       },
       {
         "ordinal": 19,
@@ -105,39 +105,13 @@
       },
       {
         "ordinal": 20,
-        "name": "created_at",
-        "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 21,
         "name": "created_by_moderator_id",
         "type_info": "Uuid"
-      },
-      {
-        "ordinal": 22,
-        "name": "effective_from",
-        "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 23,
-        "name": "effective_until",
-        "type_info": "Timestamptz"
-      },
-      {
-        "ordinal": 24,
-        "name": "supersedes_id",
-        "type_info": "Uuid"
-      },
-      {
-        "ordinal": 25,
-        "name": "change_summary",
-        "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Int4"
+        "Text"
       ]
     },
     "nullable": [
@@ -151,7 +125,6 @@
       false,
       false,
       false,
-      false,
       true,
       true,
       false,
@@ -159,15 +132,11 @@
       false,
       false,
       false,
-      true,
       false,
       false,
       false,
-      false,
-      true,
-      true,
-      true
+      false
     ]
   },
-  "hash": "6925b386d5914f28c8b8e5584d40013e636cb83d1fbf9e1eb6fc8a123ce5aedb"
+  "hash": "ded01e61d7ff5b601f66b5e42acf27ddbfcf9f3487a2dbd375842582b9ef4851"
 }

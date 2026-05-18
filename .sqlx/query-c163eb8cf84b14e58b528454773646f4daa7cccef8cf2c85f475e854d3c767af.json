@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT global_autonomous_pause_until\n        FROM polaris_setup_state\n        WHERE id = TRUE\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "global_autonomous_pause_until",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "c163eb8cf84b14e58b528454773646f4daa7cccef8cf2c85f475e854d3c767af"
+}

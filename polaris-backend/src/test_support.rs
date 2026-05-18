@@ -94,6 +94,8 @@ pub async fn seed_placeholder_policies(
                 autonomous_action_kinds: vec![],
                 autonomous_confidence_threshold: 0.95,
                 assisted_confidence_threshold: 0.70,
+                autonomous_rate_limit_per_hour: None,
+                autonomous_reversal_breaker_threshold: None,
                 change_summary: None,
             },
             created_by_moderator_id,

@@ -494,6 +494,7 @@ impl RecommendDispatcher {
                     &response,
                     recommended_action,
                     &request.policies,
+                    &request.subject_kind,
                     &input_hash,
                 )
                 .await?;
@@ -522,6 +523,7 @@ impl RecommendDispatcher {
         response: &RecommendResponse,
         recommended_action: &RecommendedAction,
         request_policies: &[PolicyClause],
+        subject_kind: &str,
         input_hash: &str,
     ) -> Result<DispatchOutcome, DispatchError> {
         // REQ-A3: at least one cited identifier; use the FIRST as
@@ -535,32 +537,52 @@ impl RecommendDispatcher {
             return Ok(DispatchOutcome::Advisory { observation_id });
         };
 
-        let policy = request_policies
+        let policy_clause = request_policies
             .iter()
             .find(|p| p.identifier == *citation)
             .ok_or_else(|| DispatchError::UnknownCitedPolicy {
                 identifier: citation.clone(),
             })?;
 
-        // REQ-S1..S8 enforced by polaris-backend/src/llm/safety_floors.rs (#235).
-        //
-        // The stub today always returns `Autonomous`, so the
-        // assisted-mode branch below is reachable only when LLM-6
-        // lands. The dispatcher's autonomous branch is exercised
-        // end-to-end against the stub; the assisted branch's
-        // integration test documents the coverage gap.
+        // LLM-6 (#235): re-fetch the live ModPolicy row by identifier
+        // so the safety-floor evaluator sees the up-to-the-millisecond
+        // version of `autonomous_paused_until`, the rate-limit + breaker
+        // thresholds, and `human_required_always`. The proto
+        // `PolicyClause` snapshot in `request_policies` was built at
+        // hydrate-time and lacks the autonomy-control columns the
+        // floors need. The identifier match the proto carries pins
+        // the lookup to the same row.
+        let live_policy =
+            crate::repo::mod_policies::current_by_identifier(&self.pool, &policy_clause.identifier)
+                .await
+                .map_err(|e| match e {
+                    crate::repo::mod_policies::ModPolicyError::Database(db) => {
+                        DispatchError::Repo(crate::repo::RepoError::from(db))
+                    }
+                    other => DispatchError::Repo(crate::repo::RepoError::Database(
+                        sqlx::Error::Protocol(other.to_string()),
+                    )),
+                })?
+                .ok_or_else(|| DispatchError::UnknownCitedPolicy {
+                    identifier: policy_clause.identifier.clone(),
+                })?;
+
+        // REQ-S1..S8 enforced by polaris-backend/src/llm/safety_floors.rs.
+        // The eight floors are evaluated in hardest-block-first order
+        // (S8 → S1); the first trip determines the returned mode.
         let effective = safety_floors::evaluate(
-            &policy.identifier,
-            policy.version,
+            &self.pool,
+            &live_policy,
             recommended_action.action_kind.as_str(),
             recommended_action.confidence,
             subject_id.0,
-            &self.pool,
+            subject_kind,
         )
-        .await;
+        .await
+        .map_err(crate::repo::RepoError::from)?;
 
         tracing::info!(
-            policy_identifier = %policy.identifier,
+            policy_identifier = %live_policy.identifier,
             recommended_kind = recommended_action.action_kind.as_str(),
             confidence = recommended_action.confidence,
             effective_mode = effective_mode_label(&effective),

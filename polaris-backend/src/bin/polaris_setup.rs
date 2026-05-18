@@ -648,6 +648,10 @@ fn new_from_seed(p: SeedPolicy) -> NewModPolicy {
         autonomous_action_kinds: p.autonomous_action_kinds,
         autonomous_confidence_threshold: p.autonomous_confidence_threshold,
         assisted_confidence_threshold: p.assisted_confidence_threshold,
+        // LLM-6 safety-floor tuning: keep the DB defaults at seed
+        // time. Operators tune per-policy via the admin UI.
+        autonomous_rate_limit_per_hour: None,
+        autonomous_reversal_breaker_threshold: None,
         // v1 inserts authored by seed-policies do not carry a per-row
         // change-summary; the operator-facing record of "where this
         // came from" lives in the structured `tracing::info!` line
@@ -687,6 +691,11 @@ fn patch_from_seed(p: &SeedPolicy) -> ModPolicyPatch {
         autonomous_action_kinds: Some(p.autonomous_action_kinds.clone()),
         autonomous_confidence_threshold: Some(p.autonomous_confidence_threshold),
         assisted_confidence_threshold: Some(p.assisted_confidence_threshold),
+        // LLM-6 safety-floor tuning is not driven by the seed file;
+        // keep prior-version values across amends. The admin UI is
+        // the source of truth for these knobs.
+        autonomous_rate_limit_per_hour: None,
+        autonomous_reversal_breaker_threshold: None,
         // Never tombstone via the seed-policies path — retiring a
         // policy is an admin-UI action with its own audit trail.
         is_retired: None,

@@ -138,9 +138,7 @@ fn fmt_generated_tree(dir: &Path) -> Result<()> {
         .into_iter()
         .filter_map(std::result::Result::ok)
     {
-        if entry.file_type().is_file()
-            && entry.path().extension().is_some_and(|e| e == "rs")
-        {
+        if entry.file_type().is_file() && entry.path().extension().is_some_and(|e| e == "rs") {
             rs_files.push(entry.into_path());
         }
     }

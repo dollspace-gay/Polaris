@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO mod_policies (\n            identifier, version, name, description,\n            scope, severity, decision_criteria,\n            examples_positive, examples_negative,\n            suggested_action_kinds, linked_label_value, exceptions,\n            human_required_always,\n            autonomy_mode, autonomous_action_kinds,\n            autonomous_confidence_threshold,\n            assisted_confidence_threshold,\n            is_retired,\n            created_by_moderator_id, change_summary, supersedes_id\n        )\n        VALUES (\n            $1, $2, $3, $4,\n            $5, $6, $7,\n            $8, $9,\n            $10, $11, $12,\n            $13,\n            $14, $15,\n            $16,\n            $17,\n            $18,\n            $19, $20, $21\n        )\n        RETURNING\n            id, identifier, version, name, description,\n            scope, severity, decision_criteria,\n            examples_positive, examples_negative,\n            suggested_action_kinds, linked_label_value, exceptions,\n            human_required_always,\n            autonomy_mode, autonomous_action_kinds,\n            autonomous_confidence_threshold,\n            assisted_confidence_threshold,\n            autonomous_paused_until,\n            is_retired, created_at, created_by_moderator_id,\n            effective_from, effective_until,\n            supersedes_id, change_summary\n        ",
+  "query": "\n        SELECT\n            id, identifier, version, name, description,\n            scope, severity, decision_criteria,\n            examples_positive, examples_negative,\n            suggested_action_kinds, linked_label_value, exceptions,\n            human_required_always,\n            autonomy_mode, autonomous_action_kinds,\n            autonomous_confidence_threshold,\n            assisted_confidence_threshold,\n            autonomous_rate_limit_per_hour,\n            autonomous_reversal_breaker_threshold,\n            autonomous_paused_until,\n            is_retired, created_at, created_by_moderator_id,\n            effective_from, effective_until,\n            supersedes_id, change_summary\n        FROM mod_policies\n        WHERE identifier = $1\n        ORDER BY version ASC\n        ",
   "describe": {
     "columns": [
       {
@@ -95,68 +95,58 @@
       },
       {
         "ordinal": 18,
+        "name": "autonomous_rate_limit_per_hour",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 19,
+        "name": "autonomous_reversal_breaker_threshold",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 20,
         "name": "autonomous_paused_until",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 19,
+        "ordinal": 21,
         "name": "is_retired",
         "type_info": "Bool"
       },
       {
-        "ordinal": 20,
+        "ordinal": 22,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 21,
+        "ordinal": 23,
         "name": "created_by_moderator_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 22,
+        "ordinal": 24,
         "name": "effective_from",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 23,
+        "ordinal": 25,
         "name": "effective_until",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 24,
+        "ordinal": 26,
         "name": "supersedes_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 25,
+        "ordinal": 27,
         "name": "change_summary",
         "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Int4",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Jsonb",
-        "Jsonb",
-        "TextArray",
-        "Text",
-        "Text",
-        "Bool",
-        "Text",
-        "TextArray",
-        "Float4",
-        "Float4",
-        "Bool",
-        "Uuid",
-        "Text",
-        "Uuid"
+        "Text"
       ]
     },
     "nullable": [
@@ -178,6 +168,8 @@
       false,
       false,
       false,
+      false,
+      false,
       true,
       false,
       false,
@@ -188,5 +180,5 @@
       true
     ]
   },
-  "hash": "b3de07f8c9318cf81e32108688cdef7ddf874d9babb27e9ee2688d277303f90f"
+  "hash": "4ac36a5915afff15720c58c48202d00e6fde5208badad8b17b3cfaf69edbe67a"
 }

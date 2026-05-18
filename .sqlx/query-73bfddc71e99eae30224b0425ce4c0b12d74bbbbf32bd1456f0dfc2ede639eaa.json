@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO mod_policies (\n            identifier, version, name, description,\n            scope, severity, decision_criteria,\n            examples_positive, examples_negative,\n            suggested_action_kinds, linked_label_value, exceptions,\n            human_required_always,\n            autonomy_mode, autonomous_action_kinds,\n            autonomous_confidence_threshold,\n            assisted_confidence_threshold,\n            created_by_moderator_id, change_summary\n        )\n        VALUES (\n            $1, 1, $2, $3,\n            $4, $5, $6,\n            $7, $8,\n            $9, $10, $11,\n            $12,\n            $13, $14,\n            $15,\n            $16,\n            $17, $18\n        )\n        RETURNING\n            id, identifier, version, name, description,\n            scope, severity, decision_criteria,\n            examples_positive, examples_negative,\n            suggested_action_kinds, linked_label_value, exceptions,\n            human_required_always,\n            autonomy_mode, autonomous_action_kinds,\n            autonomous_confidence_threshold,\n            assisted_confidence_threshold,\n            autonomous_paused_until,\n            is_retired, created_at, created_by_moderator_id,\n            effective_from, effective_until,\n            supersedes_id, change_summary\n        ",
+  "query": "\n        INSERT INTO mod_policies (\n            identifier, version, name, description,\n            scope, severity, decision_criteria,\n            examples_positive, examples_negative,\n            suggested_action_kinds, linked_label_value, exceptions,\n            human_required_always,\n            autonomy_mode, autonomous_action_kinds,\n            autonomous_confidence_threshold,\n            assisted_confidence_threshold,\n            autonomous_rate_limit_per_hour,\n            autonomous_reversal_breaker_threshold,\n            created_by_moderator_id, change_summary\n        )\n        VALUES (\n            $1, 1, $2, $3,\n            $4, $5, $6,\n            $7, $8,\n            $9, $10, $11,\n            $12,\n            $13, $14,\n            $15,\n            $16,\n            COALESCE($17, 60),\n            COALESCE($18, 0.15::REAL),\n            $19, $20\n        )\n        RETURNING\n            id, identifier, version, name, description,\n            scope, severity, decision_criteria,\n            examples_positive, examples_negative,\n            suggested_action_kinds, linked_label_value, exceptions,\n            human_required_always,\n            autonomy_mode, autonomous_action_kinds,\n            autonomous_confidence_threshold,\n            assisted_confidence_threshold,\n            autonomous_rate_limit_per_hour,\n            autonomous_reversal_breaker_threshold,\n            autonomous_paused_until,\n            is_retired, created_at, created_by_moderator_id,\n            effective_from, effective_until,\n            supersedes_id, change_summary\n        ",
   "describe": {
     "columns": [
       {
@@ -95,41 +95,51 @@
       },
       {
         "ordinal": 18,
+        "name": "autonomous_rate_limit_per_hour",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 19,
+        "name": "autonomous_reversal_breaker_threshold",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 20,
         "name": "autonomous_paused_until",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 19,
+        "ordinal": 21,
         "name": "is_retired",
         "type_info": "Bool"
       },
       {
-        "ordinal": 20,
+        "ordinal": 22,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 21,
+        "ordinal": 23,
         "name": "created_by_moderator_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 22,
+        "ordinal": 24,
         "name": "effective_from",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 23,
+        "ordinal": 25,
         "name": "effective_until",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 24,
+        "ordinal": 26,
         "name": "supersedes_id",
         "type_info": "Uuid"
       },
       {
-        "ordinal": 25,
+        "ordinal": 27,
         "name": "change_summary",
         "type_info": "Text"
       }
@@ -151,6 +161,8 @@
         "Text",
         "TextArray",
         "Float4",
+        "Float4",
+        "Int4",
         "Float4",
         "Uuid",
         "Text"
@@ -175,6 +187,8 @@
       false,
       false,
       false,
+      false,
+      false,
       true,
       false,
       false,
@@ -185,5 +199,5 @@
       true
     ]
   },
-  "hash": "e0a5da4cd7e03b981e2ac0d57be5c6f3924366dc4f919d99b2a6b0ca2153b927"
+  "hash": "73bfddc71e99eae30224b0425ce4c0b12d74bbbbf32bd1456f0dfc2ede639eaa"
 }

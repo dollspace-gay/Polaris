@@ -148,6 +148,15 @@ pub struct ModPolicy {
     pub autonomous_confidence_threshold: f32,
     /// Confidence floor for assisted draft creation. `0.0..=1.0`.
     pub assisted_confidence_threshold: f32,
+    /// Per-policy rolling-hour cap on autonomous emissions
+    /// (`.design/llm-moderation-assist.md` REQ-S5). `0` disables
+    /// autonomous mode for this policy without flipping
+    /// `autonomy_mode`. The DB CHECK floors at 0.
+    pub autonomous_rate_limit_per_hour: i32,
+    /// Reversal-rate fraction over the rolling 7-day window above
+    /// which the safety-floor evaluator (REQ-S6) writes
+    /// `autonomous_paused_until = now() + 24h`. `0.0..=1.0`.
+    pub autonomous_reversal_breaker_threshold: f32,
     /// When `Some(t)` and `t > now()`, autonomy is suspended.
     pub autonomous_paused_until: Option<DateTime<Utc>>,
     /// Tombstone marker (retirement).
@@ -228,6 +237,10 @@ pub struct ModPolicyPatch {
     pub autonomous_confidence_threshold: Option<f32>,
     /// New assisted confidence floor.
     pub assisted_confidence_threshold: Option<f32>,
+    /// New per-policy rolling-hour autonomous-action cap (REQ-S5).
+    pub autonomous_rate_limit_per_hour: Option<i32>,
+    /// New per-policy reversal-rate circuit-breaker threshold (REQ-S6).
+    pub autonomous_reversal_breaker_threshold: Option<f32>,
     /// Retire the policy (writes a tombstone successor).
     pub is_retired: Option<bool>,
 }
@@ -289,6 +302,12 @@ pub struct NewModPolicy {
     pub autonomous_confidence_threshold: f32,
     /// Assisted confidence floor.
     pub assisted_confidence_threshold: f32,
+    /// Optional per-policy rolling-hour autonomous-action cap (REQ-S5).
+    /// `None` keeps the DB default (60).
+    pub autonomous_rate_limit_per_hour: Option<i32>,
+    /// Optional reversal-rate circuit-breaker threshold (REQ-S6).
+    /// `None` keeps the DB default (0.15).
+    pub autonomous_reversal_breaker_threshold: Option<f32>,
     /// Optional change-summary note for the seed-loader / admin
     /// create path. Most v1 inserts leave this `None`.
     pub change_summary: Option<String>,
@@ -323,6 +342,15 @@ pub struct NewModPolicy {
 /// .await?;
 /// tx.commit().await?;
 /// ```
+#[allow(
+    clippy::too_many_lines,
+    reason = "single-statement INSERT orchestration: build the JSONB defaults, \
+              run the parameterised INSERT (19 columns, every one named for \
+              compile-time sqlx check), decode the RETURNING row into the \
+              typed `ModPolicy`. Splitting would force passing &mut \
+              Transaction + every column through helper hops and obscure \
+              the single-statement story (mirrors the `amend` allow)."
+)]
 pub async fn insert_initial(
     tx: &mut Transaction<'_, Postgres>,
     new: NewModPolicy,
@@ -346,6 +374,8 @@ pub async fn insert_initial(
             autonomy_mode, autonomous_action_kinds,
             autonomous_confidence_threshold,
             assisted_confidence_threshold,
+            autonomous_rate_limit_per_hour,
+            autonomous_reversal_breaker_threshold,
             created_by_moderator_id, change_summary
         )
         VALUES (
@@ -357,7 +387,9 @@ pub async fn insert_initial(
             $13, $14,
             $15,
             $16,
-            $17, $18
+            COALESCE($17, 60),
+            COALESCE($18, 0.15::REAL),
+            $19, $20
         )
         RETURNING
             id, identifier, version, name, description,
@@ -368,6 +400,8 @@ pub async fn insert_initial(
             autonomy_mode, autonomous_action_kinds,
             autonomous_confidence_threshold,
             assisted_confidence_threshold,
+            autonomous_rate_limit_per_hour,
+            autonomous_reversal_breaker_threshold,
             autonomous_paused_until,
             is_retired, created_at, created_by_moderator_id,
             effective_from, effective_until,
@@ -389,6 +423,8 @@ pub async fn insert_initial(
         &new.autonomous_action_kinds,
         new.autonomous_confidence_threshold,
         new.assisted_confidence_threshold,
+        new.autonomous_rate_limit_per_hour,
+        new.autonomous_reversal_breaker_threshold,
         created_by_moderator_id,
         new.change_summary,
     )
@@ -414,6 +450,8 @@ pub async fn insert_initial(
         autonomous_action_kinds: row.autonomous_action_kinds,
         autonomous_confidence_threshold: row.autonomous_confidence_threshold,
         assisted_confidence_threshold: row.assisted_confidence_threshold,
+        autonomous_rate_limit_per_hour: row.autonomous_rate_limit_per_hour,
+        autonomous_reversal_breaker_threshold: row.autonomous_reversal_breaker_threshold,
         autonomous_paused_until: row.autonomous_paused_until,
         is_retired: row.is_retired,
         created_at: row.created_at,
@@ -494,6 +532,8 @@ pub async fn amend(
             autonomy_mode, autonomous_action_kinds,
             autonomous_confidence_threshold,
             assisted_confidence_threshold,
+            autonomous_rate_limit_per_hour,
+            autonomous_reversal_breaker_threshold,
             autonomous_paused_until,
             is_retired, created_at, created_by_moderator_id,
             effective_from, effective_until,
@@ -557,6 +597,12 @@ pub async fn amend(
     let assisted_confidence_threshold = patch
         .assisted_confidence_threshold
         .unwrap_or(prior.assisted_confidence_threshold);
+    let autonomous_rate_limit_per_hour = patch
+        .autonomous_rate_limit_per_hour
+        .unwrap_or(prior.autonomous_rate_limit_per_hour);
+    let autonomous_reversal_breaker_threshold = patch
+        .autonomous_reversal_breaker_threshold
+        .unwrap_or(prior.autonomous_reversal_breaker_threshold);
     let is_retired = patch.is_retired.unwrap_or(prior.is_retired);
 
     // Close out the prior row. `now()` matches the successor's
@@ -584,6 +630,8 @@ pub async fn amend(
             autonomy_mode, autonomous_action_kinds,
             autonomous_confidence_threshold,
             assisted_confidence_threshold,
+            autonomous_rate_limit_per_hour,
+            autonomous_reversal_breaker_threshold,
             is_retired,
             created_by_moderator_id, change_summary, supersedes_id
         )
@@ -597,7 +645,9 @@ pub async fn amend(
             $16,
             $17,
             $18,
-            $19, $20, $21
+            $19,
+            $20,
+            $21, $22, $23
         )
         RETURNING
             id, identifier, version, name, description,
@@ -608,6 +658,8 @@ pub async fn amend(
             autonomy_mode, autonomous_action_kinds,
             autonomous_confidence_threshold,
             assisted_confidence_threshold,
+            autonomous_rate_limit_per_hour,
+            autonomous_reversal_breaker_threshold,
             autonomous_paused_until,
             is_retired, created_at, created_by_moderator_id,
             effective_from, effective_until,
@@ -630,6 +682,8 @@ pub async fn amend(
         &autonomous_action_kinds,
         autonomous_confidence_threshold,
         assisted_confidence_threshold,
+        autonomous_rate_limit_per_hour,
+        autonomous_reversal_breaker_threshold,
         is_retired,
         created_by_moderator_id,
         change_summary,
@@ -657,6 +711,8 @@ pub async fn amend(
         autonomous_action_kinds: row.autonomous_action_kinds,
         autonomous_confidence_threshold: row.autonomous_confidence_threshold,
         assisted_confidence_threshold: row.assisted_confidence_threshold,
+        autonomous_rate_limit_per_hour: row.autonomous_rate_limit_per_hour,
+        autonomous_reversal_breaker_threshold: row.autonomous_reversal_breaker_threshold,
         autonomous_paused_until: row.autonomous_paused_until,
         is_retired: row.is_retired,
         created_at: row.created_at,
@@ -701,6 +757,8 @@ pub async fn current_by_identifier(
             autonomy_mode, autonomous_action_kinds,
             autonomous_confidence_threshold,
             assisted_confidence_threshold,
+            autonomous_rate_limit_per_hour,
+            autonomous_reversal_breaker_threshold,
             autonomous_paused_until,
             is_retired, created_at, created_by_moderator_id,
             effective_from, effective_until,
@@ -732,6 +790,8 @@ pub async fn current_by_identifier(
         autonomous_action_kinds: row.autonomous_action_kinds,
         autonomous_confidence_threshold: row.autonomous_confidence_threshold,
         assisted_confidence_threshold: row.assisted_confidence_threshold,
+        autonomous_rate_limit_per_hour: row.autonomous_rate_limit_per_hour,
+        autonomous_reversal_breaker_threshold: row.autonomous_reversal_breaker_threshold,
         autonomous_paused_until: row.autonomous_paused_until,
         is_retired: row.is_retired,
         created_at: row.created_at,
@@ -768,6 +828,8 @@ pub async fn at_version(
             autonomy_mode, autonomous_action_kinds,
             autonomous_confidence_threshold,
             assisted_confidence_threshold,
+            autonomous_rate_limit_per_hour,
+            autonomous_reversal_breaker_threshold,
             autonomous_paused_until,
             is_retired, created_at, created_by_moderator_id,
             effective_from, effective_until,
@@ -800,6 +862,8 @@ pub async fn at_version(
         autonomous_action_kinds: row.autonomous_action_kinds,
         autonomous_confidence_threshold: row.autonomous_confidence_threshold,
         assisted_confidence_threshold: row.assisted_confidence_threshold,
+        autonomous_rate_limit_per_hour: row.autonomous_rate_limit_per_hour,
+        autonomous_reversal_breaker_threshold: row.autonomous_reversal_breaker_threshold,
         autonomous_paused_until: row.autonomous_paused_until,
         is_retired: row.is_retired,
         created_at: row.created_at,
@@ -832,6 +896,8 @@ pub async fn history(pool: &PgPool, identifier: &str) -> Result<Vec<ModPolicy>, 
             autonomy_mode, autonomous_action_kinds,
             autonomous_confidence_threshold,
             assisted_confidence_threshold,
+            autonomous_rate_limit_per_hour,
+            autonomous_reversal_breaker_threshold,
             autonomous_paused_until,
             is_retired, created_at, created_by_moderator_id,
             effective_from, effective_until,
@@ -866,6 +932,8 @@ pub async fn history(pool: &PgPool, identifier: &str) -> Result<Vec<ModPolicy>, 
             autonomous_action_kinds: row.autonomous_action_kinds,
             autonomous_confidence_threshold: row.autonomous_confidence_threshold,
             assisted_confidence_threshold: row.assisted_confidence_threshold,
+            autonomous_rate_limit_per_hour: row.autonomous_rate_limit_per_hour,
+            autonomous_reversal_breaker_threshold: row.autonomous_reversal_breaker_threshold,
             autonomous_paused_until: row.autonomous_paused_until,
             is_retired: row.is_retired,
             created_at: row.created_at,
@@ -1020,5 +1088,174 @@ pub async fn resume(
             identifier: identifier.to_owned(),
         });
     }
+    Ok(())
+}
+
+/// Pause autonomy on `identifier` because the REQ-S6 reversal-rate
+/// circuit breaker tripped.
+///
+/// Unlike [`pause`] (which the operator drives via the kill-switch
+/// endpoint and which is an in-place UPDATE for audit minimalism),
+/// the circuit breaker writes a **successor row** at `version + 1`
+/// with `autonomous_paused_until = now() + hours::interval` and
+/// `change_summary = "auto-paused by reversal-rate circuit
+/// breaker"`. The reason for the version-bumping shape: the
+/// circuit breaker is firing because the *agent* misbehaved, and
+/// the design (`.design/llm-moderation-assist.md` REQ-S6) calls
+/// the trip out as an auditable policy event, not an opaque
+/// operational annotation — surfacing it in the workbook history
+/// view is the operator's "what happened" trail. The version
+/// number itself does not change the dispatcher's behaviour (the
+/// dispatcher always reads the current-version row), but the
+/// history view is now an honest record of every pause cause.
+///
+/// The prior row's `effective_until` is set to `now()` inside the
+/// same transaction so a reader observing the new version cannot
+/// also see the old current row.
+///
+/// # Errors
+///
+/// - [`ModPolicyError::UnknownIdentifier`] when no current
+///   version exists.
+/// - [`ModPolicyError::Database`] on any DB-side failure (FK,
+///   CHECK, etc.).
+///
+/// # Example
+///
+/// ```ignore
+/// let mut tx = pool.begin().await?;
+/// mod_policies::pause_for_circuit_breaker(
+///     &mut tx,
+///     "polaris.spam",
+///     24,
+/// )
+/// .await?;
+/// tx.commit().await?;
+/// ```
+#[allow(
+    clippy::too_many_lines,
+    reason = "single-tx orchestration: FOR-UPDATE the prior current row, close \
+              it out, write the successor row with the paused-until timestamp \
+              + change-summary, all in the caller's tx. The whole story is \
+              one transaction; splitting fragments it."
+)]
+pub async fn pause_for_circuit_breaker(
+    tx: &mut Transaction<'_, Postgres>,
+    identifier: &str,
+    hours: i32,
+) -> Result<(), ModPolicyError> {
+    // Lock the current-version row. Same FOR UPDATE shape as the
+    // [`amend`] path so concurrent breaker writes against the same
+    // policy serialise.
+    let prior_opt = sqlx::query!(
+        r#"
+        SELECT
+            id, version, name, description,
+            scope, severity, decision_criteria,
+            examples_positive, examples_negative,
+            suggested_action_kinds, linked_label_value, exceptions,
+            human_required_always,
+            autonomy_mode, autonomous_action_kinds,
+            autonomous_confidence_threshold,
+            assisted_confidence_threshold,
+            autonomous_rate_limit_per_hour,
+            autonomous_reversal_breaker_threshold,
+            is_retired, created_by_moderator_id
+        FROM mod_policies
+        WHERE identifier = $1 AND effective_until IS NULL
+        FOR UPDATE
+        "#,
+        identifier,
+    )
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let Some(prior) = prior_opt else {
+        return Err(ModPolicyError::UnknownIdentifier {
+            identifier: identifier.to_owned(),
+        });
+    };
+
+    let next_version = prior.version + 1;
+
+    // Close out the prior row.
+    sqlx::query!(
+        r#"
+        UPDATE mod_policies
+        SET effective_until = now()
+        WHERE id = $1
+        "#,
+        prior.id,
+    )
+    .execute(&mut **tx)
+    .await?;
+
+    // Successor row with the same content, the new
+    // `autonomous_paused_until = now() + N hours`, and the
+    // breaker-trip change summary. `make_interval(hours => $N)`
+    // is the parameter-safe way to multiply a TIMESTAMPTZ by a
+    // bind-supplied integer (interval literals are not
+    // parametrizable).
+    sqlx::query!(
+        r#"
+        INSERT INTO mod_policies (
+            identifier, version, name, description,
+            scope, severity, decision_criteria,
+            examples_positive, examples_negative,
+            suggested_action_kinds, linked_label_value, exceptions,
+            human_required_always,
+            autonomy_mode, autonomous_action_kinds,
+            autonomous_confidence_threshold,
+            assisted_confidence_threshold,
+            autonomous_rate_limit_per_hour,
+            autonomous_reversal_breaker_threshold,
+            autonomous_paused_until,
+            is_retired,
+            created_by_moderator_id, change_summary, supersedes_id
+        )
+        VALUES (
+            $1, $2, $3, $4,
+            $5, $6, $7,
+            $8, $9,
+            $10, $11, $12,
+            $13,
+            $14, $15,
+            $16,
+            $17,
+            $18,
+            $19,
+            now() + make_interval(hours => $20::INT),
+            $21,
+            $22, $23, $24
+        )
+        "#,
+        identifier,
+        next_version,
+        prior.name,
+        prior.description,
+        prior.scope,
+        prior.severity,
+        prior.decision_criteria,
+        prior.examples_positive,
+        prior.examples_negative,
+        &prior.suggested_action_kinds,
+        prior.linked_label_value,
+        prior.exceptions,
+        prior.human_required_always,
+        prior.autonomy_mode,
+        &prior.autonomous_action_kinds,
+        prior.autonomous_confidence_threshold,
+        prior.assisted_confidence_threshold,
+        prior.autonomous_rate_limit_per_hour,
+        prior.autonomous_reversal_breaker_threshold,
+        hours,
+        prior.is_retired,
+        prior.created_by_moderator_id,
+        "auto-paused by reversal-rate circuit breaker",
+        prior.id,
+    )
+    .execute(&mut **tx)
+    .await?;
+
     Ok(())
 }

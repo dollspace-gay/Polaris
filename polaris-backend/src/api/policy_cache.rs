@@ -230,6 +230,8 @@ mod tests {
             autonomous_action_kinds: vec![],
             autonomous_confidence_threshold: 0.9,
             assisted_confidence_threshold: 0.7,
+            autonomous_rate_limit_per_hour: 60,
+            autonomous_reversal_breaker_threshold: 0.15,
             autonomous_paused_until: None,
             is_retired: false,
             created_at: chrono::Utc::now(),

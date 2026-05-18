@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(*) AS \"count!\"\n        FROM actions\n        WHERE subject_id = $1\n          AND actor_kind = 'human'\n          AND kind IN ('no_action', 'reverse')\n          AND created_at >= now() - make_interval(days => $2::INT)\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "63e0257210ce6d3d2c446290bd53e657134c5fe3aaad7b51e479021d39721564"
+}
