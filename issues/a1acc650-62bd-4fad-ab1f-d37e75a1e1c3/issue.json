@@ -1,0 +1,11 @@
+{
+  "uuid": "a1acc650-62bd-4fad-ab1f-d37e75a1e1c3",
+  "display_id": 236,
+  "title": "Pending-auto-actions queue endpoints + UI",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "38a78c72-404f-483c-807a-8f5a08f37e83",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T08:00:42.432796360Z",
+  "updated_at": "2026-05-18T08:00:42.432796360Z"
+}
