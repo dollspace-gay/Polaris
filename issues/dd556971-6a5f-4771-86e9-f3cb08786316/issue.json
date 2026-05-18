@@ -1,0 +1,10 @@
+{
+  "uuid": "dd556971-6a5f-4771-86e9-f3cb08786316",
+  "display_id": 220,
+  "title": "Fix three CI failures: hardcoded codegen path, missing proto/ copy, disk-full in test job",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T06:53:12.593390109Z",
+  "updated_at": "2026-05-18T06:53:12.593390109Z"
+}
