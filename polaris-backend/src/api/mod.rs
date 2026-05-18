@@ -24,6 +24,7 @@
 //! routes — see [`crate::middleware::auth::auth_middleware`].
 
 pub mod admin_moderators;
+pub mod admin_policies;
 pub mod appeals;
 pub mod auth_atproto;
 pub mod cases;
@@ -41,6 +42,7 @@ pub mod moderator_email;
 pub mod network_context;
 pub mod oauth_metadata;
 pub mod pattern_actions;
+pub mod policies;
 pub mod policy;
 pub mod policy_cache;
 pub mod readyz;
@@ -393,6 +395,45 @@ fn authed_router(state: ApiState) -> Router {
             "/api/admin/moderators/{did}",
             axum::routing::delete(admin_moderators::delete_moderator),
         )
+        // Issue #225 (WB-3): mod-policies admin REST surface — admin
+        // CRUD + version history + pause/resume.
+        //
+        // Route-ordering is load-bearing: the literal-path routes
+        // (`/history`, `/diff`, `/pause`) MUST be registered before
+        // the generic `:identifier/:version` route so axum's
+        // matcher doesn't consume `"history"` / `"diff"` / `"pause"`
+        // as a version path parameter.
+        .route(
+            "/api/admin/policies",
+            get(admin_policies::list_admin_policies).post(admin_policies::create_admin_policy),
+        )
+        .route(
+            "/api/admin/policies/{identifier}/history",
+            get(admin_policies::get_admin_policy_history),
+        )
+        .route(
+            "/api/admin/policies/{identifier}/diff",
+            get(admin_policies::get_admin_policy_diff),
+        )
+        .route(
+            "/api/admin/policies/{identifier}/pause",
+            post(admin_policies::pause_admin_policy).delete(admin_policies::resume_admin_policy),
+        )
+        .route(
+            "/api/admin/policies/{identifier}",
+            get(admin_policies::get_admin_policy).patch(admin_policies::patch_admin_policy),
+        )
+        // Catch-all version path — registered LAST so the literal
+        // routes above win the matcher's longest-prefix race.
+        .route(
+            "/api/admin/policies/{identifier}/{version}",
+            get(admin_policies::get_admin_policy_at_version),
+        )
+        // Moderator-facing read-only browse (REQ-D4). Same DTO shape
+        // the admin surface returns; RBAC is `Role::Moderator` or
+        // higher (handler-enforced).
+        .route("/api/policies", get(policies::list_policies))
+        .route("/api/policies/{identifier}", get(policies::get_policy))
         .route("/api/wellness/exposure/me", get(wellness::get_my_exposure))
         .route(
             "/api/wellness/exposure/me/cap",

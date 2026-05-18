@@ -24,6 +24,15 @@ use polaris_types::{
 };
 use serde::{Deserialize, Serialize};
 
+// Workbook policy DTO re-exports (WB-3 / #225). The canonical
+// shape lives in `crate::api::admin_policies::dto`; we re-export
+// here so other modules (and the wasm frontend's `api_client/dto.rs`,
+// WB-4 / #226) import from a single, stable path per REQ-C3.
+pub use crate::api::admin_policies::dto::{
+    CreatePolicyDto, DiffChangeDto, ModPolicyDto, ModPolicyEditDto, ModPolicyHistoryEntryDto,
+    ModPolicySummaryDto, PausePolicyDto, PolicyDiffDto,
+};
+
 /// Aggregate response for `GET /api/cases/:subject_id`.
 ///
 /// Composes everything the case view (design.md §5.2) renders for a single
