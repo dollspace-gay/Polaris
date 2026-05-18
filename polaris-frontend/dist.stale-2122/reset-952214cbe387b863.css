@@ -1,0 +1,122 @@
+/*
+ * Minimal normalize + box-sizing reset.
+ * Establishes the baseline so component CSS can rely on predictable defaults
+ * across modern browsers (Firefox, Chromium, WebKit).
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-tab-size: 4;
+  tab-size: 4;
+  line-height: var(--line-height-normal);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0 0 var(--space-sm);
+  line-height: var(--line-height-tight);
+  font-weight: 600;
+}
+
+p {
+  margin: 0 0 var(--space-sm);
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+a:hover,
+a:focus-visible {
+  text-decoration: underline;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+img,
+svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/*
+ * Root-route transient states. These are top-level app-shell messages
+ * (loading, redirect, error) rendered by `crate::app` while the router
+ * matches; styling them here keeps the app-shell rules co-located with
+ * the rest of the document defaults.
+ */
+.root-route__loading,
+.root-route__redirect,
+.root-route__error {
+  display: block;
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--font-size-sm);
+}
+
+.root-route__loading,
+.root-route__redirect {
+  color: var(--color-fg-muted);
+}
+
+.root-route__error {
+  margin: var(--space-md);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-secondary);
+  border-left: 4px solid var(--color-danger);
+  color: var(--color-danger);
+}

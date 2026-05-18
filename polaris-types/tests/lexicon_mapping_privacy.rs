@@ -29,7 +29,7 @@ use polaris_types::{
     escalation::{EmbeddedObservation, Escalation, SubjectRef},
     evidence::EvidencePointer,
     ids::{Did, EscalationId, ModeratorId},
-    lexicon_mapping::{to_lexicon_escalation, to_lexicon_observation_kind, MappingError},
+    lexicon_mapping::{MappingError, to_lexicon_escalation, to_lexicon_observation_kind},
     observation::ObservationKind,
 };
 
@@ -194,8 +194,9 @@ fn fixture_sample_escalation_deserializes_and_maps() {
 fn fixture_evidence_pointer_deserializes_and_maps() {
     let json = include_str!("fixtures/lexicons/sample_evidence_pointer.json");
     let wire: polaris_lexicons::gay::dollspace::polaris::evidence_pointer::Main =
-        serde_json::from_str(json)
-            .expect("sample_evidence_pointer.json must deserialize into wire::evidence_pointer::Main");
+        serde_json::from_str(json).expect(
+            "sample_evidence_pointer.json must deserialize into wire::evidence_pointer::Main",
+        );
 
     let internal = polaris_types::lexicon_mapping::from_lexicon_evidence_pointer(wire)
         .expect("from_lexicon_evidence_pointer must succeed on valid fixture");

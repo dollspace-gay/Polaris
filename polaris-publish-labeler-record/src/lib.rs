@@ -141,6 +141,23 @@ pub enum BuildError {
     /// declared value set.
     #[error("label_values must be non-empty")]
     EmptyLabelValues,
+
+    /// `labelValueDefinitions` is not 1:1 with `label_values`. Either
+    /// some values have no matching definition (`missing`) or some
+    /// definitions reference a value the labeler doesn't claim
+    /// (`extra`). Surfaced eagerly to keep bsky.app's profile-page
+    /// rendering deterministic: a partial offering produces a
+    /// half-blank UI which is worse than a clear build error.
+    #[error(
+        "labelValueDefinitions must be 1:1 with label_values \
+         (missing: {missing:?}, extra: {extra:?})"
+    )]
+    DefinitionMismatch {
+        /// Label values for which no definition was supplied.
+        missing: Vec<String>,
+        /// Definitions whose `identifier` is not in `label_values`.
+        extra: Vec<String>,
+    },
 }
 
 /// Errors that [`validate_record`] (the wrapper, not the proto-blue
@@ -188,15 +205,62 @@ pub enum ValidationError {
 /// guaranteed parseable but has not yet been schema-validated against
 /// the lexicon — call [`validate_record`] for that.
 ///
+/// The returned record carries **both** `policies.labelValues` (the
+/// declared set of values this labeler may emit) **and**
+/// `policies.labelValueDefinitions` (per-value UI metadata: severity,
+/// blur behavior, default subscriber setting, English locale strings).
+/// bsky.app's profile UI renders the labeler's offering from
+/// `labelValueDefinitions`; a record with only raw values (no
+/// definitions) is accepted by the AppView but produces a blank
+/// "Labels" surface on the profile page — operators see no evidence
+/// the labeler advertises anything. Polaris emits sensible defaults
+/// when the caller does not supply explicit definitions (see
+/// [`default_definitions_for`]) so an operator's first-run wizard
+/// flow yields a profile page that immediately surfaces the labels.
+///
 /// # Errors
 ///
 /// Returns a [`BuildError`] if `signing_pubkey` is not a parseable
-/// did:key, `service_url` is not a valid HTTPS URL, or `label_values`
-/// is empty.
+/// did:key, `service_url` is not a valid HTTPS URL, `label_values`
+/// is empty, or any provided definition's `identifier` is not in
+/// `label_values`.
 pub fn build_labeler_service_record(
     service_url: &str,
     signing_pubkey: &str,
     label_values: Vec<String>,
+) -> Result<RecordValue, BuildError> {
+    let definitions = default_definitions_for(&label_values);
+    build_labeler_service_record_with_definitions(
+        service_url,
+        signing_pubkey,
+        label_values,
+        definitions,
+    )
+}
+
+/// Same as [`build_labeler_service_record`] but allows the caller to
+/// supply explicit `labelValueDefinitions`. Use this when the
+/// operator has configured per-label metadata (severity, blur
+/// behavior, locales) and you want to honor it verbatim instead of
+/// the default-fill path.
+///
+/// `definitions` must contain exactly one entry per `label_value`:
+/// extras (a definition whose identifier isn't in `label_values`)
+/// and gaps (a value without a matching definition) both yield a
+/// [`BuildError::DefinitionMismatch`]. The 1:1 contract surfaces
+/// operator config drift loudly rather than letting bsky.app render
+/// a partial offering.
+///
+/// # Errors
+///
+/// In addition to the [`build_labeler_service_record`] error set,
+/// returns [`BuildError::DefinitionMismatch`] when the definition
+/// set is not exactly 1:1 with `label_values`.
+pub fn build_labeler_service_record_with_definitions(
+    service_url: &str,
+    signing_pubkey: &str,
+    label_values: Vec<String>,
+    definitions: Vec<proto_blue::api::com::atproto::label::defs::LabelValueDefinition>,
 ) -> Result<RecordValue, BuildError> {
     // Validate the service URL eagerly so a typo is caught at flag-
     // parse time rather than at publish time.
@@ -219,8 +283,25 @@ pub fn build_labeler_service_record(
         return Err(BuildError::EmptyLabelValues);
     }
 
+    // 1:1 cross-check: every value has a definition; no extras.
+    let value_set: std::collections::BTreeSet<&str> =
+        label_values.iter().map(String::as_str).collect();
+    let def_set: std::collections::BTreeSet<&str> =
+        definitions.iter().map(|d| d.identifier.as_str()).collect();
+    if value_set != def_set {
+        let missing: Vec<String> = value_set
+            .difference(&def_set)
+            .map(|s| (*s).to_owned())
+            .collect();
+        let extra: Vec<String> = def_set
+            .difference(&value_set)
+            .map(|s| (*s).to_owned())
+            .collect();
+        return Err(BuildError::DefinitionMismatch { missing, extra });
+    }
+
     let policies = proto_blue::api::app::bsky::labeler::defs::LabelerPolicies {
-        label_value_definitions: None,
+        label_value_definitions: Some(definitions),
         label_values,
     };
 
@@ -235,6 +316,51 @@ pub fn build_labeler_service_record(
     };
 
     Ok(RecordValue { inner: main })
+}
+
+/// Auto-generate one [`LabelValueDefinition`] per label value with
+/// neutral, operator-overridable defaults: `severity = "inform"`
+/// (least intrusive), `blurs = "none"` (don't hide content),
+/// `defaultSetting = "warn"` (subscribers see a notice), and one
+/// English locale where the display name equals the identifier and
+/// the description names the labeler. Returned in the same order as
+/// `label_values` so a 1:1 zip is deterministic.
+///
+/// Operators who want richer per-label metadata (per-locale strings,
+/// severity escalation, blur-on-media for image labels, etc.) should
+/// pass their own definitions to
+/// [`build_labeler_service_record_with_definitions`]. The defaults
+/// here exist so the first-run wizard produces a profile page that
+/// already renders the labeler's offering — see the doc on
+/// [`build_labeler_service_record`] for the bsky.app rendering
+/// rationale.
+///
+/// [`LabelValueDefinition`]: proto_blue::api::com::atproto::label::defs::LabelValueDefinition
+#[must_use]
+pub fn default_definitions_for(
+    label_values: &[String],
+) -> Vec<proto_blue::api::com::atproto::label::defs::LabelValueDefinition> {
+    use proto_blue::api::com::atproto::label::defs::{
+        LabelValueDefinition, LabelValueDefinitionStrings,
+    };
+    label_values
+        .iter()
+        .map(|identifier| LabelValueDefinition {
+            adult_only: Some(false),
+            blurs: "none".to_owned(),
+            default_setting: Some("warn".to_owned()),
+            identifier: identifier.clone(),
+            locales: vec![LabelValueDefinitionStrings {
+                description: format!(
+                    "Label '{identifier}' as advertised by this labeler. The operator has \
+                     not yet supplied a custom description for this value.",
+                ),
+                lang: "en".to_owned(),
+                name: identifier.clone(),
+            }],
+            severity: "inform".to_owned(),
+        })
+        .collect()
 }
 
 /// Validate a [`RecordValue`] against the embedded

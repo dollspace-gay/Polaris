@@ -1,0 +1,50 @@
+[
+  {
+    "timestamp": "2026-05-18T01:59:45.387179977+00:00",
+    "old_local_id": -1,
+    "old_display": "L1",
+    "new_display_id": 203,
+    "title": "Add ACTION verb: SCHEDULE_TAKEDOWN (deferred takedown with cancel)",
+    "agent_id": "TeIq"
+  },
+  {
+    "timestamp": "2026-05-18T01:59:45.387179977+00:00",
+    "old_local_id": -2,
+    "old_display": "L2",
+    "new_display_id": 204,
+    "title": "Report-card actions: invisible button text + missing Dismiss/Ignore-Reporter + prominent reporter ID",
+    "agent_id": "TeIq"
+  },
+  {
+    "timestamp": "2026-05-18T01:59:45.387179977+00:00",
+    "old_local_id": -3,
+    "old_display": "L3",
+    "new_display_id": 205,
+    "title": "Supervisor must abort dormant consumers + reap finished JoinHandles",
+    "agent_id": "TeIq"
+  },
+  {
+    "timestamp": "2026-05-18T01:59:45.387179977+00:00",
+    "old_local_id": -4,
+    "old_display": "L4",
+    "new_display_id": 206,
+    "title": "Fix supervisor DNS storm by aborting dormant labeler consumers",
+    "agent_id": "TeIq"
+  },
+  {
+    "timestamp": "2026-05-18T01:59:45.387179977+00:00",
+    "old_local_id": -5,
+    "old_display": "L5",
+    "new_display_id": 207,
+    "title": "Add immediate retry to AppView client in network_context to absorb single-blip blackholes",
+    "agent_id": "TeIq"
+  },
+  {
+    "timestamp": "2026-05-18T01:59:45.387179977+00:00",
+    "old_local_id": -6,
+    "old_display": "L6",
+    "new_display_id": 208,
+    "title": "Add immediate retry to network_context get_json for transient AppView blackholes",
+    "agent_id": "TeIq"
+  }
+]

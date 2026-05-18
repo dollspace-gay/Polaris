@@ -181,7 +181,16 @@ impl PgReputationProvider {
         let increment = match kind {
             ActionKind::Label | ActionKind::Takedown => ActionIncrement::Actioned,
             ActionKind::NoAction => ActionIncrement::Dismissed,
-            ActionKind::Mute | ActionKind::Warn | ActionKind::Escalate | ActionKind::Reverse => {
+            // Comment is a moderator note — it changes nothing about
+            // the reporter's calibration signal, so we skip the
+            // increment entirely (same shape as Mute / Warn / Escalate /
+            // Reverse, which also don't contribute to the
+            // reports_actioned vs reports_dismissed ratio).
+            ActionKind::Mute
+            | ActionKind::Warn
+            | ActionKind::Escalate
+            | ActionKind::Reverse
+            | ActionKind::Comment => {
                 return Ok(());
             }
         };

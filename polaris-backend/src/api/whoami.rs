@@ -124,14 +124,42 @@ pub async fn whoami(
     }))
 }
 
-/// First-run heuristic: empty `actions` AND empty `labels` table.
+/// First-run heuristic.
 ///
-/// Both tables are append-only by design (the trigger on `actions`
-/// rejects every UPDATE / DELETE; the labels table is a write-once
-/// audit substrate for the labeler firehose). The flag therefore
-/// flips from `true` → `false` exactly once per deployment and
-/// stays `false` thereafter.
+/// Three independent "setup is done" signals; the flag is `false`
+/// when any one of them fires:
+///
+/// 1. `polaris_setup_state.did_document_updated_at IS NOT NULL` —
+///    the setup wizard (#85) completed step 3 (PLC DID-document
+///    update). This is the **primary** signal: it flips the moment
+///    the operator finishes the wizard, before any moderation
+///    happens. Without this signal a freshly-set-up labeler would
+///    loop back to `/setup` indefinitely because `actions` and
+///    `labels` only fill in as moderation traffic flows.
+/// 2. `actions` is non-empty — at least one moderator action has
+///    been committed. Catches deployments that pre-date #85 or that
+///    skipped the wizard.
+/// 3. `labels` is non-empty — at least one signed label has been
+///    emitted to the `subscribeLabels` firehose. Same fallback
+///    rationale as `actions`.
+///
+/// All three tables are append-only (the trigger on `actions`
+/// rejects every UPDATE / DELETE; `labels` is a write-once audit
+/// substrate; `polaris_setup_state.did_document_updated_at` is only
+/// written by the wizard and is never `NULL`-ed back). The flag
+/// therefore flips from `true` → `false` exactly once per
+/// deployment and stays `false` thereafter.
 async fn is_first_run(state: &ApiState) -> Result<bool, ApiError> {
+    let setup_done: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar!(
+        r"SELECT did_document_updated_at FROM polaris_setup_state WHERE id = TRUE",
+    )
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(RepoError::from)?
+    .flatten();
+    if setup_done.is_some() {
+        return Ok(false);
+    }
     let action_count: i64 = sqlx::query_scalar!("SELECT count(*) FROM actions")
         .fetch_one(&state.pool)
         .await

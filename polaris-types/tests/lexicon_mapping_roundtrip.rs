@@ -36,9 +36,8 @@ use polaris_types::{
     evidence::EvidencePointer,
     ids::{Did, EscalationId, LabelValue},
     lexicon_mapping::{
-        from_lexicon_embedded_observation, from_lexicon_escalation,
-        from_lexicon_evidence_pointer, to_lexicon_embedded_observation,
-        to_lexicon_escalation, to_lexicon_evidence_pointer,
+        from_lexicon_embedded_observation, from_lexicon_escalation, from_lexicon_evidence_pointer,
+        to_lexicon_embedded_observation, to_lexicon_escalation, to_lexicon_evidence_pointer,
     },
     observation::ObservationKind,
 };
@@ -80,32 +79,30 @@ fn label_value_strategy() -> impl Strategy<Value = String> {
 fn observation_kind_strategy() -> impl Strategy<Value = ObservationKind> {
     prop_oneof![
         // ImageHashCluster
-        ("[a-f0-9]{16}", 0u32..=64u32).prop_map(|(hash, distance)| {
-            ObservationKind::ImageHashCluster { hash, distance }
-        }),
+        ("[a-f0-9]{16}", 0u32..=64u32)
+            .prop_map(|(hash, distance)| { ObservationKind::ImageHashCluster { hash, distance } }),
         // AccountCohort
-        (
-            "[a-z0-9]{8,16}",
-            confidence_strategy()
-        )
-            .prop_map(|(cohort_id, similarity_score)| {
-                ObservationKind::AccountCohort {
-                    cohort_id,
-                    similarity_score,
-                }
-            }),
+        ("[a-z0-9]{8,16}", confidence_strategy()).prop_map(|(cohort_id, similarity_score)| {
+            ObservationKind::AccountCohort {
+                cohort_id,
+                similarity_score,
+            }
+        }),
         // ReplyBrigade
         at_uri_strategy().prop_map(|thread_uri| ObservationKind::ReplyBrigade { thread_uri }),
         // ExternalLabel
-        (did_strategy(), label_value_strategy(), confidence_strategy()).prop_map(
-            |(source, label_value, weight)| {
+        (
+            did_strategy(),
+            label_value_strategy(),
+            confidence_strategy()
+        )
+            .prop_map(|(source, label_value, weight)| {
                 ObservationKind::ExternalLabel {
                     source: Did::new(&source),
                     label_value: LabelValue::new(&label_value),
                     weight,
                 }
-            }
-        ),
+            }),
         // ClassifierSignal
         (
             "[a-z]{4,12}-v[0-9]",
@@ -160,10 +157,10 @@ fn subject_ref_strategy() -> impl Strategy<Value = SubjectRef> {
 /// Strategy for a complete [`Escalation`] over the safe-to-federate subset.
 fn escalation_strategy() -> impl Strategy<Value = Escalation> {
     (
-        did_strategy(),           // source_did
-        did_strategy(),           // target_did
-        subject_ref_strategy(),   // subject
-        "[A-Za-z ]{10,80}",       // reason
+        did_strategy(),         // source_did
+        did_strategy(),         // target_did
+        subject_ref_strategy(), // subject
+        "[A-Za-z ]{10,80}",     // reason
         prop::collection::vec(embedded_observation_strategy(), 0..=5),
         prop::collection::vec(evidence_pointer_strategy(), 0..=3),
     )

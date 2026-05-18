@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE upstream_labelers\n        SET dormant_until = $2\n        WHERE did = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3a7ade78c2a9c5fefd3caf4263f87b9823649bbc861cd3b7c13971b92000e14d"
+}

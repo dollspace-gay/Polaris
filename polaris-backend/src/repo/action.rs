@@ -38,7 +38,7 @@ use polaris_types::{
     Action, ActionId, ActionKind, IncidentId, LabelValue, ModeratorId, PolicyId, SubjectId,
     SubjectKind,
 };
-use sqlx::PgPool;
+use sqlx::{PgPool, Postgres, Transaction};
 
 use super::RepoError;
 use crate::audit::{AuditEvent, AuditLog};
@@ -105,6 +105,19 @@ pub trait ActionRepo: Send + Sync {
     fn list_by_incident(
         &self,
         incident_id: IncidentId,
+        limit: i64,
+    ) -> impl std::future::Future<Output = Result<Vec<Action>, RepoError>> + Send;
+
+    /// List every action ever taken against `subject_id`, across every
+    /// incident the subject has been involved in, oldest first, capped
+    /// at `limit`. The case-view audit timeline calls this.
+    ///
+    /// Implemented as a direct filter on `actions.subject_id` rather
+    /// than the previous brute-force "walk incidents, then walk each
+    /// incident's actions" loop — one SQL pass instead of N+1.
+    fn list_by_subject(
+        &self,
+        subject_id: SubjectId,
         limit: i64,
     ) -> impl std::future::Future<Output = Result<Vec<Action>, RepoError>> + Send;
 
@@ -178,180 +191,55 @@ impl PgActionRepo {
         self.moderator_anomaly = Some(config);
         self
     }
+
+    /// Insert an action inside a caller-supplied transaction. Runs the
+    /// same evidence-job enqueue, reporter-reputation update, audit-log
+    /// append, and moderator-behavior-anomaly hook as
+    /// [`Self::insert`], but does NOT open or commit the transaction —
+    /// the caller controls the boundary.
+    ///
+    /// Issue #202: the `submit_action` handler's per-report idempotency
+    /// path holds a `SELECT … FOR UPDATE` lock on the `reports` row and
+    /// updates `reports.actioned_at` atomically with the action insert.
+    /// Both operations must commit together, so the handler hands its
+    /// transaction in here.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RepoError`] for any database-side failure. The caller
+    /// is responsible for rolling back (or letting the `Transaction`
+    /// drop and auto-rollback) on `Err`.
+    pub async fn insert_in_tx(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        new: NewAction,
+    ) -> Result<Action, RepoError> {
+        insert_action_in_tx(
+            tx,
+            &new,
+            self.reputation.as_deref(),
+            self.moderator_anomaly.as_ref(),
+        )
+        .await
+    }
 }
 
 impl ActionRepo for PgActionRepo {
-    #[allow(
-        clippy::too_many_lines,
-        reason = "single-tx orchestration of the action insert + \
-                  evidence-job enqueue + reputation update + audit-log \
-                  append. Splitting into sub-helpers would force passing \
-                  `&mut PgConnection`-backed tx state through several \
-                  hops and obscure the single-transaction story."
-    )]
     async fn insert(&self, new: NewAction) -> Result<Action, RepoError> {
-        let kind_str = new.kind.as_str();
-        let label_str = new.label.as_ref().map(LabelValue::as_str);
-        // `policy_refs` is a TEXT[] in Postgres; sqlx encodes `&[String]` as
-        // such directly. Build the owned `Vec<String>` once and bind a slice
-        // view to keep the macro's borrow checker happy.
-        let policy_refs: Vec<String> = new
-            .policy_refs
-            .iter()
-            .map(|p| p.as_str().to_owned())
-            .collect();
-
-        // Wrap the INSERT INTO actions + the evidence-job enqueue in a
-        // single transaction so the row and its job materialise (or
-        // don't) together. See module-level rustdoc.
+        // Wrap the action insert + side-effects (evidence-job, reporter
+        // reputation, audit log, moderator anomaly) in a single
+        // transaction so all of them materialise — or none of them do.
+        // See [`insert_action_in_tx`] for the body.
         let mut tx = self.pool.begin().await?;
-
-        let row = sqlx::query!(
-            r#"
-            INSERT INTO actions (
-                incident_id, subject_id, moderator_id, kind, label_value,
-                reasoning, policy_refs, reversible_until, reverses_action_id
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING id, incident_id, subject_id, moderator_id, kind, label_value,
-                      reasoning, policy_refs, reversible_until, reverses_action_id,
-                      emitted_to_atproto, evidence_car_cid, created_at
-            "#,
-            new.incident_id.0,
-            new.subject_id.0,
-            new.moderator_id.0,
-            kind_str,
-            label_str,
-            new.reasoning,
-            &policy_refs,
-            new.reversible_until,
-            new.reverses_action_id.map(|a| a.0),
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-
-        // Look up the parent subject's kind + uri to decide whether to
-        // enqueue an evidence job. Account-shaped subjects never carry
-        // an AT-URI worth snapshotting; record-shaped subjects with a
-        // populated `uri` enqueue one job per action.
-        let subject_row = sqlx::query!(
-            r#"
-            SELECT kind, uri
-            FROM subjects
-            WHERE id = $1
-            "#,
-            row.subject_id,
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-
-        if let Some(uri) = subject_row.uri
-            && let Some(kind) = SubjectKind::from_wire(&subject_row.kind)
-            && !matches!(kind, SubjectKind::Account)
-        {
-            sqlx::query!(
-                r#"
-                INSERT INTO evidence_jobs (action_id, subject_uri)
-                VALUES ($1, $2)
-                ON CONFLICT (action_id) DO NOTHING
-                "#,
-                row.id,
-                uri,
-            )
-            .execute(&mut *tx)
-            .await?;
-        }
-
-        // Issue #37: reporter-reputation update. When a reputation
-        // provider is attached, walk the reports attached to this
-        // action's incident and bump each reporter's stats. The
-        // walk happens inside the same tx so reporter_stats commits
-        // atomically with the action row. `record_action_with` is a
-        // no-op for kinds that don't credit / demerit a reporter
-        // (Mute/Warn/Escalate/Reverse), so the call is safe to make
-        // for every action kind.
-        if let Some(reputation) = self.reputation.as_ref() {
-            // One query for the distinct reporter DIDs on the incident.
-            // The `reports` table has `incident_id IS NULL` rows (an
-            // unaggregated report); those don't belong to this action,
-            // so the WHERE clause filters them out.
-            let reporter_rows = sqlx::query!(
-                r#"
-                SELECT DISTINCT reporter_did
-                FROM reports
-                WHERE incident_id = $1
-                "#,
-                row.incident_id,
-            )
-            .fetch_all(&mut *tx)
-            .await?;
-            let action_kind =
-                ActionKind::from_wire(&row.kind).ok_or_else(|| RepoError::Decode {
-                    message: format!("actions.kind={:?} not in polaris-types contract", row.kind),
-                })?;
-            for reporter in reporter_rows {
-                reputation
-                    .record_action_with(&mut tx, &reporter.reporter_did, action_kind)
-                    .await
-                    .map_err(map_reputation_error)?;
-            }
-        }
-
-        // Audit-log append in the same transaction (issue #35;
-        // design.md §6 + §9). The action row, its evidence-job row,
-        // and the audit row commit atomically — or none of them do.
-        // The `kind` flips between `action.commit` and
-        // `action.reverse` so dashboards can filter on it without
-        // re-parsing the payload.
-        let audit_kind = if matches!(new.kind, ActionKind::Reverse) {
-            "action.reverse"
-        } else {
-            "action.commit"
-        };
-        let audit_payload = serde_json::json!({
-            "action_id": row.id,
-            "subject_id": row.subject_id,
-            "incident_id": row.incident_id,
-            "moderator_id": row.moderator_id,
-            "kind": row.kind,
-            "reverses_action_id": row.reverses_action_id,
-        });
-        AuditLog::record(
+        let action = insert_action_in_tx(
             &mut tx,
-            AuditEvent {
-                actor: ModeratorId(row.moderator_id).0.to_string(),
-                kind: audit_kind.to_owned(),
-                payload: audit_payload,
-            },
+            &new,
+            self.reputation.as_deref(),
+            self.moderator_anomaly.as_ref(),
         )
         .await?;
-
-        // Issue #73 / T1 mitigation. Run the moderator-behavior-anomaly
-        // detector inside the same transaction so a tripped detector
-        // emits its observation atomically with the action row. The
-        // hook is opt-in (`None` skips it) so tests that don't
-        // exercise the detector keep the action-insert path lean.
-        if let Some(cfg) = self.moderator_anomaly.as_ref() {
-            moderator_anomaly::check_and_emit(&mut tx, ModeratorId(row.moderator_id), cfg).await?;
-        }
-
         tx.commit().await?;
-
-        row_to_action(
-            row.id,
-            row.incident_id,
-            row.subject_id,
-            row.moderator_id,
-            &row.kind,
-            row.label_value,
-            row.reasoning,
-            row.policy_refs,
-            row.reversible_until,
-            row.reverses_action_id,
-            row.emitted_to_atproto,
-            row.evidence_car_cid,
-            row.created_at,
-        )
+        Ok(action)
     }
 
     async fn get(&self, id: ActionId) -> Result<Option<Action>, RepoError> {
@@ -429,6 +317,48 @@ impl ActionRepo for PgActionRepo {
         Ok(actions)
     }
 
+    async fn list_by_subject(
+        &self,
+        subject_id: SubjectId,
+        limit: i64,
+    ) -> Result<Vec<Action>, RepoError> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, incident_id, subject_id, moderator_id, kind, label_value,
+                   reasoning, policy_refs, reversible_until, reverses_action_id,
+                   emitted_to_atproto, evidence_car_cid, created_at
+            FROM actions
+            WHERE subject_id = $1
+            ORDER BY created_at ASC
+            LIMIT $2
+            "#,
+            subject_id.0,
+            limit,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut actions = Vec::with_capacity(rows.len());
+        for row in rows {
+            actions.push(row_to_action(
+                row.id,
+                row.incident_id,
+                row.subject_id,
+                row.moderator_id,
+                &row.kind,
+                row.label_value,
+                row.reasoning,
+                row.policy_refs,
+                row.reversible_until,
+                row.reverses_action_id,
+                row.emitted_to_atproto,
+                row.evidence_car_cid,
+                row.created_at,
+            )?);
+        }
+        Ok(actions)
+    }
+
     async fn find_reversal(&self, id: ActionId) -> Result<Option<Action>, RepoError> {
         let row = sqlx::query!(
             r#"
@@ -464,6 +394,187 @@ impl ActionRepo for PgActionRepo {
     }
 }
 
+// ── shared insert helper ────────────────────────────────────────────────
+
+/// Insert an action row inside the caller's transaction, then run the
+/// per-insert side-effects: evidence-job enqueue, reporter-reputation
+/// update, audit-log append, and moderator-behavior-anomaly check.
+///
+/// Both [`PgActionRepo::insert`] (which opens its own tx and commits)
+/// and [`PgActionRepo::insert_in_tx`] (which threads through a caller-
+/// owned tx) delegate here so the action-insert contract stays in one
+/// place. The per-report idempotency path in the `submit_action`
+/// handler (issue #202) is the caller of the latter.
+#[allow(
+    clippy::too_many_lines,
+    reason = "single-tx orchestration of the action insert + \
+              evidence-job enqueue + reputation update + audit-log \
+              append. Splitting into sub-helpers would force passing \
+              `&mut PgConnection`-backed tx state through several \
+              hops and obscure the single-transaction story."
+)]
+async fn insert_action_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    new: &NewAction,
+    reputation: Option<&PgReputationProvider>,
+    moderator_anomaly: Option<&ModeratorAnomalyConfig>,
+) -> Result<Action, RepoError> {
+    let kind_str = new.kind.as_str();
+    let label_str = new.label.as_ref().map(LabelValue::as_str);
+    // `policy_refs` is a TEXT[] in Postgres; sqlx encodes `&[String]` as
+    // such directly. Build the owned `Vec<String>` once and bind a slice
+    // view to keep the macro's borrow checker happy.
+    let policy_refs: Vec<String> = new
+        .policy_refs
+        .iter()
+        .map(|p| p.as_str().to_owned())
+        .collect();
+
+    let row = sqlx::query!(
+        r#"
+        INSERT INTO actions (
+            incident_id, subject_id, moderator_id, kind, label_value,
+            reasoning, policy_refs, reversible_until, reverses_action_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING id, incident_id, subject_id, moderator_id, kind, label_value,
+                  reasoning, policy_refs, reversible_until, reverses_action_id,
+                  emitted_to_atproto, evidence_car_cid, created_at
+        "#,
+        new.incident_id.0,
+        new.subject_id.0,
+        new.moderator_id.0,
+        kind_str,
+        label_str,
+        new.reasoning,
+        &policy_refs,
+        new.reversible_until,
+        new.reverses_action_id.map(|a| a.0),
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+
+    // Look up the parent subject's kind + uri to decide whether to
+    // enqueue an evidence job. Account-shaped subjects never carry
+    // an AT-URI worth snapshotting; record-shaped subjects with a
+    // populated `uri` enqueue one job per action.
+    let subject_row = sqlx::query!(
+        r#"
+        SELECT kind, uri
+        FROM subjects
+        WHERE id = $1
+        "#,
+        row.subject_id,
+    )
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if let Some(uri) = subject_row.uri
+        && let Some(kind) = SubjectKind::from_wire(&subject_row.kind)
+        && !matches!(kind, SubjectKind::Account)
+    {
+        sqlx::query!(
+            r#"
+            INSERT INTO evidence_jobs (action_id, subject_uri)
+            VALUES ($1, $2)
+            ON CONFLICT (action_id) DO NOTHING
+            "#,
+            row.id,
+            uri,
+        )
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    // Issue #37: reporter-reputation update. When a reputation
+    // provider is attached, walk the reports attached to this
+    // action's incident and bump each reporter's stats. The
+    // walk happens inside the same tx so reporter_stats commits
+    // atomically with the action row. `record_action_with` is a
+    // no-op for kinds that don't credit / demerit a reporter
+    // (Mute/Warn/Escalate/Reverse), so the call is safe to make
+    // for every action kind.
+    if let Some(reputation) = reputation {
+        // One query for the distinct reporter DIDs on the incident.
+        // The `reports` table has `incident_id IS NULL` rows (an
+        // unaggregated report); those don't belong to this action,
+        // so the WHERE clause filters them out.
+        let reporter_rows = sqlx::query!(
+            r#"
+            SELECT DISTINCT reporter_did
+            FROM reports
+            WHERE incident_id = $1
+            "#,
+            row.incident_id,
+        )
+        .fetch_all(&mut **tx)
+        .await?;
+        let action_kind = ActionKind::from_wire(&row.kind).ok_or_else(|| RepoError::Decode {
+            message: format!("actions.kind={:?} not in polaris-types contract", row.kind),
+        })?;
+        for reporter in reporter_rows {
+            reputation
+                .record_action_with(tx, &reporter.reporter_did, action_kind)
+                .await
+                .map_err(map_reputation_error)?;
+        }
+    }
+
+    // Audit-log append in the same transaction (issue #35;
+    // design.md §6 + §9). The action row, its evidence-job row,
+    // and the audit row commit atomically — or none of them do.
+    // The `kind` flips between `action.commit` and
+    // `action.reverse` so dashboards can filter on it without
+    // re-parsing the payload.
+    let audit_kind = if matches!(new.kind, ActionKind::Reverse) {
+        "action.reverse"
+    } else {
+        "action.commit"
+    };
+    let audit_payload = serde_json::json!({
+        "action_id": row.id,
+        "subject_id": row.subject_id,
+        "incident_id": row.incident_id,
+        "moderator_id": row.moderator_id,
+        "kind": row.kind,
+        "reverses_action_id": row.reverses_action_id,
+    });
+    AuditLog::record(
+        tx,
+        AuditEvent {
+            actor: ModeratorId(row.moderator_id).0.to_string(),
+            kind: audit_kind.to_owned(),
+            payload: audit_payload,
+        },
+    )
+    .await?;
+
+    // Issue #73 / T1 mitigation. Run the moderator-behavior-anomaly
+    // detector inside the same transaction so a tripped detector
+    // emits its observation atomically with the action row. The
+    // hook is opt-in (`None` skips it) so tests that don't
+    // exercise the detector keep the action-insert path lean.
+    if let Some(cfg) = moderator_anomaly {
+        moderator_anomaly::check_and_emit(tx, ModeratorId(row.moderator_id), cfg).await?;
+    }
+
+    row_to_action(
+        row.id,
+        row.incident_id,
+        row.subject_id,
+        row.moderator_id,
+        &row.kind,
+        row.label_value,
+        row.reasoning,
+        row.policy_refs,
+        row.reversible_until,
+        row.reverses_action_id,
+        row.emitted_to_atproto,
+        row.evidence_car_cid,
+        row.created_at,
+    )
+}
+
 // ── private decoders ────────────────────────────────────────────────────
 
 #[allow(
@@ -471,7 +582,7 @@ impl ActionRepo for PgActionRepo {
     reason = "row decoder mirrors the SELECT projection 1:1; bundling into a struct \
               would just shadow the sqlx-macro-generated row type"
 )]
-fn row_to_action(
+pub(crate) fn row_to_action(
     id: uuid::Uuid,
     incident_id: uuid::Uuid,
     subject_id: uuid::Uuid,

@@ -186,10 +186,9 @@ pub fn validate_transition(
             EscalationState::RejectedByTarget,
             EscalationState::WithdrawnBySource,
         ][..],
-        EscalationState::Acknowledged => &[
-            EscalationState::Active,
-            EscalationState::WithdrawnBySource,
-        ][..],
+        EscalationState::Acknowledged => {
+            &[EscalationState::Active, EscalationState::WithdrawnBySource][..]
+        }
         EscalationState::Active => &[
             EscalationState::Resolved,
             EscalationState::WithdrawnBySource,
@@ -268,8 +267,11 @@ mod tests {
                 .is_ok()
         );
         assert!(
-            validate_transition(EscalationState::Proposed, EscalationState::WithdrawnBySource)
-                .is_ok()
+            validate_transition(
+                EscalationState::Proposed,
+                EscalationState::WithdrawnBySource
+            )
+            .is_ok()
         );
     }
 
@@ -305,9 +307,7 @@ mod tests {
 
     #[test]
     fn proposed_cannot_go_to_resolved() {
-        assert!(
-            validate_transition(EscalationState::Proposed, EscalationState::Resolved).is_err()
-        );
+        assert!(validate_transition(EscalationState::Proposed, EscalationState::Resolved).is_err());
     }
 
     #[test]
@@ -323,9 +323,7 @@ mod tests {
 
     #[test]
     fn active_cannot_go_backwards() {
-        assert!(
-            validate_transition(EscalationState::Active, EscalationState::Proposed).is_err()
-        );
+        assert!(validate_transition(EscalationState::Active, EscalationState::Proposed).is_err());
         assert!(
             validate_transition(EscalationState::Active, EscalationState::Acknowledged).is_err()
         );

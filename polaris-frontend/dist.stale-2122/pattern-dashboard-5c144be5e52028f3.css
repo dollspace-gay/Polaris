@@ -1,0 +1,116 @@
+/*
+ * Pattern dashboard styles.
+ *
+ * Four panels arranged on a 12-column CSS Grid at desktop widths, collapsing
+ * to a single column at ≤ 768px (REQ-B4). The breakpoint test in
+ * `tests/styles_responsive.rs` parses this file to assert the mobile rule
+ * differs from the desktop rule.
+ */
+
+.pattern-dashboard {
+  padding: var(--space-lg);
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-primary);
+  min-height: 100vh;
+}
+
+.pattern-dashboard__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+}
+
+.pattern-dashboard__header h1 {
+  font-size: var(--font-size-xl);
+  margin: 0;
+}
+
+.pattern-dashboard__tagline {
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/*
+ * Issue #92: subdued hint that the Ctrl/Cmd-K command palette is
+ * reachable from anywhere. Visual only — the palette listens at
+ * the window level.
+ */
+.pattern-dashboard__cmdk-hint {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  margin: 0;
+}
+
+.pattern-dashboard__cmdk-hint kbd {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-xs);
+  margin: 0 0.15rem;
+  color: var(--color-fg-primary);
+}
+
+.pattern-dashboard__fetched {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  margin-bottom: var(--space-md);
+}
+
+.pattern-dashboard__loading,
+.pattern-dashboard__error {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.pattern-dashboard__error {
+  border-left: 4px solid var(--color-danger);
+  color: var(--color-danger);
+}
+
+.pattern-dashboard__loading {
+  color: var(--color-fg-muted);
+}
+
+.pattern-dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--space-md);
+}
+
+.pattern-dashboard__grid > * {
+  grid-column: span 6;
+  min-width: 0;
+}
+
+/*
+ * Mobile breakpoint: collapse the 12-column grid to a single column at
+ * ≤ 768px so panels stay legible on phone-sized viewports (REQ-B4).
+ */
+@media (max-width: 768px) {
+  .pattern-dashboard {
+    padding: var(--space-md);
+  }
+
+  .pattern-dashboard__grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-sm);
+  }
+
+  .pattern-dashboard__grid > * {
+    grid-column: span 1;
+  }
+}
+
+/* Bootstrap-only placeholder: rendered in the single-frame window
+ * after `LocalResource` resolves but before the `Effect` has copied
+ * the value into `cached_snapshot`. `hidden=true` removes it from
+ * layout; the rule exists so `styles_coverage` recognises the
+ * class name (Workstream B's coverage contract). */
+.pattern-dashboard__bootstrap-empty {
+  display: none;
+}

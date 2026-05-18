@@ -32,6 +32,7 @@ use std::future::Future;
 use crate::api_client::ApiError;
 use crate::api_client::dto::SubmitAction;
 use crate::app::LexiconRegistry;
+use crate::components::exposure_counter::record_action_on_global;
 use crate::validation::validate_label_def;
 
 /// Minimum length of the reasoning field. Mirrors
@@ -276,6 +277,15 @@ pub fn ActionComposer<S>(
     /// [`crate::pages::case_view::ClientSubmitter`]; tests pass
     /// [`StubSubmitter`].
     submitter: S,
+    /// Whether the subject has at least one media artifact attached.
+    /// Threaded through to the global exposure counter (issue #95) on
+    /// every successful submit: `record_action` increments the
+    /// `actions_submitted` field only when this is `true`, so the
+    /// counter measures actual graphic-content exposure rather than
+    /// total action volume. Defaults to `false` while the case-view
+    /// DTO does not yet surface `media_blobs`.
+    #[prop(default = false)]
+    subject_has_media: bool,
     /// Optional callback fired with the persisted [`Action`] on success.
     /// The page wires this to a refresh-token signal so the timeline
     /// picks up the new row.
@@ -289,6 +299,34 @@ where
     let (label, set_label) = signal(String::new());
     let (reasoning, set_reasoning) = signal(String::new());
     let (status, set_status) = signal(ComposerStatus::Idle);
+
+    // Moderator UX: the label-value input is a `<select>` populated
+    // from the labeler's declared `policies.labelValues` (fetched
+    // from `GET /api/labeler/policies`) — moderators should never
+    // hand-type a label value they could pick from a known set.
+    // The state below caches the available values; `None` is the
+    // pre-fetch / fetch-failed state and the composer falls back to
+    // a free-text input so the surface degrades gracefully if the
+    // operator hasn't completed setup or the endpoint is down.
+    let (label_options, set_label_options) = signal::<Option<Vec<String>>>(None);
+    #[cfg(target_arch = "wasm32")]
+    {
+        use crate::api_client::{PolarisApiClient as _, default_client};
+        leptos::task::spawn_local(async move {
+            if let Ok(client) = default_client("") {
+                if let Ok(policies) = client.labeler_policies().await {
+                    set_label_options.set(Some(policies.label_values));
+                }
+            }
+        });
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // Native test builds: no backend to fetch from; the
+        // composer renders the free-text fallback the same way it
+        // would on a fetch failure in the browser.
+        let _ = set_label_options;
+    }
 
     // Lexicon-validation message for the in-progress `label` field
     // (REQ-13 / AC-16, issue #34). `None` means "no error"; the submit
@@ -418,6 +456,10 @@ where
             // 24h reversibility window — `design.md` §5.5.
             reversible_until: chrono::Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            // The action composer is a per-subject submission, not a
+            // per-report decision; leave the idempotency key `None` so
+            // the backend's pre-#202 behavior is preserved here.
+            report_id: None,
         };
         set_status.set(ComposerStatus::Submitting);
         let s = submitter_for_submit.clone();
@@ -430,6 +472,15 @@ where
                     set_reasoning.set(String::new());
                     set_label.set(String::new());
                     set_status.set(ComposerStatus::Success);
+                    // Issue #95 / mod-workstation feature #5: increment
+                    // the global exposure counter on every successful
+                    // action submission against a media-bearing
+                    // subject. The function is a no-op when
+                    // `subject_has_media` is false OR the global
+                    // exposure signal has not been mounted (isolated
+                    // tests), so the wiring is safe regardless of the
+                    // host tree.
+                    record_action_on_global(subject_has_media);
                     if let Some(cb) = on_success {
                         cb.run(action);
                     }
@@ -490,14 +541,57 @@ where
 
             <div class="composer__row">
                 <label for="composer-label">"Label value (when kind=label)"</label>
-                <input
-                    id="composer-label"
-                    class="composer__label-input"
-                    type="text"
-                    aria-describedby="composer-label-lex-error"
-                    on:input=on_label_input
-                    prop:value=move || label.get()
-                />
+                // Moderators pick the label from a `<select>` populated
+                // with the labeler's declared `policies.labelValues`.
+                // The fetch above writes `label_options` once the
+                // policies endpoint responds; until then (or on fetch
+                // failure) the composer renders a free-text input
+                // fallback so the surface remains operable even when
+                // setup is incomplete. Both code paths fire the same
+                // `set_label` update so the downstream lexicon
+                // validator, the subscriber-effect preview, and the
+                // submit pipeline are unaffected.
+                {move || match label_options.get() {
+                    Some(options) if !options.is_empty() => view! {
+                        <select
+                            id="composer-label"
+                            class="composer__label-select"
+                            aria-describedby="composer-label-lex-error"
+                            on:change=on_label_input
+                            prop:value=move || label.get()
+                        >
+                            // Empty default so the moderator is forced
+                            // to make an intentional choice and the
+                            // `is_valid()` gate keeps the submit button
+                            // disabled until they do.
+                            <option value="">"Choose a label…"</option>
+                            {options.into_iter().map(|value| {
+                                let v = value.clone();
+                                view! {
+                                    <option value=value.clone()>{v}</option>
+                                }
+                            }).collect_view()}
+                        </select>
+                    }.into_any(),
+                    _ => view! {
+                        // Free-text fallback. Renders before the
+                        // policy fetch completes, and as a graceful
+                        // degradation if the operator hasn't completed
+                        // the setup wizard or `/api/labeler/policies`
+                        // returns 404. The lexicon validator still
+                        // gates the value at submit time so a typo
+                        // does not produce a malformed record.
+                        <input
+                            id="composer-label"
+                            class="composer__label-input"
+                            type="text"
+                            aria-describedby="composer-label-lex-error"
+                            placeholder="Loading declared labels… (or type one)"
+                            on:input=on_label_input
+                            prop:value=move || label.get()
+                        />
+                    }.into_any(),
+                }}
                 // REQ-13 / AC-16: inline lexicon-validation error for the
                 // in-progress label value. The `aria-live="polite"` region
                 // means screen readers announce the error as it appears
@@ -514,6 +608,22 @@ where
                     {move || lex_error.get().unwrap_or_default()}
                 </p>
             </div>
+
+            // Issue #96 / mod-workstation #6: inline subscriber-effect
+            // preview rendered ONLY when the composer's `kind` is
+            // `Label` and a value has been typed. The component
+            // fetches `/api/labeler/policies` on its own mount and
+            // renders a stacked-bar forecast of hide / warn / ignore
+            // shares using published-default heuristics — see the
+            // module docs on
+            // [`crate::components::subscriber_effect_preview`] for
+            // the honesty caveat about the data source.
+            <crate::components::subscriber_effect_preview::SubscriberEffectPreview
+                label_value=Signal::derive(move || label.get())
+                visible=Signal::derive(move || {
+                    matches!(kind.get(), ActionKind::Label) && !label.get().trim().is_empty()
+                })
+            />
 
             <div class="composer__row">
                 <label for="composer-reasoning">"Reasoning"</label>
@@ -605,6 +715,12 @@ const ALL_KINDS: &[ActionKind] = &[
     ActionKind::Warn,
     ActionKind::Escalate,
     ActionKind::NoAction,
+    // Ozone-parity `#modEventComment` (issue #188): a moderator note
+    // recorded in the `actions` table with no enforcement side-effect.
+    // The `reasoning` field doubles as the note body, so the rest of
+    // the composer's required-fields invariants (reasoning ≥ 10 chars,
+    // non-empty policy_refs) still apply.
+    ActionKind::Comment,
 ];
 
 /// Pull the current `value` off a DOM event target.

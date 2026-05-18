@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO moderator_roles (moderator_id, role, granted_by)\n          VALUES ($1, $2, $3)\n          ON CONFLICT (moderator_id, role) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2ee0d4d2beb0a10088d58d6395d75747db5da03144c0cd77ec873ae819ef5270"
+}

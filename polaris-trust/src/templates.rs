@@ -80,9 +80,7 @@ pub fn all() -> Vec<(&'static str, TrustPolicy)> {
 /// Look up a template by stable key. `None` if the key is unknown.
 #[must_use]
 pub fn by_name(name: &str) -> Option<TrustPolicy> {
-    all().into_iter()
-        .find(|(k, _)| *k == name)
-        .map(|(_, p)| p)
+    all().into_iter().find(|(k, _)| *k == name).map(|(_, p)| p)
 }
 
 /// Reference timestamp helper for documenting template-relative ages.
@@ -133,7 +131,10 @@ mod tests {
         let policy = high_csam_no_decay();
         match policy {
             TrustPolicy::V2(body) => {
-                assert!(body.time_decay.is_none(), "CSAM hash matches should not decay");
+                assert!(
+                    body.time_decay.is_none(),
+                    "CSAM hash matches should not decay"
+                );
             }
             TrustPolicy::V1 { .. } => panic!("template should be V2"),
         }
@@ -144,7 +145,9 @@ mod tests {
         let policy = moderate_spam_30d_decay();
         match policy {
             TrustPolicy::V2(body) => {
-                let decay = body.time_decay.expect("spam template should have time_decay");
+                let decay = body
+                    .time_decay
+                    .expect("spam template should have time_decay");
                 assert!((decay.half_life_days - 30.0).abs() < f32::EPSILON);
             }
             TrustPolicy::V1 { .. } => panic!("template should be V2"),

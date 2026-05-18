@@ -1,0 +1,585 @@
+/*
+ * Network panel — issue #97 / M2.
+ *
+ * Per-subject signal surface rendered in the case-view sidebar:
+ * profile signals, follow graph, reply graph, cohort membership,
+ * and shared-image clusters. Every visible class is BEM-shaped
+ * (`network-panel__<element>`, with `--<modifier>` for variants)
+ * so `tests/styles_coverage.rs` can verify every Rust-source
+ * `class="..."` literal has a matching selector here.
+ *
+ * Tokens only — no literal colour or spacing values (enforced by
+ * `tests/styles_tokens.rs`). Pairings clear WCAG AA (enforced by
+ * `tests/styles_contrast.rs`).
+ */
+
+/* ── Container ─────────────────────────────────────────────── */
+
+.network-panel {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  color: var(--color-fg-primary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.network-panel__title {
+  font-size: var(--font-size-lg);
+  margin: 0;
+  color: var(--color-fg-primary);
+}
+
+.network-panel__subtitle {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin: 0 0 var(--space-xs) 0;
+  color: var(--color-fg-secondary);
+}
+
+/* ── Status states ─────────────────────────────────────────── */
+
+.network-panel__loading {
+  color: var(--color-fg-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+.network-panel__error {
+  color: var(--color-danger);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.network-panel__section-unavailable {
+  color: var(--color-fg-muted);
+  font-style: italic;
+  margin: 0;
+  font-size: var(--font-size-xs);
+}
+
+.network-panel__source {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  margin: 0;
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-sm);
+  word-break: break-all;
+}
+
+/* ── Profile section ───────────────────────────────────────── */
+
+.network-panel__profile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.network-panel__profile-head {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+}
+
+.network-panel__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.network-panel__profile-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+  flex: 1;
+}
+
+.network-panel__display-name {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-fg-primary);
+  word-break: break-word;
+}
+
+.network-panel__handle {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  word-break: break-all;
+}
+
+.network-panel__did {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  word-break: break-all;
+}
+
+.network-panel__description {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.network-panel__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+}
+
+.network-panel__stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+/* ── Badges ────────────────────────────────────────────────── */
+
+.network-panel__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.network-panel__badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.network-panel__badge--new {
+  background-color: var(--color-warning);
+  color: var(--color-warning-fg);
+  border-color: var(--color-warning);
+}
+
+.network-panel__badge--labeler {
+  background-color: var(--color-accent);
+  color: var(--color-accent-fg);
+  border-color: var(--color-accent);
+}
+
+.network-panel__badge--pinned {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-secondary);
+}
+
+/* ── Follow / reply graph sections ─────────────────────────── */
+
+.network-panel__follow-graph,
+.network-panel__reply-graph,
+.network-panel__activity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* ── Engagement + activity + reply stats grids ─────────────── */
+
+.network-panel__engagement-stats,
+.network-panel__activity-stats,
+.network-panel__reply-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-xs) var(--space-md);
+  margin: 0;
+  padding: 0;
+  font-size: var(--font-size-xs);
+}
+
+/*
+ * `--full` modifier on a stat lets a long-form entry (e.g. an
+ * inline actor) span the whole grid width instead of being
+ * squeezed into one column. Used by the reply-graph's "top
+ * partner" rows where the actor name + handle don't fit a 160px
+ * minmax cell.
+ */
+.network-panel__stat--full {
+  grid-column: 1 / -1;
+}
+
+/* ── Activity-pattern charts ───────────────────────────────── */
+
+.network-panel__activity-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.network-panel__chart-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-fg-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.network-panel__chart-empty {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+/*
+ * Chart track — two stacked grid rows that share their column
+ * template. Top row is the bars (fixed height, normalised); bottom
+ * row is the axis labels at fixed column positions. Putting labels
+ * on their own row (instead of stuffing them inside each bar's
+ * column) is what fixes the previous "labels overlap the bars"
+ * layout — bars occupy 64px exclusively, labels get their own
+ * 16px-tall row below.
+ */
+.network-panel__chart-track {
+  display: flex;
+  flex-direction: column;
+}
+
+.network-panel__bar-row {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  align-items: end;
+  gap: 2px;
+  height: 64px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.network-panel__bar-row--daily {
+  grid-template-columns: repeat(30, 1fr);
+}
+
+.network-panel__bar-row--hourly {
+  grid-template-columns: repeat(24, 1fr);
+}
+
+.network-panel__bar-row--weekday {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.network-panel__bar {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  min-width: 0;
+  height: 100%;
+}
+
+.network-panel__bar-fill {
+  display: block;
+  width: 100%;
+  background-color: var(--color-accent);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  min-height: 1px;
+}
+
+/*
+ * Axis row — same column template as the bar row above so each
+ * label aligns with the bar in the same column. Empty cells
+ * (sparse-label charts like the 30-day daily one) hold the grid
+ * position without rendering text.
+ */
+.network-panel__axis-row {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  padding-top: var(--space-xs);
+}
+
+.network-panel__axis-row--daily {
+  grid-template-columns: repeat(30, 1fr);
+}
+
+.network-panel__axis-row--hourly {
+  grid-template-columns: repeat(24, 1fr);
+}
+
+.network-panel__axis-row--weekday {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.network-panel__axis-cell {
+  min-width: 0;
+  text-align: center;
+}
+
+.network-panel__axis-label {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+}
+
+/* ── Inline actor (used by reply-graph "top partner") ───────── */
+
+.network-panel__actor-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.network-panel__actor-name {
+  font-weight: 600;
+  color: var(--color-fg-primary);
+}
+
+.network-panel__actor-handle {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+}
+
+.network-panel__section-empty {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+.network-panel__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.network-panel__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.network-panel__column-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-fg-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.network-panel__mutual {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+  margin: 0;
+}
+
+/* ── Cohort signals section ────────────────────────────────── */
+
+.network-panel__cohort {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.network-panel__cohort-empty {
+  color: var(--color-fg-muted);
+  font-style: italic;
+  font-size: var(--font-size-xs);
+  margin: 0;
+}
+
+/* ── Shared-image clusters section ─────────────────────────── */
+
+.network-panel__shared-images {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.network-panel__shared-images-summary {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+  margin: 0;
+}
+
+.network-panel__shared-images-empty {
+  color: var(--color-fg-muted);
+  font-style: italic;
+  font-size: var(--font-size-xs);
+  margin: 0;
+}
+
+.network-panel__matched-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.network-panel__matched-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-xs);
+  align-items: baseline;
+}
+
+.network-panel__matched-link {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  word-break: break-all;
+  text-decoration: none;
+}
+
+.network-panel__matched-link:hover,
+.network-panel__matched-link:focus-visible {
+  text-decoration: underline;
+}
+
+.network-panel__matched-count {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* ── Actor lists (follow / follower rows) ──────────────────── */
+
+.network-panel__actor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.network-panel__actor-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.network-panel__actor-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.network-panel__actor-link {
+  color: var(--color-accent);
+  text-decoration: none;
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.network-panel__actor-link:hover,
+.network-panel__actor-link:focus-visible {
+  text-decoration: underline;
+}
+
+.network-panel__actor-name {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.network-panel__actor-handle {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
+ * Per-row pivot-to-case button. Sits beside the external Bluesky
+ * link; clicking POSTs `/api/subjects/lookup` for the actor's DID
+ * and navigates `/cases/{subject_id}` without a page reload.
+ * Disabled while the lookup is in flight so a moderator double-
+ * click cannot fire two requests.
+ */
+.network-panel__actor-pivot {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.network-panel__actor-pivot:hover:not(:disabled) {
+  background-color: var(--color-bg-elevated);
+}
+
+.network-panel__actor-pivot:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.network-panel__actor-pivot:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.network-panel__empty-actor-list {
+  color: var(--color-fg-muted);
+  font-style: italic;
+  font-size: var(--font-size-xs);
+  margin: 0;
+}
+
+/* ── Inline numeric & date helpers ─────────────────────────── */
+
+.network-panel__count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--color-fg-primary);
+}
+
+.network-panel__count--unknown {
+  font-weight: 400;
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+.network-panel__age {
+  color: var(--color-fg-secondary);
+}
+
+.network-panel__age--new {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.network-panel__age--very-new {
+  color: var(--color-danger);
+  font-weight: 600;
+}

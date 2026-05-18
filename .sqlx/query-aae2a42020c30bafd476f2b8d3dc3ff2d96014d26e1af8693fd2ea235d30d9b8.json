@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO labeler_profiles\n            (did, display_name, handle, description, avatar_url,\n             fetched_at, refreshed_at, last_attempt_at)\n        VALUES ($1, $2, $3, $4, $5, now(), now(), now())\n        ON CONFLICT (did) DO UPDATE\n        SET display_name = EXCLUDED.display_name,\n            handle = EXCLUDED.handle,\n            description = EXCLUDED.description,\n            avatar_url = EXCLUDED.avatar_url,\n            refreshed_at = now(),\n            last_attempt_at = now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "aae2a42020c30bafd476f2b8d3dc3ff2d96014d26e1af8693fd2ea235d30d9b8"
+}

@@ -270,8 +270,7 @@ impl OutboundPublisher {
         // Canonicalise → sign → append `sig` → write. Same pipeline as
         // publish_escalation; pulled inline rather than refactored
         // because the wire types differ.
-        let json_value =
-            serde_json::to_value(&wire).map_err(|_| PublishError::EncodingFailed)?;
+        let json_value = serde_json::to_value(&wire).map_err(|_| PublishError::EncodingFailed)?;
         let lex_value = lex_json::json_to_lex(&json_value);
         let canonical_bytes =
             lex_cbor::encode(&lex_value).map_err(|_| PublishError::EncodingFailed)?;

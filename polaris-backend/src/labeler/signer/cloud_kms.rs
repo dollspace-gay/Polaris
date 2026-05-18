@@ -219,10 +219,18 @@ mod aws {
 
     impl std::fmt::Debug for AwsKmsSigner {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            // `client` is intentionally omitted: the AWS SDK Client has
+            // no useful Debug projection (it carries credential
+            // providers, retry policies, etc.) and printing it leaks
+            // configuration the operator does not want in logs.
+            // `private_key` is the load-bearing redaction (KMS holds
+            // the key out-of-process), so we keep a placeholder field
+            // to make the invariant visible in any debug dump.
             f.debug_struct("AwsKmsSigner")
                 .field("key_id", &self.key_id)
                 .field("region", &self.region)
                 .field("public_key_did", &self.public_key_did)
+                .field("client", &"<aws_sdk_kms::Client>")
                 .field("private_key", &"[NEVER IN PROCESS]")
                 .finish()
         }
@@ -243,7 +251,7 @@ mod aws {
     )]
     mod tests {
         use super::*;
-        use proto_blue::crypto::{K256Keypair, Verifier as _};
+        use proto_blue::crypto::{K256Keypair, Keypair as _, Signer as _};
 
         /// Round-trip against localstack. Skipped (not failed) unless
         /// `POLARIS_KMS_TEST_KEY_ARN` and `POLARIS_KMS_TEST_REGION` are
@@ -272,7 +280,58 @@ mod aws {
                 )
                 .unwrap()
             );
-            let _ = K256Keypair::generate(); // suppress unused-import on a fully-feature build
+        }
+
+        /// Wire-format interop contract for `AwsKmsSigner`.
+        ///
+        /// The `sign` method (line 168-172) promises that signatures
+        /// produced by AWS KMS are wire-interoperable with signatures
+        /// produced by `proto_blue::crypto::K256Keypair`. This test
+        /// locks that promise in without needing localstack:
+        ///
+        /// 1. Generate a fresh K-256 keypair locally.
+        /// 2. Sign the payload via `Signer::sign` — produces the same
+        ///    "SHA-256 prehash → low-S compact R||S" shape that
+        ///    `AwsKmsSigner::sign` re-normalises KMS's DER output into.
+        /// 3. Verify via the same `proto_blue::crypto::verify_signature`
+        ///    free function the AWS-KMS round-trip uses.
+        ///
+        /// If `AwsKmsSigner` were to drift away from the contract
+        /// (e.g. fail to low-S-normalise, or emit DER), the
+        /// AWS-localstack test would also fail — but only when
+        /// localstack is wired in. This test is the lower-bound
+        /// invariant that runs every build.
+        #[test]
+        fn proto_blue_k256_local_sign_verify_roundtrip() {
+            let kp = K256Keypair::generate();
+            let did = kp.did();
+            assert!(did.starts_with("did:key:z"), "did = {did}");
+
+            let payload = b"polaris label payload";
+            let sig = kp.sign(payload).expect("sign succeeds");
+            assert_eq!(
+                sig.len(),
+                64,
+                "compact R||S must be exactly 64 bytes (got {})",
+                sig.len()
+            );
+
+            // Strict (non-malleable) verify must accept the signature
+            // exactly — this is the same flag `AwsKmsSigner` callers
+            // and `UpstreamLabelerConsumer::handle_frame_with_seq`
+            // pass downstream.
+            let ok = proto_blue::crypto::verify_signature(&did, payload, &sig, false)
+                .expect("verify completes without error");
+            assert!(ok, "strict verify rejected a fresh signature");
+
+            // Tampered payload must fail to verify — closes the
+            // signature-attribution loop the AWS-KMS path also relies on.
+            let bad = proto_blue::crypto::verify_signature(&did, b"different", &sig, false)
+                .expect("verify completes without error");
+            assert!(
+                !bad,
+                "strict verify accepted a signature over the wrong payload"
+            );
         }
     }
 }

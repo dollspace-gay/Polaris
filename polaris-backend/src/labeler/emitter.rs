@@ -57,12 +57,27 @@
 //! the reverted label's value. The negation row is wired through the same
 //! sign-and-persist pipeline, so its signature is verifiable in isolation.
 //!
-//! # `Arc<dyn SigningKey>`, not `Arc<Mutex<...>>`
+//! # Reading the signer through the watch channel (REQ-A4 carry-over)
 //!
-//! The signer is held as `Arc<dyn SigningKey>` directly — the
-//! [`SigningKey`] trait is `Send + Sync` and concrete impls are immutable
-//! after construction (#29 contract). No interior mutability anywhere on
-//! this path.
+//! The emitter does **not** stash an `Arc<dyn SigningKey>` clone for the
+//! process lifetime. It holds a `tokio::sync::watch::Receiver<Arc<dyn
+//! SigningKey>>` (the same channel `ApiState::active_signer` exposes) and
+//! reads `self.active_signer.borrow().clone()` at the top of every emit.
+//!
+//! That read is the seam that makes Workstream A's
+//! [`crate::api::setup::generate_key`] hot-swap end-to-end correct: when
+//! the wizard pushes a freshly-loaded `FilePlainSigner` through the watch
+//! sender, the next call to [`LabelEmitter::emit`] picks it up
+//! atomically, without a process restart. The `watch::Receiver::borrow`
+//! semantics guarantee a single read sees either the old or the new
+//! `Arc` — never an inconsistent mix.
+//!
+//! `LabelEmitter::new` (the legacy entry point) wraps a single
+//! `Arc<dyn SigningKey>` in a one-shot `watch::channel` so the test
+//! call sites that pre-date the channel work unchanged. Production
+//! wiring in `main.rs` constructs the channel once and shares the
+//! receiver between the emitter and `ApiState`, so a single push
+//! reaches every consumer.
 
 use std::sync::Arc;
 
@@ -71,15 +86,26 @@ use polaris_types::{Action, ActionId, ActionKind};
 use proto_blue::api::generated::com::atproto::label::defs::Label as ProtoLabel;
 use proto_blue::syntax::{Datetime as ProtoDatetime, Did as ProtoDid};
 use sqlx::PgPool;
-use tracing::warn;
+use tokio::sync::watch;
+use tracing::{instrument, warn};
 use uuid::Uuid;
 
 use super::server::LabelBroadcaster;
-use super::signer::{Signature, SigningError, SigningKey};
+use super::signer::{ActiveSignerReceiver, Signature, SigningError, SigningKey};
 
 /// `ver` field value emitted on every signed Label. Matches the current
 /// `com.atproto.label.defs::Label.ver` contract (v1).
-const LABEL_VERSION: i64 = 1;
+/// Lexicon-default `ver` field on `com.atproto.label.defs::Label`.
+///
+/// Polaris emits version 1 today; the canonical signing path
+/// ([`build_proto_label`]) carries this into the bytes that get
+/// signed. The on-the-wire shape rendered by
+/// [`crate::labeler::server::label_to_lex`] mirrors the same value so
+/// downstream consumers can re-canonicalise WS frames and reproduce
+/// the signed bytes for verification. `pub(crate)` is the visibility
+/// minimum: the constant is internal to the labeler subsystem; no
+/// external caller needs to peg the version.
+pub(crate) const LABEL_VERSION: i64 = 1;
 
 /// `!takedown` is the atproto-spec label value emitted for a moderator
 /// takedown. The leading `!` marks a system-level (non-content-tag) label.
@@ -220,33 +246,91 @@ impl SubjectRef {
 /// The signed-Label emitter.
 ///
 /// One emitter is held on [`crate::api::state::ApiState`] for the
-/// process lifetime; `Arc<dyn SigningKey>` is the only shared resource.
+/// process lifetime. The signer is read through a
+/// `tokio::sync::watch::Receiver<Arc<dyn SigningKey>>` on every emit so
+/// Workstream A's `generate_key` hot-swap (`active_signer_tx.send(new)`)
+/// reaches the next emit without a process restart (REQ-A4 carry-over).
 /// The repo handle is a thin `PgPool` clone (cheap, internally `Arc`).
 /// Adding a `LabelBroadcaster` clone wires the live-fan-out path from
 /// #26 to every emitted row so connected `subscribeLabels` subscribers
 /// see new labels without polling the DB.
 #[derive(Clone)]
 pub struct LabelEmitter {
-    signer: Arc<dyn SigningKey>,
+    /// Receiver side of the process-wide active-signer watch channel.
+    /// Every `emit` call reads `active_signer.borrow().clone()` to get
+    /// the freshest signer; the wizard's `generate_key` handler pushes
+    /// a new `Arc<dyn SigningKey>` through the sender side and the
+    /// next emit picks it up atomically.
+    active_signer: ActiveSignerReceiver,
     pool: PgPool,
     broadcaster: LabelBroadcaster,
 }
 
 impl LabelEmitter {
-    /// Build a [`LabelEmitter`] from its three dependencies.
+    /// Build a [`LabelEmitter`] from a single signer plus its pool +
+    /// broadcaster.
+    ///
+    /// The emitter internally wraps `signer` in a fresh
+    /// `tokio::sync::watch::channel` so test call sites that pre-date the
+    /// active-signer channel keep working. The sender half is dropped
+    /// at the end of this constructor; the receiver lives on the
+    /// emitter and never observes a swap. For production wiring (where
+    /// the wizard's hot-swap must reach the emitter), construct via
+    /// [`Self::with_active_signer`] and share the sender with
+    /// [`crate::api::state::ApiState::with_active_signer_tx`].
     #[must_use]
     pub fn new(signer: Arc<dyn SigningKey>, pool: PgPool, broadcaster: LabelBroadcaster) -> Self {
+        // `watch::channel(initial)` returns `(Sender, Receiver)`; we
+        // drop the sender at the end of the function call. The
+        // receiver caches the initial value, so subsequent
+        // `borrow()`s on the cloned emitter still see `signer` even
+        // after the sender goes away (only `recv().await` would
+        // observe a `Closed` error, and the emit path never awaits a
+        // change — it just calls `borrow()`).
+        let (tx, rx) = watch::channel::<Arc<dyn SigningKey>>(signer);
+        // Keep the sender alive in a leaked Arc so a slow consumer
+        // calling `changed().await` doesn't see Closed. This is
+        // intentional for the test-only constructor — production
+        // wiring uses `with_active_signer` which owns the sender on
+        // ApiState.
+        std::mem::forget(tx);
         Self {
-            signer,
+            active_signer: rx,
             pool,
             broadcaster,
         }
     }
 
-    /// Borrow the signer (for tests and verification call sites).
+    /// Build a [`LabelEmitter`] that reads its signer through the
+    /// supplied `tokio::sync::watch::Receiver`.
+    ///
+    /// Production wiring in `main.rs` calls this with the same
+    /// receiver it installs on
+    /// [`crate::api::state::ApiState::active_signer`]; pushing a new
+    /// signer through the matching sender (which lives on
+    /// [`crate::api::state::ApiState::active_signer_tx`]) atomically
+    /// reaches every cloned emitter on its next emit. This is the
+    /// AC-A4 end-to-end seam.
     #[must_use]
-    pub fn signer(&self) -> &Arc<dyn SigningKey> {
-        &self.signer
+    pub fn with_active_signer(
+        active_signer: ActiveSignerReceiver,
+        pool: PgPool,
+        broadcaster: LabelBroadcaster,
+    ) -> Self {
+        Self {
+            active_signer,
+            pool,
+            broadcaster,
+        }
+    }
+
+    /// Borrow a clone of the current signer (for tests and verification
+    /// call sites). The returned `Arc` is a snapshot — a subsequent
+    /// hot-swap will not update this clone, only future
+    /// `current_signer()` / `emit()` calls.
+    #[must_use]
+    pub fn current_signer(&self) -> Arc<dyn SigningKey> {
+        self.active_signer.borrow().clone()
     }
 
     /// Build, sign, and persist the Label rows for an [`Action`].
@@ -262,12 +346,29 @@ impl LabelEmitter {
     /// See [`EmitterError`] for the variant set. A
     /// [`EmitterError::DuplicateAction`] caught from the persist step
     /// is reported back as-is — callers treat that as a no-op.
+    #[instrument(
+        name = "emit_label",
+        skip(self, action, subject, revokes_value),
+        fields(
+            action_id = %action.id,
+            kind = action.kind.as_str(),
+        ),
+    )]
     pub async fn emit(
         &self,
         action: &Action,
         subject: &SubjectRef,
         revokes_value: Option<&str>,
     ) -> Result<Vec<EmittedLabel>, EmitterError> {
+        // REQ-A4 / Workstream A carry-over: snapshot the current
+        // signer at the top of every emit. The `borrow().clone()` is
+        // O(1) (`Arc<dyn SigningKey>` is one `AtomicUsize::increment`)
+        // and the snapshot is per-emit-atomic: if a hot-swap lands
+        // mid-call, the *next* emit picks it up; this one finishes
+        // under the signer it started with so the persisted
+        // `labels.signing_did` and the broadcast frame stay
+        // consistent.
+        let signer = self.active_signer.borrow().clone();
         match action.kind {
             ActionKind::Label => {
                 let value = action
@@ -278,12 +379,30 @@ impl LabelEmitter {
                     })?
                     .as_str()
                     .to_owned();
-                let emitted = self.emit_single(action, subject, &value, false).await?;
+                let emitted = self
+                    .emit_single(signer.as_ref(), action, subject, &value, false)
+                    .await?;
                 Ok(vec![emitted])
+            }
+            ActionKind::Comment => {
+                // Comment is a moderator note recorded in `actions`
+                // with no label-emit side-effect. The persistence
+                // step (the `actions` row write) is done by the
+                // caller in `cases::submit_action`; here we just
+                // return an empty emit-set so the case-view's
+                // history timeline still shows the comment without
+                // a corresponding label row.
+                Ok(Vec::new())
             }
             ActionKind::Takedown => {
                 let primary = self
-                    .emit_single(action, subject, TAKEDOWN_LABEL_VALUE, false)
+                    .emit_single(
+                        signer.as_ref(),
+                        action,
+                        subject,
+                        TAKEDOWN_LABEL_VALUE,
+                        false,
+                    )
                     .await?;
                 if let Some(revoked) = revokes_value {
                     // The negation gets a fresh row but cannot share
@@ -292,7 +411,9 @@ impl LabelEmitter {
                     // emit-time provenance is still recoverable via the
                     // takedown's primary row (same `signed_at`,
                     // `subject_did`, `signing_did`).
-                    let negation = self.emit_negation(action, subject, revoked).await?;
+                    let negation = self
+                        .emit_negation(signer.as_ref(), action, subject, revoked)
+                        .await?;
                     Ok(vec![primary, negation])
                 } else {
                     Ok(vec![primary])
@@ -307,6 +428,7 @@ impl LabelEmitter {
     /// Build, sign, persist, and broadcast a single Label row.
     async fn emit_single(
         &self,
+        signer: &dyn SigningKey,
         action: &Action,
         subject: &SubjectRef,
         value: &str,
@@ -318,7 +440,7 @@ impl LabelEmitter {
         let subject_did = subject
             .subject_did()
             .ok_or(EmitterError::NoSubjectIdentifier)?;
-        let signing_did = self.signer.public_key_did().to_owned();
+        let signing_did = signer.public_key_did().to_owned();
         let signed_at = Utc::now();
 
         let proto_label = build_proto_label(
@@ -330,10 +452,7 @@ impl LabelEmitter {
             signed_at,
         )?;
         let canonical_cbor = encode_canonical(&proto_label)?;
-        let signature = self
-            .signer
-            .sign(&canonical_cbor)
-            .map_err(EmitterError::Sign)?;
+        let signature = signer.sign(&canonical_cbor).map_err(EmitterError::Sign)?;
 
         self.persist(
             action.id,
@@ -346,6 +465,7 @@ impl LabelEmitter {
             neg,
             &canonical_cbor,
             &signature,
+            signed_at,
         )
         .await
     }
@@ -358,6 +478,7 @@ impl LabelEmitter {
     /// `action_id` plus the matching `signed_at` / `subject_did`.
     async fn emit_negation(
         &self,
+        signer: &dyn SigningKey,
         action: &Action,
         subject: &SubjectRef,
         revoked_value: &str,
@@ -368,7 +489,7 @@ impl LabelEmitter {
         let subject_did = subject
             .subject_did()
             .ok_or(EmitterError::NoSubjectIdentifier)?;
-        let signing_did = self.signer.public_key_did().to_owned();
+        let signing_did = signer.public_key_did().to_owned();
         let signed_at = Utc::now();
 
         let proto_label = build_proto_label(
@@ -380,10 +501,7 @@ impl LabelEmitter {
             signed_at,
         )?;
         let canonical_cbor = encode_canonical(&proto_label)?;
-        let signature = self
-            .signer
-            .sign(&canonical_cbor)
-            .map_err(EmitterError::Sign)?;
+        let signature = signer.sign(&canonical_cbor).map_err(EmitterError::Sign)?;
 
         self.persist(
             action.id,
@@ -396,6 +514,7 @@ impl LabelEmitter {
             true,
             &canonical_cbor,
             &signature,
+            signed_at,
         )
         .await
     }
@@ -419,6 +538,7 @@ impl LabelEmitter {
         neg: bool,
         canonical_cbor: &[u8],
         signature: &Signature,
+        signed_cts: DateTime<Utc>,
     ) -> Result<EmittedLabel, EmitterError> {
         // Convert ActionId -> Uuid for the bind (sqlx encodes Uuid
         // directly; the polaris-types newtype wraps it).
@@ -427,13 +547,26 @@ impl LabelEmitter {
         // signature column is `bytea` so we pass `&[u8]` directly.
         let signature_bytes: &[u8] = signature.as_bytes();
 
+        // Issue #88 closure: bind `cts` explicitly to the same
+        // `signed_cts` that flowed into `build_proto_label` and got
+        // signed. The `labels.cts` column has
+        // `DEFAULT now()` for callers who want server-side
+        // timestamping, but we must NOT use that default here — the
+        // canonical signing shape carries `signed_cts` in the signed
+        // bytes, and the broadcast wire path reads `row.cts` back
+        // out. Letting Postgres assign its own `now()` would mean the
+        // wire `cts` and the signed `cts` differ by microseconds
+        // (after millisecond truncation often by 1+ ms), making the
+        // WS-frame-reconstructed canonical bytes byte-different from
+        // `labels.label_cbor` and breaking downstream verifiers that
+        // re-canonicalise from the firehose alone.
         let row = sqlx::query!(
             r#"
             INSERT INTO labels (
                 src, uri, cid, val, neg, sig, action_id,
-                subject_did, label_cbor, signing_did
+                subject_did, label_cbor, signing_did, cts
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             RETURNING seq, cts, signed_at
             "#,
             signing_did,
@@ -446,6 +579,7 @@ impl LabelEmitter {
             subject_did,
             canonical_cbor,
             signing_did,
+            signed_cts,
         )
         .fetch_one(&self.pool)
         .await
@@ -468,22 +602,54 @@ impl LabelEmitter {
         // payload type is the same struct the persisted-rows path
         // produces, so the receiver branch in `server.rs::run_subscription`
         // doesn't need to distinguish source.
-        self.broadcaster.publish(super::server::Label {
-            id: Uuid::nil(), // not used by the subscription wire framing
-            seq: emitted.seq,
-            src: signing_did.to_owned(),
-            uri: target_uri.to_owned(),
-            cid: cid.map(ToOwned::to_owned),
-            val: value.to_owned(),
-            neg,
-            cts: row.cts,
-            exp: None,
-            sig: signature_bytes.to_vec(),
-            subject_did: subject_did.to_owned(),
-            label_cbor: canonical_cbor.to_vec(),
-            signing_did: signing_did.to_owned(),
-            signed_at: row.signed_at,
-        });
+        //
+        // REQ-D3: emit a dedicated tracing span at the broadcaster
+        // publish site so an operator can grep logs by `action_id` and
+        // reconstruct the action → sign → persist → broadcast timeline.
+        // The span name matches the assertion in
+        // `tests/tracing_action_id.rs`.
+        {
+            let publish_span = tracing::info_span!(
+                "broadcaster_publish",
+                action_id = %originating_action_id,
+                seq = emitted.seq,
+                val = value,
+                neg = neg,
+            );
+            let _enter = publish_span.enter();
+            self.broadcaster.publish(super::server::Label {
+                id: Uuid::nil(), // not used by the subscription wire framing
+                seq: emitted.seq,
+                src: signing_did.to_owned(),
+                uri: target_uri.to_owned(),
+                cid: cid.map(ToOwned::to_owned),
+                val: value.to_owned(),
+                neg,
+                cts: row.cts,
+                exp: None,
+                sig: signature_bytes.to_vec(),
+                subject_did: subject_did.to_owned(),
+                label_cbor: canonical_cbor.to_vec(),
+                signing_did: signing_did.to_owned(),
+                signed_at: row.signed_at,
+            });
+            tracing::info!(
+                action_id = %originating_action_id,
+                seq = emitted.seq,
+                "labeler broadcast frame published"
+            );
+        }
+
+        // REQ-D2: business counter for "every label this labeler has
+        // ever emitted", labelled by value and negation flag. Operators
+        // build the rate alert `rate(polaris_labels_emitted_total[5m])`
+        // off this series.
+        metrics::counter!(
+            "polaris_labels_emitted_total",
+            "val" => value.to_owned(),
+            "neg" => if neg { "true" } else { "false" }.to_owned(),
+        )
+        .increment(1);
 
         Ok(emitted)
     }
@@ -491,10 +657,12 @@ impl LabelEmitter {
 
 impl std::fmt::Debug for LabelEmitter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Render the signer's redacted Debug; never expose the pool's
-        // connection string. `LabelBroadcaster` has its own redacted Debug.
+        // Render the current signer's redacted Debug; never expose the
+        // pool's connection string. `LabelBroadcaster` has its own
+        // redacted Debug. The `borrow()` is a constant-time read of the
+        // watch slot — safe to call from `fmt`.
         f.debug_struct("LabelEmitter")
-            .field("signer", &self.signer)
+            .field("active_signer", &self.active_signer.borrow())
             .field("broadcaster", &self.broadcaster)
             .field("pool", &"<pool>")
             .finish()

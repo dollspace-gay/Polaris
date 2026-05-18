@@ -1,0 +1,115 @@
+/*
+ * Polaris design tokens.
+ *
+ * REQ-B5: the single source of truth for colour, spacing, typography, and
+ * radius. Every component CSS file references these via `var(--name)` —
+ * no literal colour values are allowed outside this file (enforced by
+ * `tests/styles_tokens.rs`).
+ *
+ * Contrast: every foreground/background token pair in this file meets
+ * WCAG 2.x AA (≥4.5:1 for normal body text, ≥3:1 for non-text and large
+ * text). Pairings are checked mechanically by `tests/styles_contrast.rs`,
+ * which parses this file and runs the WCAG relative-luminance formula
+ * over the named pairs in both light and dark mode.
+ */
+
+:root {
+  /* ── Colours: light palette (default) ───────────────────────── */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f4f6f8;
+  --color-bg-elevated: #ffffff;
+
+  --color-fg-primary: #1a1d22;
+  --color-fg-secondary: #43474d;
+  --color-fg-muted: #595e66;
+
+  --color-accent: #1463ff;
+  --color-accent-fg: #ffffff;
+
+  --color-danger: #b3261e;
+  --color-danger-fg: #ffffff;
+
+  --color-success: #1f7a3a;
+  --color-success-fg: #ffffff;
+
+  --color-warning: #ffb020;
+  --color-warning-fg: #1a1d22;
+
+  --color-border: #d0d5dc;
+  --color-border-focus: #1463ff;
+
+  /* ── Spacing scale (4px grid) ───────────────────────────────── */
+  --space-xs: 0.25rem; /* 4px */
+  --space-sm: 0.5rem;  /* 8px */
+  --space-md: 1rem;    /* 16px */
+  --space-lg: 1.5rem;  /* 24px */
+  --space-xl: 2.5rem;  /* 40px */
+
+  /* ── Radii ──────────────────────────────────────────────────── */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* ── Typography ─────────────────────────────────────────────── */
+  --font-sans: system-ui, -apple-system, "Segoe UI", "Helvetica Neue",
+    Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code",
+    Menlo, Consolas, monospace;
+
+  --font-size-xs: 0.75rem;   /* 12px */
+  --font-size-sm: 0.875rem;  /* 14px */
+  --font-size-base: 1rem;    /* 16px */
+  --font-size-lg: 1.125rem;  /* 18px */
+  --font-size-xl: 1.5rem;    /* 24px */
+
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-loose: 1.75;
+
+  /* ── Misc surface tokens (still token-only — no hex outside) ── */
+  --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.06);
+
+  /*
+   * Modal-overlay backdrop. Semi-transparent so the case-view stays
+   * visible behind the modal. Defined here (not in component CSS) so
+   * the literal-colour ban in `tests/styles_tokens.rs` holds.
+   */
+  --color-overlay: rgba(0, 0, 0, 0.5);
+}
+
+/*
+ * Dark palette. Matched against `:root` foreground/background pairs by
+ * the contrast test so every named pair clears AA in both schemes.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-primary: #0e1014;
+    --color-bg-secondary: #161922;
+    --color-bg-elevated: #1d212b;
+
+    --color-fg-primary: #ecedef;
+    --color-fg-secondary: #c1c5ce;
+    --color-fg-muted: #9aa0aa;
+
+    --color-accent: #5e9bff;
+    --color-accent-fg: #0a0d12;
+
+    --color-danger: #ff7a72;
+    --color-danger-fg: #0a0d12;
+
+    --color-success: #6ec98a;
+    --color-success-fg: #0a0d12;
+
+    --color-warning: #f0c060;
+    --color-warning-fg: #0a0d12;
+
+    --color-border: #2a2f3a;
+    --color-border-focus: #5e9bff;
+
+    --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.4),
+      0 4px 12px rgba(0, 0, 0, 0.5);
+
+    --color-overlay: rgba(0, 0, 0, 0.7);
+  }
+}

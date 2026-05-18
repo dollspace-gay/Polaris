@@ -1,0 +1,94 @@
+/*
+ * Cluster list panel — surfaces grouped subject reports on the dashboard.
+ */
+
+.cluster-list {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  color: var(--color-fg-primary);
+  box-shadow: var(--shadow-elevated);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.cluster-list h2 {
+  font-size: var(--font-size-lg);
+  margin: 0;
+}
+
+.cluster-list__count {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+}
+
+.cluster-list__empty {
+  padding: var(--space-md);
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.cluster-list__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.cluster-list__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-xs) var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  align-items: baseline;
+}
+
+.cluster-list__subject {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-primary);
+  word-break: break-all;
+}
+
+.cluster-list__severity {
+  color: var(--color-fg-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.04em;
+}
+
+.cluster-list__status {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+}
+
+.cluster-list__when {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+}
+
+.cluster-list__related {
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.cluster-list__link {
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.cluster-list__link:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

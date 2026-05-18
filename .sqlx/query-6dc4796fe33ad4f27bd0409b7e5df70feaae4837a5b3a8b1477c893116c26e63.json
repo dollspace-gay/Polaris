@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO moderators (external_id, auth_backend)\n          VALUES ($1, 'atproto')\n          ON CONFLICT (auth_backend, external_id) DO UPDATE\n            SET external_id = EXCLUDED.external_id\n          RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6dc4796fe33ad4f27bd0409b7e5df70feaae4837a5b3a8b1477c893116c26e63"
+}

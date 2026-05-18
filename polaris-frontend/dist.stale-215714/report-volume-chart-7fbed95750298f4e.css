@@ -1,0 +1,66 @@
+/*
+ * Report volume chart — daily report-count bars with anomaly markers.
+ */
+
+.report-volume-chart {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  color: var(--color-fg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.report-volume-chart h2 {
+  font-size: var(--font-size-lg);
+  margin: 0;
+}
+
+.report-volume-chart__empty {
+  padding: var(--space-md);
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.report-volume-chart__summary {
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.report-volume-chart__svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.report-volume-chart__band {
+  fill: var(--color-accent);
+  opacity: 0.75;
+}
+
+.report-volume-chart__band.report-volume-chart__bar--anomaly,
+.report-volume-chart__band--anomaly {
+  fill: var(--color-warning);
+}
+
+.report-volume-chart__anomaly-marker {
+  fill: var(--color-danger);
+}
+
+/*
+ * Dynamic bar classes (`report-volume-chart__bar`,
+ * `report-volume-chart__bar--anomaly`) come through as
+ * `<rect class=...>` SVG elements.
+ */
+.report-volume-chart__bar {
+  fill: var(--color-accent);
+}
+
+.report-volume-chart__bar--anomaly {
+  fill: var(--color-warning);
+}

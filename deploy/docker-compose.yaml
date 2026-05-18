@@ -83,10 +83,20 @@ services:
       start_period: 10s
 
   polaris-backend:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile.labeler-profile
-    image: polaris-backend:${POLARIS_IMAGE_TAG:-0.1.0}
+    # Default: pull the multi-arch image published by the
+    # `publish-image` GitHub workflow (issue #209) on every push
+    # to main and every v* release tag. Operators get :latest by
+    # default; pin POLARIS_IMAGE_TAG=vX.Y.Z in .env for
+    # reproducible upgrades.
+    image: ghcr.io/dollspace-gay/polaris-backend:${POLARIS_IMAGE_TAG:-latest}
+    # Local-dev / CI alternative: uncomment the `build:` block
+    # below (and comment out the `image:` line above) to build
+    # the image from the working tree instead of pulling. Useful
+    # when iterating on Dockerfile changes or testing an
+    # unmerged patch.
+    # build:
+    #   context: ..
+    #   dockerfile: deploy/Dockerfile.labeler-profile
     restart: unless-stopped
     networks: [polaris-net]
     depends_on:

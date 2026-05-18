@@ -96,7 +96,8 @@ use proto_blue::common::fetch::FetchHandler;
 use proto_blue::identity::{IdResolver, IdentityResolverOpts};
 use proto_blue::oauth::client::dpop_key_from_jwk;
 use proto_blue::oauth::{
-    DpopNonceCache, OAuthClient, OAuthServerMetadata, OAuthSession, TokenSet, resolve_input,
+    DpopKey, DpopNonceCache, OAuthClient, OAuthServerMetadata, OAuthSession, TokenSet,
+    resolve_input,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -143,37 +144,35 @@ pub(crate) struct SerializedSessionState {
     pub(crate) token_set: TokenSet,
 }
 
-/// Bincode-encode a [`SerializedSessionState`] for the seal stage.
+/// Encode a [`SerializedSessionState`] for the seal stage.
 ///
-/// Bincode failures are mapped to [`AuthError::Config`] with a
-/// diagnostic-only message; encoding the bundle (a `serde_json::Value`
-/// plus a flat token-set struct) cannot fail in practice — no
-/// recursion limits hit, no non-UTF-8 keys — so an error here
-/// indicates a proto-blue type-contract change worth surfacing rather
-/// than silencing.
+/// The envelope is JSON, not bincode. `TokenSet` (from proto-blue) uses
+/// `#[serde(skip_serializing_if = "Option::is_none")]` on three of its
+/// fields (`refresh_token`, `expires_at`, `aud`). Bincode's
+/// non-self-describing wire format omits those bytes on serialize when
+/// they are `None` but still tries to read them on deserialize, which
+/// produces `"UnexpectedEnd { additional: N }"` with N equal to the
+/// number of `None` Options that hit `skip_serializing_if`. JSON is
+/// self-describing and round-trips missing `Option` fields cleanly via
+/// the default `Option<T>::deserialize` impl.
 fn encode_bundle(bundle: &SerializedSessionState) -> Result<Vec<u8>, AuthError> {
-    bincode::serde::encode_to_vec(bundle, bincode::config::standard()).map_err(|e| {
-        AuthError::Config {
-            message: format!("failed to bincode-encode atproto session bundle: {e}"),
-        }
+    serde_json::to_vec(bundle).map_err(|e| AuthError::Config {
+        message: format!("failed to JSON-encode atproto session bundle: {e}"),
     })
 }
 
 /// Inverse of [`encode_bundle`]. A decode failure here means the
-/// stored ciphertext is from an older or newer envelope version than
-/// this build understands; we surface that as
-/// [`AuthError::DpopBindingFailed`] so callers treat the row as
-/// unrecoverable (the moderator must log in again) rather than
+/// stored ciphertext is from an older envelope version than this build
+/// understands (pre-#62-followup builds wrote bincode); we surface
+/// that as [`AuthError::DpopBindingFailed`] so callers treat the row
+/// as unrecoverable (the moderator must log in again) rather than
 /// retrying.
 fn decode_bundle(bytes: &[u8]) -> Result<SerializedSessionState, AuthError> {
-    let (bundle, _) = bincode::serde::decode_from_slice::<SerializedSessionState, _>(
-        bytes,
-        bincode::config::standard(),
-    )
-    .map_err(|e| AuthError::DpopBindingFailed {
-        source: Box::new(e),
-    })?;
-    Ok(bundle)
+    serde_json::from_slice::<SerializedSessionState>(bytes).map_err(|e| {
+        AuthError::DpopBindingFailed {
+            source: Box::new(e),
+        }
+    })
 }
 
 /// Context returned by [`AtprotoOauthAuthVerifier::build_oauth_session_for_moderator`].
@@ -198,6 +197,29 @@ pub struct ModeratorOAuthContext {
     pub pds_url: String,
     /// The moderator's DID (atproto `sub` claim).
     pub did: String,
+    /// The moderator's bound DPoP keypair. Cloned out of the sealed
+    /// session bundle alongside [`Self::session`]; callers that need
+    /// to issue a request `OAuthSession::post` cannot express (e.g. a
+    /// bodyless POST to a lexicon procedure that declares no input)
+    /// can use this with [`proto_blue::oauth::build_dpop_proof`] to
+    /// hand-build the proof header.
+    pub dpop_key: DpopKey,
+    /// Per-origin DPoP nonce cache, **shared** with [`Self::session`].
+    /// Updating one side (e.g. an out-of-band raw fetch absorbing a
+    /// `DPoP-Nonce` response header) is visible to the other so the
+    /// session's nonce-rotation continuity holds even when handlers
+    /// mix `session.post` calls with bespoke raw requests.
+    pub dpop_nonces: DpopNonceCache,
+    /// HTTP fetch handler used by [`Self::session`]. Cloned `Arc`, so
+    /// raw out-of-band requests share the same TLS pool and resolver
+    /// state and look indistinguishable to the resource server.
+    pub fetcher: Arc<dyn FetchHandler>,
+    /// Upstream OAuth access token. Cached out of the sealed bundle so
+    /// raw out-of-band requests can build the `Authorization: DPoP
+    /// {access_token}` header without re-reading
+    /// [`OAuthSession::token_set`] (which would clone the entire
+    /// `TokenSet` for one field).
+    pub access_token: String,
 }
 
 impl std::fmt::Debug for ModeratorOAuthContext {
@@ -205,11 +227,18 @@ impl std::fmt::Debug for ModeratorOAuthContext {
         // OAuthSession does not implement Debug. We elide it from the
         // formatter output rather than print a placeholder — the DPoP
         // key and token set inside are secret-bearing and a structured
-        // log surface should never echo them.
+        // log surface should never echo them. The `dpop_key`,
+        // `dpop_nonces`, `fetcher`, and `access_token` fields are also
+        // elided (or replaced with redaction markers): each is either
+        // secret-bearing or a value whose `Debug` is noise.
         f.debug_struct("ModeratorOAuthContext")
             .field("session", &"<OAuthSession>")
             .field("pds_url", &self.pds_url)
             .field("did", &self.did)
+            .field("dpop_key", &"<DpopKey-redacted>")
+            .field("dpop_nonces", &"<DpopNonceCache>")
+            .field("fetcher", &"<dyn FetchHandler>")
+            .field("access_token", &"<redacted>")
             .finish()
     }
 }
@@ -280,6 +309,53 @@ impl AtprotoOauthAuthVerifier {
         }
     }
 
+    /// Borrow the bound [`IdResolver`] for callers outside the OAuth
+    /// flow that need the same handle / DID resolution path.
+    ///
+    /// Issue #92 — the command-palette `POST /api/subjects/lookup`
+    /// handler reuses the same resolver the login flow uses so a
+    /// single source of truth governs every handle→DID resolution in
+    /// the binary. Tests inject a [`proto_blue::common::fetch::FetchHandler`]
+    /// mock at construction time; production wiring routes through
+    /// DNS + HTTPS via the default [`proto_blue::common::fetch::ReqwestFetcher`].
+    ///
+    /// [`IdResolver`]: proto_blue::identity::IdResolver
+    #[must_use]
+    pub fn identity_resolver(&self) -> &IdResolver {
+        &self.identity_resolver
+    }
+
+    /// Resolve `did` to its current DID document via the bound
+    /// [`IdResolver`].
+    ///
+    /// Wraps `identity_resolver.did.ensure_resolve(did, false)` so
+    /// `polaris-backend/src/api/setup.rs` can read the moderator's
+    /// current PLC document — needed for issue #85's
+    /// `submitPlcOperation` flow, which has to send a **full
+    /// snapshot** of services / verification methods (PLC operations
+    /// REPLACE on presence, not merge). Without this the wizard would
+    /// have no way to fetch the existing `atproto_pds` service to
+    /// preserve alongside the newly-added `atproto_labeler` entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`AuthError::HandleResolutionFailed`] when the DID
+    /// cannot be resolved (no DID-document at the directory, network
+    /// failure, or malformed response).
+    pub async fn resolve_did_document(
+        &self,
+        did: &str,
+    ) -> Result<proto_blue::common::DidDocument, AuthError> {
+        self.identity_resolver
+            .did
+            .ensure_resolve(did, /*force_refresh=*/ false)
+            .await
+            .map_err(|e| AuthError::HandleResolutionFailed {
+                handle: did.to_owned(),
+                source: Box::new(e),
+            })
+    }
+
     /// Build a verifier using the default native fetch backend
     /// (`reqwest` + DNS handle resolution). Used by `main.rs` when the
     /// operator configures `[auth] backend = "atproto"`.
@@ -309,8 +385,23 @@ impl AtprotoOauthAuthVerifier {
         let fetcher: Arc<dyn FetchHandler> =
             Arc::new(proto_blue::common::fetch::ReqwestFetcher::new());
         let oauth_client = Arc::new(OAuthClient::with_fetch_handler(metadata, fetcher.clone()));
+        // The library default is 3000ms, which is too tight for the
+        // auth path: a Polaris node also runs ~250 simultaneous
+        // upstream-label WebSocket consumers and PLC-fetcher tasks,
+        // and at startup those tasks dominate DNS / TCP egress. A
+        // 3s budget for a single handle-resolve under that load
+        // routinely times out, surfacing as the opaque
+        // `{code:internal, error:"internal error"}` on the login
+        // form. 15s is generous enough that even cold-cache DNS +
+        // PLC + AS metadata fetch + alsoKnownAs verify all serialise
+        // without timing out, while still bounded so a wedged
+        // upstream cannot hang the request indefinitely.
+        let identity_resolver_opts = IdentityResolverOpts {
+            timeout_ms: 15_000,
+            ..IdentityResolverOpts::default()
+        };
         let identity_resolver = Arc::new(IdResolver::with_fetch_handler(
-            IdentityResolverOpts::default(),
+            identity_resolver_opts,
             None,
             fetcher.clone(),
         ));
@@ -445,6 +536,22 @@ impl AtprotoOauthAuthVerifier {
     }
 
     /// Internal `complete_login` implementation. See module docs.
+    ///
+    /// The function is intentionally linear: nine numbered steps in a
+    /// single function body, each commented with what it does and why.
+    /// Splitting it into per-step helpers would push a half-dozen
+    /// `&mut self` (or `&self` + cloned `Arc` fields) signatures across
+    /// the type's surface without reducing complexity — the steps
+    /// share state (the unsealed login-state row, the `auth_state`, the
+    /// reconstructed DPoP key, the `token_set`, the resolved DID, etc.)
+    /// and any meaningful extraction would just turn one 100-line
+    /// function into a function plus four 30-line helpers. The
+    /// `clippy::too_many_lines` rationale doesn't apply: this is
+    /// straight-line code, not nested control flow.
+    #[allow(
+        clippy::too_many_lines,
+        reason = "nine-step linear OAuth callback; per-step helpers would not reduce complexity"
+    )]
     async fn complete_login_impl(&self, state: &str, code: &str) -> Result<LoginResult, AuthError> {
         // Step 1: look up the state row with TTL. A miss (no row, row
         // older than 10 minutes) is reported as `StateMismatch` — the
@@ -522,7 +629,7 @@ impl AtprotoOauthAuthVerifier {
 
         // Step 6: exchange the code. The token response carries the
         // moderator's DID as the `sub` claim.
-        let token_set = self
+        let mut token_set = self
             .oauth_client
             .callback(code, &auth_state, &server_metadata)
             .await
@@ -536,6 +643,93 @@ impl AtprotoOauthAuthVerifier {
             // string. Treat that as `MissingClaims` rather than
             // attempting to mint a session against an empty external_id.
             return Err(AuthError::MissingClaims);
+        }
+
+        // Resolve the moderator's PDS URL and record it on the
+        // [`TokenSet`] as `aud` BEFORE we seal the bundle. proto-blue's
+        // bare `OAuthClient::callback` returns a `TokenSet` with
+        // `aud = None` because the OAuth token response doesn't carry
+        // an audience field (per ATProto's spec; audience is a
+        // resource-server-not-authorization-server concept,
+        // caller-supplied from identity resolution). Without this
+        // resolve-and-patch, every later
+        // [`Self::build_oauth_session_for_moderator`] call falls
+        // through to a fresh DID-document re-resolve to recover the
+        // PDS URL — adding 50-200ms of latency to every setup-wizard
+        // step and every per-moderator XRPC call that needs a session
+        // reconstructed. Doing the resolve once here, at login time,
+        // is amortized across the session's lifetime: the result rides
+        // along inside the sealed bundle.
+        //
+        // A resolution failure here is downgraded to a tracing WARN
+        // rather than a hard error — `build_oauth_session_for_moderator`
+        // still has the fallback path (it will re-resolve on demand if
+        // `aud` is missing or empty), so a transient PLC outage at
+        // login time shouldn't refuse a moderator's session entirely.
+        match self
+            .identity_resolver
+            .did
+            .ensure_resolve(&did, /* force_refresh */ false)
+            .await
+        {
+            Ok(doc) => {
+                if let Some(pds_url) = proto_blue::common::get_pds_endpoint(&doc) {
+                    token_set.aud = Some(pds_url.trim_end_matches('/').to_owned());
+                } else {
+                    tracing::warn!(
+                        did = %did,
+                        "DID document advertises no #atproto_pds service; bundle aud stays None",
+                    );
+                }
+            }
+            Err(err) => {
+                tracing::warn!(
+                    did = %did,
+                    error = %err,
+                    "DID resolution failed during login; bundle aud stays None and \
+                     session reconstruction will re-resolve on demand",
+                );
+            }
+        }
+
+        // Issue #214: Ozone-style login allow-list. Once the deployment
+        // has at least one moderator (i.e. the bootstrap admin), every
+        // subsequent login must match a row in `moderator_roles` for
+        // that DID. The COUNT-then-check ordering is load-bearing: the
+        // empty-moderators-table window is the bootstrap carve-out the
+        // operator's first login depends on, so the count probe MUST
+        // run before the role-membership probe.
+        let moderator_count: i64 = sqlx::query_scalar!("SELECT count(*) FROM moderators")
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| AuthError::Storage {
+                source: crate::auth::session::SessionError::Database(e),
+            })?
+            .unwrap_or(0);
+        if moderator_count > 0 {
+            // `moderators.external_id` carries the DID for the atproto
+            // backend (and the OIDC `sub` claim for the OIDC backend).
+            // The `auth_backend` filter keeps an atproto DID from
+            // colliding with an OIDC subject string that happens to
+            // share the same shape.
+            let allowlisted: Option<i32> = sqlx::query_scalar!(
+                r"SELECT 1 FROM moderator_roles r
+                  JOIN moderators m ON r.moderator_id = m.id
+                  WHERE m.external_id = $1 AND m.auth_backend = 'atproto'
+                  LIMIT 1",
+                did,
+            )
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| AuthError::Storage {
+                source: crate::auth::session::SessionError::Database(e),
+            })?
+            .flatten();
+            if allowlisted.is_none() {
+                return Err(AuthError::NotAllowed {
+                    handle: row.handle.clone(),
+                });
+            }
         }
 
         // Step 7: upsert the moderator row and (if this is the first
@@ -688,10 +882,16 @@ impl AtprotoOauthAuthVerifier {
                 .to_owned()
         };
 
+        // Build one shared DpopNonceCache + one DpopKey clone so the
+        // returned context can issue raw out-of-band requests against
+        // the same per-origin nonce state the session sees. The cache
+        // is an Arc<Mutex<...>> internally so the clone is shallow.
+        let dpop_nonces = DpopNonceCache::new();
+        let access_token = bundle.token_set.access_token.clone();
         let session = OAuthSession::with_fetch_handler(
             bundle.token_set,
-            dpop_key,
-            DpopNonceCache::new(),
+            dpop_key.clone(),
+            dpop_nonces.clone(),
             Arc::clone(&self.fetcher),
         );
 
@@ -699,6 +899,10 @@ impl AtprotoOauthAuthVerifier {
             session,
             pds_url,
             did,
+            dpop_key,
+            dpop_nonces,
+            fetcher: Arc::clone(&self.fetcher),
+            access_token,
         })
     }
 
@@ -1013,6 +1217,22 @@ pub(crate) async fn maybe_grant_first_user_admin(
         // exists is the other tx's responsibility to audit.
         return Ok(());
     }
+
+    // Issue #214: hard-pin the bootstrap admin so neither the API nor
+    // a buggy / malicious SQL path can later clear the operator's
+    // admin row. The DB trigger added in migration 46 enforces
+    // monotonicity at the column level; the API handlers refuse to
+    // delete the row outright. Same transaction as the role-grant + the
+    // audit append so all three records share atomicity.
+    sqlx::query!(
+        r"UPDATE moderators SET pinned_admin = TRUE WHERE id = $1",
+        moderator_id,
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| AuthError::Storage {
+        source: crate::auth::session::SessionError::Database(e),
+    })?;
 
     crate::audit::AuditLog::record(
         tx,

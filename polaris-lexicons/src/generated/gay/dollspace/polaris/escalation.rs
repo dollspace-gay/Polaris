@@ -9,15 +9,25 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "$type")]
 pub enum EmbeddedObservationObservationRefs {
     #[serde(rename = "gay.dollspace.polaris.observation#imageHashCluster")]
-    DollspacePolarisObservationImageHashCluster(Box<crate::gay::dollspace::polaris::observation::ImageHashCluster>),
+    DollspacePolarisObservationImageHashCluster(
+        Box<crate::gay::dollspace::polaris::observation::ImageHashCluster>,
+    ),
     #[serde(rename = "gay.dollspace.polaris.observation#accountCohort")]
-    DollspacePolarisObservationAccountCohort(Box<crate::gay::dollspace::polaris::observation::AccountCohort>),
+    DollspacePolarisObservationAccountCohort(
+        Box<crate::gay::dollspace::polaris::observation::AccountCohort>,
+    ),
     #[serde(rename = "gay.dollspace.polaris.observation#replyBrigade")]
-    DollspacePolarisObservationReplyBrigade(Box<crate::gay::dollspace::polaris::observation::ReplyBrigade>),
+    DollspacePolarisObservationReplyBrigade(
+        Box<crate::gay::dollspace::polaris::observation::ReplyBrigade>,
+    ),
     #[serde(rename = "gay.dollspace.polaris.observation#externalLabel")]
-    DollspacePolarisObservationExternalLabel(Box<crate::gay::dollspace::polaris::observation::ExternalLabel>),
+    DollspacePolarisObservationExternalLabel(
+        Box<crate::gay::dollspace::polaris::observation::ExternalLabel>,
+    ),
     #[serde(rename = "gay.dollspace.polaris.observation#classifierSignal")]
-    DollspacePolarisObservationClassifierSignal(Box<crate::gay::dollspace::polaris::observation::ClassifierSignal>),
+    DollspacePolarisObservationClassifierSignal(
+        Box<crate::gay::dollspace::polaris::observation::ClassifierSignal>,
+    ),
     #[serde(other)]
     Other,
 }
@@ -80,4 +90,3 @@ pub struct SubjectRecord {
     pub cid: Option<String>,
     pub uri: proto_blue_syntax::AtUri,
 }
-

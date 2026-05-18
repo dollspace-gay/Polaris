@@ -12,4 +12,3 @@ pub struct Main {
     pub car_cid: String,
     pub media_type: String,
 }
-

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM subject_image_blobs\n          WHERE subject_id = $1 AND walked_at < $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f2d95cc4ce09d1f695e40b132d5cdda16d912a9193a8737c6f5d83ca34a3374d"
+}

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE label_backfill_queue\n        SET status = 'pending',\n            next_attempt_at = now() + make_interval(secs => $2),\n            last_error = $3,\n            updated_at = now()\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Float8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bcca0d558b7ab0ccf973c3de39ffdccebcae32c90d4295eb6c719c25b3316fae"
+}

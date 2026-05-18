@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO subject_label_backfill (\n            subject_did, last_backfilled_at,\n            labelers_queried, labelers_succeeded, labels_persisted\n        )\n        VALUES ($1, now(), 0, 0, 0)\n        ON CONFLICT (subject_did) DO UPDATE\n        SET last_backfilled_at = EXCLUDED.last_backfilled_at\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cfe49c51ff236bb5fb8c5f2751e06d25b334b106007e0fd6bc926c0bd9dabafa"
+}

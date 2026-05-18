@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add reporter-reputation weighting (T3 mitigation) (#74)
 
 ### Added
+- Serve polaris-frontend static bundle from polaris-backend (#87)
+- Serve OAuth client_metadata.json from Polaris itself (#81)
 - Backend: /api/setup/* endpoints reusing moderator OAuth session (#85)
 - Frontend: first-run setup wizard (key-gen + labeler-record + DID-doc) (#84)
 - Backend: first-run detection + auto-admin grant for first ATProto OAuth login (#83)

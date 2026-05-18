@@ -413,6 +413,22 @@ pub enum AuthError {
         #[source]
         source: crate::audit::AuditError,
     },
+
+    /// The moderator's DID is not on the operator-managed allow-list
+    /// (issue #214 / Ozone-style ACL). Surfaces when a moderator
+    /// completes an OAuth dance for a DID that has no row in
+    /// `moderators` ∪ `moderator_roles` AND the deployment is past the
+    /// first-user-bootstrap window (i.e. `moderators` is non-empty).
+    /// The `handle` (or DID, when the verifier has no handle in scope)
+    /// is captured so the login redirect can echo it back to the login
+    /// form's banner.
+    #[error("login not allowed: {handle}")]
+    NotAllowed {
+        /// The handle (or DID, when no handle is in scope) the
+        /// moderator submitted. Echoed back to the login form so the
+        /// operator can see which identity was rejected.
+        handle: String,
+    },
 }
 
 impl From<crate::audit::AuditError> for AuthError {

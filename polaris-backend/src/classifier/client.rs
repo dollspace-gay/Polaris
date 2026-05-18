@@ -56,10 +56,7 @@ pub trait ClassifierClient: Send + Sync + 'static {
     /// - [`ClassifierError::Transport`] for any tonic-level failure.
     /// - [`ClassifierError::BadResponse`] if the classifier returns a
     ///   response that violates the wire-shape contract.
-    async fn classify(
-        &self,
-        req: ClassifyRequest,
-    ) -> Result<ClassifyResponse, ClassifierError>;
+    async fn classify(&self, req: ClassifyRequest) -> Result<ClassifyResponse, ClassifierError>;
 
     /// Probe the classifier's health endpoint.
     ///
@@ -81,10 +78,7 @@ pub trait ClassifierClient: Send + Sync + 'static {
     /// # Errors
     ///
     /// Same set as [`Self::classify`]; callers typically log + ignore.
-    async fn feedback(
-        &self,
-        req: FeedbackRequest,
-    ) -> Result<(), ClassifierError>;
+    async fn feedback(&self, req: FeedbackRequest) -> Result<(), ClassifierError>;
 }
 
 /// Production [`ClassifierClient`] backed by `tonic::transport::Channel`.
@@ -141,10 +135,7 @@ impl TonicClassifierClient {
 
 #[async_trait::async_trait]
 impl ClassifierClient for TonicClassifierClient {
-    async fn classify(
-        &self,
-        req: ClassifyRequest,
-    ) -> Result<ClassifyResponse, ClassifierError> {
+    async fn classify(&self, req: ClassifyRequest) -> Result<ClassifyResponse, ClassifierError> {
         let mut client = TonicClient::new(self.channel.clone());
         let fut = client.classify(tonic::Request::new(req));
         let response = tokio::time::timeout(self.timeout, fut)
@@ -166,10 +157,7 @@ impl ClassifierClient for TonicClassifierClient {
         Ok(response.into_inner())
     }
 
-    async fn feedback(
-        &self,
-        req: FeedbackRequest,
-    ) -> Result<(), ClassifierError> {
+    async fn feedback(&self, req: FeedbackRequest) -> Result<(), ClassifierError> {
         let mut client = TonicClient::new(self.channel.clone());
         let fut = client.feedback(tonic::Request::new(req));
         let _response = tokio::time::timeout(self.timeout, fut)
@@ -242,10 +230,7 @@ impl FixtureClassifierClient {
 
 #[async_trait::async_trait]
 impl ClassifierClient for FixtureClassifierClient {
-    async fn classify(
-        &self,
-        req: ClassifyRequest,
-    ) -> Result<ClassifyResponse, ClassifierError> {
+    async fn classify(&self, req: ClassifyRequest) -> Result<ClassifyResponse, ClassifierError> {
         self.responses
             .get(&req.event_id)
             .map(|r| r.value().clone())
@@ -262,10 +247,7 @@ impl ClassifierClient for FixtureClassifierClient {
             .map_or_else(default_health_response, |r| r.value().clone()))
     }
 
-    async fn feedback(
-        &self,
-        req: FeedbackRequest,
-    ) -> Result<(), ClassifierError> {
+    async fn feedback(&self, req: FeedbackRequest) -> Result<(), ClassifierError> {
         self.feedback_log.insert(req.event_id.clone(), req);
         Ok(())
     }

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE label_backfill_queue\n        SET status = 'permanent_failure',\n            last_error = $2,\n            updated_at = now()\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a3a3faac31472fec8035ac79452a7f560fdfd1862e2c0351d8ff4e273ec4a698"
+}

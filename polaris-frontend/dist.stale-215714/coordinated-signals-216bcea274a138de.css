@@ -1,0 +1,75 @@
+/*
+ * Coordinated signals panel — surfaces correlated multi-subject activity.
+ */
+
+.coordinated-signals {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  color: var(--color-fg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.coordinated-signals h2 {
+  font-size: var(--font-size-lg);
+  margin: 0;
+}
+
+.coordinated-signals__count {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+}
+
+.coordinated-signals__empty {
+  padding: var(--space-md);
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.coordinated-signals__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.coordinated-signals__row {
+  display: grid;
+  grid-template-columns: max-content 1fr max-content;
+  gap: var(--space-xs) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  align-items: baseline;
+  font-size: var(--font-size-sm);
+}
+
+.coordinated-signals__icon {
+  font-size: var(--font-size-base);
+  color: var(--color-warning);
+}
+
+.coordinated-signals__kind {
+  color: var(--color-fg-primary);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.04em;
+}
+
+.coordinated-signals__label {
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.coordinated-signals__when {
+  color: var(--color-fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}

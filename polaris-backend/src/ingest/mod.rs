@@ -21,6 +21,11 @@
 
 pub mod aggregator;
 pub mod firehose;
+pub mod label_backfill;
+pub mod label_backfill_worker;
+pub mod labeler_discovery;
+pub mod labeler_supervisor;
+pub mod plc_key_fetcher;
 pub mod upstream_labels;
 
 pub use aggregator::{
@@ -28,6 +33,7 @@ pub use aggregator::{
     DEFAULT_WINDOW_SECS, ReportAggregator,
 };
 pub use firehose::{FirehoseConfig, FirehoseError, FirehoseWorker, NormalizedEvent};
+pub use plc_key_fetcher::{DEFAULT_PLC_BASE_URL, PlcKeyFetcher};
 pub use upstream_labels::{
     CacheError, HandleError, UpstreamKeyCache, UpstreamKeyFetcher, UpstreamLabelerConfig,
     UpstreamLabelerConsumer,

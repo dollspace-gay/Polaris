@@ -1,0 +1,109 @@
+/*
+ * Command palette overlay (issue #92, mod-workstation feature #2).
+ *
+ * A full-screen modal triggered by Ctrl/Cmd+K from any page. The
+ * palette is mounted globally in `app.rs` outside the `<Routes>`
+ * block; the overlay is conditionally rendered by the component's
+ * own visibility signal.
+ *
+ * Token discipline: every colour reaches through `var(--…)` — the
+ * workspace `styles_tokens` test forbids literal colour values
+ * outside `tokens.css`. The Backdrop's semi-transparent overlay
+ * uses `--color-overlay` (declared in tokens.css alongside the
+ * modal-dialog backdrop the case view already uses).
+ *
+ * Focus discipline: the input is autofocused on mount and the
+ * dialog traps focus via `tabindex` on the overlay container.
+ */
+
+.command-palette {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+}
+
+.command-palette__backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: var(--color-overlay);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.command-palette__dialog {
+  position: relative;
+  width: min(640px, calc(100vw - 2 * var(--space-lg)));
+  background-color: var(--color-bg-elevated);
+  color: var(--color-fg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.command-palette__hint {
+  margin: 0;
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-sans);
+}
+
+.command-palette__input {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-primary);
+  color: var(--color-fg-primary);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.command-palette__input:focus {
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+
+.command-palette__status {
+  margin: 0;
+  min-height: var(--line-height-normal);
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-sans);
+}
+
+.command-palette__status:empty {
+  /* Reserve vertical space so the layout does not jump between the
+   * idle and resolving / error states. The `:empty` selector lets
+   * the screen reader skip the empty paragraph while the visible
+   * layout still allocates a row. */
+  visibility: hidden;
+}
+
+.command-palette__keymap {
+  margin: 0;
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-sans);
+  text-align: right;
+}
+
+.command-palette__keymap kbd {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-xs);
+  margin: 0 0.15rem;
+  color: var(--color-fg-primary);
+}

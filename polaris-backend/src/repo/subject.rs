@@ -48,6 +48,38 @@ pub trait SubjectRepo: Send + Sync {
         id: SubjectId,
     ) -> impl std::future::Future<Output = Result<Option<Subject>, RepoError>> + Send;
 
+    /// Look up a subject by ATProto DID. Returns `Ok(None)` when no row
+    /// matches.
+    ///
+    /// Issue #92 — the command-palette `POST /api/subjects/lookup`
+    /// endpoint uses this to resolve a moderator-supplied DID to an
+    /// existing `subjects` row before deciding whether to insert.
+    /// Matches on `subjects.did = $1` regardless of `kind` because the
+    /// `subjects_account_did_uniq` partial unique index (migration 16)
+    /// guarantees at most one account row per DID, and record-kinds
+    /// rarely populate `did` directly (the upstream-label consumer is
+    /// the lone exception).
+    fn get_by_did(
+        &self,
+        did: &Did,
+    ) -> impl std::future::Future<Output = Result<Option<Subject>, RepoError>> + Send;
+
+    /// Look up a subject by AT-URI. Returns `Ok(None)` when no row
+    /// matches.
+    ///
+    /// Issue #92 — the command-palette `POST /api/subjects/lookup`
+    /// endpoint uses this to resolve a moderator-supplied AT-URI
+    /// (`at://did:plc:.../app.bsky.feed.post/<rkey>`) to an existing
+    /// `subjects` row before deciding whether to insert. The
+    /// `subjects.uri` column has no unique constraint at the DB layer
+    /// (record-kind posts could theoretically appear twice across
+    /// different kind discriminators), so callers that need
+    /// strict-uniqueness semantics layer the check at the API layer.
+    fn get_by_uri(
+        &self,
+        uri: &AtUri,
+    ) -> impl std::future::Future<Output = Result<Option<Subject>, RepoError>> + Send;
+
     /// List subjects, optionally filtered by `kind`, capped at `limit` rows.
     /// Results are ordered newest-`first_seen_by_mod` first.
     fn list(
@@ -111,6 +143,72 @@ impl SubjectRepo for PgSubjectRepo {
             WHERE id = $1
             "#,
             id.0,
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some(row) = row else { return Ok(None) };
+        let kind = decode_kind(&row.kind)?;
+        let risk_signals = decode_signals(&row.risk_signals)?;
+        Ok(Some(Subject {
+            id: SubjectId(row.id),
+            kind,
+            did: row.did.map(Did::new),
+            uri: row.uri.map(AtUri::new),
+            created_at: row.created_at,
+            first_seen_by_mod: row.first_seen_by_mod,
+            risk_signals,
+        }))
+    }
+
+    async fn get_by_did(&self, did: &Did) -> Result<Option<Subject>, RepoError> {
+        // The `subjects_account_did_uniq` partial unique index
+        // (migration 16) guarantees at most one account row per DID.
+        // Record-kinds may also carry a DID (the upstream-label
+        // consumer populates the authoring DID alongside the AT-URI),
+        // but the contract here is "first match wins" — the caller is
+        // looking the subject up by identity, not by kind. `LIMIT 1`
+        // makes the row-order non-determinism explicit; production
+        // traffic only hits the partial-unique row.
+        let row = sqlx::query!(
+            r#"
+            SELECT id, kind, did, uri, created_at, first_seen_by_mod, risk_signals
+            FROM subjects
+            WHERE did = $1
+            LIMIT 1
+            "#,
+            did.as_str(),
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some(row) = row else { return Ok(None) };
+        let kind = decode_kind(&row.kind)?;
+        let risk_signals = decode_signals(&row.risk_signals)?;
+        Ok(Some(Subject {
+            id: SubjectId(row.id),
+            kind,
+            did: row.did.map(Did::new),
+            uri: row.uri.map(AtUri::new),
+            created_at: row.created_at,
+            first_seen_by_mod: row.first_seen_by_mod,
+            risk_signals,
+        }))
+    }
+
+    async fn get_by_uri(&self, uri: &AtUri) -> Result<Option<Subject>, RepoError> {
+        // `subjects.uri` has no unique constraint at the DB layer; a
+        // race could theoretically produce two rows for the same URI.
+        // `LIMIT 1` is defensive — the API layer's read-then-insert
+        // path holds the de-dup contract for `lookup_subject`.
+        let row = sqlx::query!(
+            r#"
+            SELECT id, kind, did, uri, created_at, first_seen_by_mod, risk_signals
+            FROM subjects
+            WHERE uri = $1
+            LIMIT 1
+            "#,
+            uri.as_str(),
         )
         .fetch_optional(&self.pool)
         .await?;

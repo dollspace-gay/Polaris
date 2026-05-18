@@ -1,0 +1,321 @@
+/*
+ * Report list — case-view surface listing reports against a single subject.
+ *
+ * Each report is a compact stacked card:
+ *   [APPLIED|REMOVED] [category]  ··· [when]
+ *   from <reporter-handle>
+ *   "<body>"
+ *   [reputation chip]
+ *   [Acknowledge] [Escalate] [Open in composer]
+ *
+ * The prior version used a 3-column grid (`max-content 1fr max-content`)
+ * which had no `min-width: 0` guard — a long unbreakable string in the
+ * body (DIDs, AT-URIs) blew out the column width and pushed the panel
+ * past the case-view's main-column boundary, the visible "blowing up
+ * the screen" bug. This layout is fully stacked vertically + has
+ * explicit `overflow-wrap: anywhere` on long-text fields so no single
+ * report can ever overflow the container.
+ */
+
+.report-list {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  color: var(--color-fg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.report-list__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.report-list__header h2,
+.report-list__header h3 {
+  font-size: var(--font-size-lg);
+  margin: 0;
+}
+
+.report-list__count {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+}
+
+.report-list__empty,
+.report-list__placeholder {
+  padding: var(--space-md);
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.report-list__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* ── Per-report card ────────────────────────────────────────── */
+
+.report-list__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  min-width: 0;
+}
+
+.report-list__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-xs);
+}
+
+.report-list__category {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0 var(--space-xs);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-elevated);
+  color: var(--color-fg-primary);
+  /*
+   * Reason types from `tools.ozone.report.defs` are long
+   * (e.g. `tools.ozone.report.defs#reasonHarassmentTargeted`).
+   * Allow them to wrap inside the chip instead of forcing the
+   * meta row to grow beyond the card width.
+   */
+  overflow-wrap: anywhere;
+}
+
+.report-list__reporter {
+  color: var(--color-fg-secondary);
+  font-family: var(--font-mono);
+  /* Long DIDs are the original culprit of the overflow bug. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.report-list__when {
+  color: var(--color-fg-muted);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+/* ── Reporter identity line ───────────────────────────────── */
+
+/*
+ * Prominent display of the reporter DID. The category chip and
+ * timestamp already live in `__meta`; the reporter identity is
+ * load-bearing enough to deserve its own line below them — a
+ * moderator deciding whether to action a report needs to read the
+ * DID/handle first to weight it.
+ */
+.report-list__reporter-line {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+}
+
+.report-list__reporter-label {
+  color: var(--color-fg-secondary);
+  font-weight: 600;
+}
+
+.report-list__reporter-did {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-elevated);
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.report-list__body {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-primary);
+  /* Body text can contain anything — break before overflowing. */
+  overflow-wrap: anywhere;
+}
+
+.report-list__body--empty {
+  font-style: italic;
+  color: var(--color-fg-muted);
+}
+
+/* ── Reputation chip ──────────────────────────────────────── */
+
+.report-list__reputation {
+  margin: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-elevated);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-tight);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  align-items: baseline;
+  overflow-wrap: anywhere;
+}
+
+.report-list__reputation-band {
+  font-weight: 600;
+}
+
+.report-list__reputation-detail {
+  font-family: var(--font-mono);
+  color: var(--color-fg-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-list__reputation--new {
+  background-color: var(--color-warning);
+  color: var(--color-warning-fg);
+  border-color: var(--color-warning);
+}
+
+.report-list__reputation--unproven {
+  background-color: var(--color-bg-elevated);
+  color: var(--color-fg-secondary);
+}
+
+.report-list__reputation--trusted {
+  background-color: var(--color-success);
+  color: var(--color-success-fg);
+  border-color: var(--color-success);
+}
+
+.report-list__reputation--noisy {
+  background-color: var(--color-danger);
+  color: var(--color-danger-fg);
+  border-color: var(--color-danger);
+}
+
+.report-list__reputation--new .report-list__reputation-detail,
+.report-list__reputation--trusted .report-list__reputation-detail,
+.report-list__reputation--noisy .report-list__reputation-detail {
+  color: inherit;
+  opacity: 0.85;
+}
+
+/* ── Per-report action row ────────────────────────────────── */
+
+/*
+ * Quick-action affordances on each report. Each button posts an
+ * action against the report's subject_id, prefilling the action
+ * composer with a sensible default (reason auto-generated from the
+ * report's category, default policy ref attached).
+ *
+ * The buttons are deliberately small and secondary in visual weight
+ * — the canonical action path is still the ActionComposer below;
+ * these are accelerators for the common-case verbs.
+ */
+.report-list__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.report-list__action-btn {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-bg-elevated);
+  /*
+   * Use --color-fg-primary as the canonical button text so the label
+   * is always readable on the neutral panel background. The earlier
+   * shape pulled `--color-success-fg` / `--color-warning-fg` for the
+   * modifier classes — those tokens are the foreground that pairs
+   * with the matching BACKGROUND token (e.g. white on green), so on
+   * an elevated-neutral background the text was invisible. The
+   * --ack / --escalate / --dismiss / --mute-reporter modifiers now
+   * carry their semantic via the border + a tinted left rule, not by
+   * overriding the text color.
+   */
+  color: var(--color-fg-primary);
+  cursor: pointer;
+}
+
+.report-list__action-btn:hover {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-border-focus);
+}
+
+.report-list__action-btn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.report-list__action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.report-list__action-btn--ack {
+  border-color: var(--color-success);
+  border-left-width: 3px;
+}
+
+.report-list__action-btn--dismiss {
+  border-color: var(--color-fg-muted);
+  border-left-width: 3px;
+}
+
+.report-list__action-btn--escalate {
+  border-color: var(--color-warning);
+  border-left-width: 3px;
+}
+
+.report-list__action-btn--mute-reporter {
+  border-color: var(--color-danger);
+  border-left-width: 3px;
+}
+
+.report-list__action-feedback {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+.report-list__action-feedback--error {
+  color: var(--color-warning-fg);
+}
+
+.report-list__action-feedback--success {
+  color: var(--color-success-fg);
+}

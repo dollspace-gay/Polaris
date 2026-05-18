@@ -1,0 +1,115 @@
+/*
+ * Exposure counter — non-blocking wellness nag toast for
+ * moderators (issue #95 / mod-workstation feature #5).
+ *
+ * Pinned to the bottom-centre of the viewport. NOT a modal: focus is
+ * never trapped, the rest of the page keeps interacting. The toast
+ * surfaces only when `exposure_counter::should_show_nag` returns
+ * true; dismissing one of the action buttons records a timestamp the
+ * predicate uses to enforce a cooldown window.
+ *
+ * Token discipline: every colour reaches through `var(--…)`. No
+ * literal colour values per the workspace `styles_tokens` rule.
+ *
+ * Animations: kept under 200ms per the issue #95 contract (fast
+ * feedback for moderators in flow).
+ */
+
+.exposure-counter {
+  position: fixed;
+  left: 50%;
+  bottom: var(--space-lg);
+  transform: translateX(-50%);
+  z-index: 900;
+  /* Cap width so the toast does not span the full viewport on
+   * desktop. */
+  width: min(40rem, calc(100vw - 2 * var(--space-lg)));
+  padding: var(--space-md) var(--space-lg);
+  background-color: var(--color-bg-elevated);
+  color: var(--color-fg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  font-family: var(--font-sans);
+  /* Surface the toast smoothly; the 180ms fade stays inside the
+   * 200ms cap from the spec. */
+  transition: opacity 180ms ease-out;
+}
+
+.exposure-counter--visible {
+  opacity: 1;
+}
+
+.exposure-counter__message {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  color: var(--color-fg-primary);
+}
+
+.exposure-counter__count {
+  /* Highlight the count so the moderator sees the cumulative number
+   * at a glance. `--color-accent` clears AA against `bg-elevated` per
+   * the styles_contrast test's named pairs. */
+  font-weight: 600;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+}
+
+.exposure-counter__actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+}
+
+.exposure-counter__action {
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+}
+
+.exposure-counter__action:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.exposure-counter__action--break {
+  background-color: var(--color-accent);
+  color: var(--color-accent-fg);
+  border-color: var(--color-accent);
+}
+
+.exposure-counter__action--continue {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-primary);
+}
+
+.exposure-counter__action--continue:hover {
+  background-color: var(--color-bg-elevated);
+}
+
+/*
+ * Mobile breakpoint — pin to the bottom edge full-width so the
+ * toast does not overflow narrow viewports. Matches the rest of the
+ * frontend's ≤ 768px collapse pattern (REQ-B4 parity).
+ */
+@media (max-width: 768px) {
+  .exposure-counter {
+    width: calc(100vw - 2 * var(--space-md));
+    bottom: var(--space-md);
+  }
+
+  .exposure-counter__actions {
+    flex-direction: column-reverse;
+  }
+
+  .exposure-counter__action {
+    width: 100%;
+  }
+}

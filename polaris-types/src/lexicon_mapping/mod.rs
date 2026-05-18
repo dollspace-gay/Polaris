@@ -148,10 +148,11 @@ pub fn to_lexicon_evidence_pointer(
 pub fn from_lexicon_evidence_pointer(
     wire: wire::evidence_pointer::Main,
 ) -> Result<EvidencePointer, MappingError> {
-    let byte_length = u64::try_from(wire.byte_length).map_err(|_| MappingError::FieldOutOfRange {
-        field: "byte_length",
-        value: wire.byte_length.to_string(),
-    })?;
+    let byte_length =
+        u64::try_from(wire.byte_length).map_err(|_| MappingError::FieldOutOfRange {
+            field: "byte_length",
+            value: wire.byte_length.to_string(),
+        })?;
 
     Ok(EvidencePointer {
         car_cid: wire.car_cid,
@@ -212,10 +213,11 @@ pub fn to_lexicon_observation_kind(
             },
         ))),
         ObservationKind::ReplyBrigade { thread_uri } => {
-            let at_uri = proto_blue_syntax::AtUri::new(thread_uri)
-                .map_err(|_| MappingError::MalformedAtUri {
+            let at_uri = proto_blue_syntax::AtUri::new(thread_uri).map_err(|_| {
+                MappingError::MalformedAtUri {
                     value: thread_uri.clone(),
-                })?;
+                }
+            })?;
             Ok(Refs::DollspacePolarisObservationReplyBrigade(Box::new(
                 wire::observation::ReplyBrigade { thread_uri: at_uri },
             )))
@@ -225,10 +227,11 @@ pub fn to_lexicon_observation_kind(
             label_value,
             weight,
         } => {
-            let wire_did = proto_blue_syntax::Did::new(source.as_str())
-                .map_err(|_| MappingError::MalformedDid {
+            let wire_did = proto_blue_syntax::Did::new(source.as_str()).map_err(|_| {
+                MappingError::MalformedDid {
                     value: source.0.clone(),
-                })?;
+                }
+            })?;
             Ok(Refs::DollspacePolarisObservationExternalLabel(Box::new(
                 wire::observation::ExternalLabel {
                     source: wire_did,
@@ -253,11 +256,9 @@ pub fn to_lexicon_observation_kind(
             discriminator: "report_volume_anomaly",
         }),
         // privacy: ModeratorBehaviorAnomaly carries moderator_id — never federated
-        ObservationKind::ModeratorBehaviorAnomaly { .. } => {
-            Err(MappingError::UnsupportedVariant {
-                discriminator: "moderator_behavior_anomaly",
-            })
-        }
+        ObservationKind::ModeratorBehaviorAnomaly { .. } => Err(MappingError::UnsupportedVariant {
+            discriminator: "moderator_behavior_anomaly",
+        }),
     }
 }
 
@@ -303,12 +304,11 @@ pub fn from_lexicon_observation_kind(
 
     match wire {
         Refs::DollspacePolarisObservationImageHashCluster(inner) => {
-            let distance = u32::try_from(inner.distance).map_err(|_| {
-                MappingError::FieldOutOfRange {
+            let distance =
+                u32::try_from(inner.distance).map_err(|_| MappingError::FieldOutOfRange {
                     field: "distance",
                     value: inner.distance.to_string(),
-                }
-            })?;
+                })?;
             Ok((
                 0.0,
                 ObservationKind::ImageHashCluster {
@@ -504,11 +504,10 @@ pub fn to_lexicon_escalation(
 
     let subject = match &escalation.subject {
         SubjectRef::Did(did_str) => {
-            let wire_did = proto_blue_syntax::Did::new(did_str).map_err(|_| {
-                MappingError::MalformedDid {
+            let wire_did =
+                proto_blue_syntax::Did::new(did_str).map_err(|_| MappingError::MalformedDid {
                     value: did_str.clone(),
-                }
-            })?;
+                })?;
             wire::escalation::MainSubjectRefs::DollspacePolarisEscalationSubjectAccount(Box::new(
                 wire::escalation::SubjectAccount { did: wire_did },
             ))
@@ -608,9 +607,7 @@ pub fn to_lexicon_escalation(
 /// assert_eq!(orig.reason, back.reason);
 /// ```
 #[must_use = "inspect the Ok value or propagate the Err"]
-pub fn from_lexicon_escalation(
-    wire: wire::escalation::Main,
-) -> Result<Escalation, MappingError> {
+pub fn from_lexicon_escalation(wire: wire::escalation::Main) -> Result<Escalation, MappingError> {
     let source_did = Did::new(wire.source.as_str());
     let target_did = Did::new(wire.target.as_str());
 
@@ -695,11 +692,10 @@ pub fn to_lexicon_escalation_message(
             value: msg.escalation_at_uri.clone(),
         }
     })?;
-    let source = proto_blue_syntax::Did::new(&msg.source_did).map_err(|_| {
-        MappingError::MalformedDid {
+    let source =
+        proto_blue_syntax::Did::new(&msg.source_did).map_err(|_| MappingError::MalformedDid {
             value: msg.source_did.clone(),
-        }
-    })?;
+        })?;
     let signed_at = proto_blue_syntax::Datetime::from_utc(msg.signed_at);
     Ok(wire::escalation_message::Main {
         r#type: wire::escalation_message::TYPE.to_owned(),
@@ -888,9 +884,7 @@ mod tests {
             id: EscalationId::new(),
             source_did: Did::new("did:plc:source"),
             target_did: Did::new("did:plc:target"),
-            subject: SubjectRef::AtUri(
-                "at://did:plc:x/app.bsky.feed.post/3labc".to_owned(),
-            ),
+            subject: SubjectRef::AtUri("at://did:plc:x/app.bsky.feed.post/3labc".to_owned()),
             reason: "record-level concern".to_owned(),
             observations: vec![],
             evidence: vec![],

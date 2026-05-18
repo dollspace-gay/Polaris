@@ -156,7 +156,7 @@ fn is_disagreeing(rows: &[ClassifierRow]) -> bool {
 )]
 mod tests {
     use super::*;
-    use polaris_types::{Observation, ObservationKind, ObservationId, SubjectId};
+    use polaris_types::{Observation, ObservationId, ObservationKind, SubjectId};
 
     fn classifier_obs(model: &str, label: &str, confidence: f32) -> Observation {
         Observation {

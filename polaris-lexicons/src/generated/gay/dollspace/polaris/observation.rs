@@ -52,4 +52,3 @@ pub const OBSERVATION_KIND_CLASSIFIER_SIGNAL: &str = "classifierSignal";
 pub struct ReplyBrigade {
     pub thread_uri: proto_blue_syntax::AtUri,
 }
-

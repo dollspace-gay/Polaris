@@ -7,7 +7,9 @@
 //! pages stay free of presentation concerns. The two compose at the page
 //! boundary.
 
+pub mod admin_moderators;
 pub mod case_view;
 pub mod dashboard;
 pub mod login;
+pub mod queue;
 pub mod setup;

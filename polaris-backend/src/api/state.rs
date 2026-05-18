@@ -36,7 +36,7 @@ use crate::config::{
 };
 use crate::labeler::emitter::LabelEmitter;
 use crate::labeler::server::{LabelBroadcaster, PgLabelRepo};
-use crate::labeler::signer::ActiveSignerReceiver;
+use crate::labeler::signer::{ActiveSigner, ActiveSignerReceiver};
 use crate::pattern::moderator_anomaly::ModeratorAnomalyConfig;
 use crate::repo::{
     PgActionRepo, PgAppealRepo, PgCalibrationEventRepo, PgIncidentRepo, PgObservationRepo,
@@ -85,6 +85,13 @@ pub struct ApiState {
     /// configured custody mode — integration tests that don't exercise
     /// the labeler pipeline skip the construction and leave it `None`.
     pub label_emitter: Option<Arc<LabelEmitter>>,
+    /// Upstream-labeler signing-key cache, shared with the live
+    /// subscriber + the on-demand `queryLabels` backfill driver (issue
+    /// #51). The case-view handler uses it to verify-then-persist
+    /// historic labels pulled from each labeler's own XRPC endpoint
+    /// when a moderator opens a subject for the first time. `None`
+    /// when the labeler subsystem is not configured (tests).
+    pub upstream_key_cache: Option<Arc<crate::ingest::upstream_labels::UpstreamKeyCache>>,
     /// Receiver side of the live-process active-signer slot (issue #30).
     ///
     /// `None` when the labeler subsystem is not configured (tests, the
@@ -99,6 +106,26 @@ pub struct ApiState {
     /// internally `Arc`-shared, matching the existing `Arc<Pg*Repo>`
     /// shape of every other field.
     pub active_signer: Option<ActiveSignerReceiver>,
+    /// Sender side of the live-process active-signer slot (REQ-A4).
+    ///
+    /// `None` when the labeler subsystem is not configured (tests, the
+    /// `--no-labeler` deploy variant). When `Some`, the setup wizard's
+    /// `POST /api/setup/generate-key` handler uses it to hot-swap the
+    /// freshly-loaded `FilePlainSigner` into the slot the emitter
+    /// reads from, atomically and without a process restart.
+    ///
+    /// The receiver side is held by every cloned `ApiState`; the
+    /// sender side is the single point of update. Production wiring
+    /// in `main.rs` installs it via [`Self::with_active_signer_tx`]
+    /// alongside the receiver, so the rotation-discovery task (#65)
+    /// and the setup wizard share one channel.
+    ///
+    /// `Arc<ActiveSigner>` rather than the bare `tokio::sync::watch::Sender`
+    /// so `ApiState::clone` stays cheap — `watch::Sender` itself is
+    /// `Send + Sync` but holding it through an `Arc` matches the
+    /// "every field is Arc-shared" convention the rest of the state
+    /// follows.
+    pub active_signer_tx: Option<Arc<ActiveSigner>>,
     /// IP rate-limiter for the public `POST /api/appeals` endpoint
     /// (issue #24). Cloning is cheap — the inner `HashMap` is wrapped in
     /// an `Arc<Mutex<_>>`.
@@ -169,6 +196,15 @@ pub struct ApiState {
     /// via [`Self::with_oauth_client_metadata`] when the operator
     /// configures the atproto backend.
     pub oauth_client_metadata: crate::api::oauth_metadata::ClientMetadataState,
+    /// Optional override for the polaris-frontend static-bundle
+    /// directory. Production wiring (`main.rs`) leaves this `None`,
+    /// in which case [`api::router_with_state`] consults
+    /// `POLARIS_FRONTEND_DIST` from the process environment. Tests
+    /// install a directory directly via
+    /// [`Self::with_frontend_dist`] to avoid the `unsafe` env-mutation
+    /// the workspace-level `unsafe_code = "deny"` lint refuses.
+    pub frontend_dist: Option<std::path::PathBuf>,
+
     /// Labeler signing-key custody configuration (issue #85).
     ///
     /// The `/api/setup/generate-key` handler reads this to decide
@@ -178,6 +214,23 @@ pub struct ApiState {
     /// `labeler-key-rotate` CLI). Threaded onto the state so the
     /// handler does not have to re-parse env on every call.
     pub labeler_signing_key_cfg: LabelerSigningKeyConfig,
+
+    /// Prometheus recorder handle (Workstream D / REQ-D2).
+    ///
+    /// `None` when the binary did not install the recorder (slim
+    /// integration tests that do not exercise `/metrics`). Production
+    /// wiring in `main.rs` installs it once via
+    /// `metrics_exporter_prometheus::PrometheusBuilder::new()
+    /// .install_recorder()` BEFORE the router is built, so the
+    /// `axum-prometheus` tower layer sees the same recorder when it
+    /// auto-instruments HTTP-level series, and the
+    /// [`crate::api::metrics::handler`] renders the same handle on
+    /// `/metrics`.
+    ///
+    /// `Arc<PrometheusHandle>` keeps cloning the state cheap — the
+    /// underlying recorder state is shared and the handle itself is
+    /// already a thin wrapper around an `Arc`.
+    pub metrics_handle: Option<std::sync::Arc<metrics_exporter_prometheus::PrometheusHandle>>,
 }
 
 impl ApiState {
@@ -317,10 +370,21 @@ impl ApiState {
             // need label emission leave the emitter `None` and the
             // submit-action path silently skips emit when so configured.
             label_emitter: None,
+            // The key cache is installed by `main.rs` after
+            // `spawn_labeler_discovery_and_supervisor`. Tests that
+            // don't exercise the on-demand backfill leave it `None`
+            // and `should_backfill` short-circuits.
+            upstream_key_cache: None,
             // The active-signer slot is installed by the binary entrypoint
             // after `build_signing_key` succeeds. Tests that don't
             // exercise rotation leave it `None`.
             active_signer: None,
+            // The sender half of the active-signer channel is installed
+            // alongside the receiver by the binary entrypoint
+            // (REQ-A4). Tests that exercise the hot-swap path
+            // construct their own channel and install both halves via
+            // [`Self::with_active_signer`] + [`Self::with_active_signer_tx`].
+            active_signer_tx: None,
             appeals_rate_limiter: AppealsRateLimiter::new(),
             pool,
             sessions,
@@ -351,6 +415,19 @@ impl ApiState {
             // tests that don't exercise the setup endpoints leave the
             // default in place.
             labeler_signing_key_cfg: LabelerSigningKeyConfig::default(),
+            // Production wiring reads `POLARIS_FRONTEND_DIST` from
+            // env at router-construction time; tests install a path
+            // directly via [`Self::with_frontend_dist`].
+            frontend_dist: None,
+            // Workstream D / REQ-D2: the binary entrypoint installs
+            // the Prometheus recorder handle via
+            // [`Self::with_metrics_handle`] after
+            // `metrics_exporter_prometheus::PrometheusBuilder::new()
+            // .install_recorder()` succeeds. Slim integration tests
+            // that do not exercise `/metrics` leave it `None`; the
+            // metrics handler then returns 503 (the empty-body
+            // sentinel posture).
+            metrics_handle: None,
         }
     }
 
@@ -394,6 +471,23 @@ impl ApiState {
         self
     }
 
+    /// Plug the **sender** side of the active-signer channel onto the
+    /// state (REQ-A4).
+    ///
+    /// The binary entrypoint constructs the channel once via
+    /// `tokio::sync::watch::channel(initial_signer)`, installs the
+    /// receiver via [`Self::with_active_signer`], and installs the
+    /// sender here so the setup wizard's
+    /// `POST /api/setup/generate-key` handler can hot-swap the
+    /// freshly-loaded `FilePlainSigner` into the slot. Tests that
+    /// exercise the AC-A4 hot-swap path own both halves and install
+    /// them the same way.
+    #[must_use]
+    pub fn with_active_signer_tx(mut self, tx: Arc<ActiveSigner>) -> Self {
+        self.active_signer_tx = Some(tx);
+        self
+    }
+
     /// Plug a constructed [`LabelEmitter`] onto the state.
     ///
     /// The binary entrypoint (`main.rs`) calls
@@ -406,6 +500,22 @@ impl ApiState {
     #[must_use]
     pub fn with_label_emitter(mut self, emitter: Arc<LabelEmitter>) -> Self {
         self.label_emitter = Some(emitter);
+        self
+    }
+
+    /// Install the shared [`UpstreamKeyCache`] for the on-demand
+    /// `queryLabels` backfill driver. The cache is constructed at
+    /// startup by [`spawn_labeler_discovery_and_supervisor`] and
+    /// shared with the live subscriber so a backfill verify-step
+    /// hits the same warm cache the live consumer uses.
+    ///
+    /// [`UpstreamKeyCache`]: crate::ingest::upstream_labels::UpstreamKeyCache
+    #[must_use]
+    pub fn with_upstream_key_cache(
+        mut self,
+        cache: Arc<crate::ingest::upstream_labels::UpstreamKeyCache>,
+    ) -> Self {
+        self.upstream_key_cache = Some(cache);
         self
     }
 
@@ -439,6 +549,20 @@ impl ApiState {
         self
     }
 
+    /// Install a polaris-frontend static-bundle directory override.
+    ///
+    /// Production wiring leaves this unset (the router falls back to
+    /// `POLARIS_FRONTEND_DIST`). Tests use this builder to point the
+    /// SPA fallback at a fixture directory without mutating process
+    /// env (the workspace's `unsafe_code = "deny"` lint refuses the
+    /// `unsafe { std::env::set_var(...) }` pattern required by the
+    /// newer Rust env API).
+    #[must_use]
+    pub fn with_frontend_dist(mut self, dist: std::path::PathBuf) -> Self {
+        self.frontend_dist = Some(dist);
+        self
+    }
+
     /// Install the labeler signing-key custody configuration onto the
     /// state (issue #85).
     ///
@@ -450,6 +574,27 @@ impl ApiState {
     #[must_use]
     pub fn with_labeler_signing_key_cfg(mut self, cfg: LabelerSigningKeyConfig) -> Self {
         self.labeler_signing_key_cfg = cfg;
+        self
+    }
+
+    /// Install the Prometheus recorder handle onto the state
+    /// (Workstream D / REQ-D2).
+    ///
+    /// The binary entrypoint calls this after
+    /// `metrics_exporter_prometheus::PrometheusBuilder::new()
+    /// .install_recorder()` succeeds (which globally registers the
+    /// recorder so all subsequent `metrics::counter!` / `metrics::gauge!`
+    /// emissions route to it). The `axum-prometheus` middleware
+    /// layered on the merged router in `main.rs` shares the same
+    /// recorder; the `/metrics` handler renders the handle's text
+    /// output. Tests that exercise `/metrics` install the handle the
+    /// same way.
+    #[must_use]
+    pub fn with_metrics_handle(
+        mut self,
+        handle: std::sync::Arc<metrics_exporter_prometheus::PrometheusHandle>,
+    ) -> Self {
+        self.metrics_handle = Some(handle);
         self
     }
 
@@ -490,8 +635,19 @@ impl std::fmt::Debug for ApiState {
             .field("label_broadcaster", &self.label_broadcaster)
             .field("label_emitter", &self.label_emitter)
             .field(
+                "upstream_key_cache",
+                &self
+                    .upstream_key_cache
+                    .as_ref()
+                    .map(|_| "<UpstreamKeyCache>"),
+            )
+            .field(
                 "active_signer",
                 &self.active_signer.as_ref().map(|_| "<receiver>"),
+            )
+            .field(
+                "active_signer_tx",
+                &self.active_signer_tx.as_ref().map(|_| "<sender>"),
             )
             .field("appeals_rate_limiter", &self.appeals_rate_limiter)
             .field("pool", &self.pool)
@@ -512,6 +668,11 @@ impl std::fmt::Debug for ApiState {
                     .map(|_| "<client-metadata>"),
             )
             .field("labeler_signing_key_cfg", &self.labeler_signing_key_cfg)
+            .field("frontend_dist", &self.frontend_dist)
+            .field(
+                "metrics_handle",
+                &self.metrics_handle.as_ref().map(|_| "<prometheus-handle>"),
+            )
             .finish()
     }
 }

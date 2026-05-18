@@ -121,7 +121,8 @@ impl ClassifierFanout {
 
         // Per rust-quality §10: one JoinSet per fan-out, per-classifier
         // task isolation. If one classifier panics the others continue.
-        let mut tasks: JoinSet<(String, Result<ClassifyResponse, ClassifierError>)> = JoinSet::new();
+        let mut tasks: JoinSet<(String, Result<ClassifyResponse, ClassifierError>)> =
+            JoinSet::new();
         for cls in &self.classifiers {
             let client = Arc::clone(&cls.client);
             let name = cls.name.clone();
@@ -152,13 +153,7 @@ impl ClassifierFanout {
             };
             match result {
                 Ok(response) => {
-                    inserted += materialise_response(
-                        &self.pool,
-                        &event,
-                        &name,
-                        response,
-                    )
-                    .await?;
+                    inserted += materialise_response(&self.pool, &event, &name, response).await?;
                 }
                 Err(ClassifierError::CircuitOpen { .. }) => {
                     // Don't increment the failure counter — the call

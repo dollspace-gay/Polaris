@@ -39,7 +39,7 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use axum::body::{Body, to_bytes};
+use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use polaris_backend::api;
 use polaris_backend::api::state::ApiState;
@@ -323,22 +323,6 @@ async fn build_fixture(fetcher: Arc<MockFetcher>) -> Result<Fixture, Box<dyn std
     })
 }
 
-/// Read the response body as a `serde_json::Value`. Returns `None` for an
-/// empty body (the 303 redirect path).
-async fn maybe_json(response: &mut axum::response::Response) -> Option<serde_json::Value> {
-    // `to_bytes` consumes the body, so we re-construct the response with
-    // an empty body afterwards if the caller still wants to inspect
-    // headers. For our purposes the caller has already pulled the
-    // headers out before reaching here.
-    let body = std::mem::replace(response.body_mut(), Body::empty());
-    let bytes = to_bytes(body, 64 * 1024).await.unwrap();
-    if bytes.is_empty() {
-        None
-    } else {
-        Some(serde_json::from_slice(&bytes).unwrap())
-    }
-}
-
 // ── 1. POST /auth/atproto/login → 303 with Location header ────────────────
 
 #[tokio::test]
@@ -498,10 +482,11 @@ async fn get_callback_sets_session_cookie_and_redirects_to_root()
     Ok(())
 }
 
-// ── 3. POST /auth/atproto/login with empty handle → 400 ───────────────────
+// ── 3. POST /auth/atproto/login with empty handle → 303 to /login?error= ─
 
 #[tokio::test]
-async fn post_login_with_empty_handle_returns_400() -> Result<(), Box<dyn std::error::Error>> {
+async fn post_login_with_empty_handle_redirects_to_login_with_error()
+-> Result<(), Box<dyn std::error::Error>> {
     if !docker_available() {
         println!("SKIP auth_atproto_http::post_login_empty_handle: docker daemon not reachable");
         return Ok(());
@@ -516,24 +501,38 @@ async fn post_login_with_empty_handle_returns_400() -> Result<(), Box<dyn std::e
         .uri("/auth/atproto/login")
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(Body::from(body))?;
-    let mut response = fixture.router.oneshot(request).await?;
+    let response = fixture.router.oneshot(request).await?;
 
+    // The handler at `auth_atproto::login` short-circuits an empty
+    // handle into `redirect_login_with_error("empty_handle", "")`.
+    // That helper always produces a 303 See Other with
+    // `Location: /login?error=<code>&handle=<echoed>`. Asserting the
+    // redirect shape (rather than a 400 JSON body) is what issue #216
+    // tracks — the browser-driven login form needs a navigable
+    // response so it can render an inline banner, not raw JSON on a
+    // blank page.
     assert_eq!(
         response.status(),
-        StatusCode::BAD_REQUEST,
-        "empty handle must surface as 400 Bad Request",
+        StatusCode::SEE_OTHER,
+        "empty handle must redirect (303) to /login with a typed error code",
     );
-    let body = maybe_json(&mut response)
-        .await
-        .expect("400 body should be JSON");
-    assert_eq!(body["code"], "bad_request");
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .expect("Location header must be present on 303");
+    let location_str = location.to_str().expect("Location must be ASCII");
+    assert!(
+        location_str.starts_with("/login?error=empty_handle"),
+        "Location must point at /login with error=empty_handle; got {location_str}",
+    );
     Ok(())
 }
 
-// ── 4. GET /auth/atproto/callback with wrong state → 400 ──────────────────
+// ── 4. GET /auth/atproto/callback with wrong state → 303 to /login?error= ─
 
 #[tokio::test]
-async fn get_callback_with_wrong_state_returns_400() -> Result<(), Box<dyn std::error::Error>> {
+async fn get_callback_with_wrong_state_redirects_to_login_with_error()
+-> Result<(), Box<dyn std::error::Error>> {
     if !docker_available() {
         println!("SKIP auth_atproto_http::get_callback_wrong_state: docker daemon not reachable",);
         return Ok(());
@@ -546,19 +545,31 @@ async fn get_callback_with_wrong_state_returns_400() -> Result<(), Box<dyn std::
         .method("GET")
         .uri("/auth/atproto/callback?state=definitely-not-a-real-state&code=whatever")
         .body(Body::empty())?;
-    let mut response = fixture.router.oneshot(request).await?;
+    let response = fixture.router.oneshot(request).await?;
 
     // The verifier surfaces `AuthError::StateMismatch` for an unknown
-    // state token; the handler maps that to `ApiError::BadRequest`.
+    // state token; `auth_error_to_api` maps that to
+    // `ApiError::BadRequest`, and `login_error_redirect_params`
+    // classifies `BadRequest` as a user-attributable typed code. The
+    // callback handler therefore 303-redirects to
+    // `/login?error=bad_request&handle=` rather than emitting a 400
+    // JSON body — same rationale as issue #216 for the login path:
+    // the browser-driven flow needs a navigable response so the
+    // login page can render an inline banner.
     assert_eq!(
         response.status(),
-        StatusCode::BAD_REQUEST,
-        "unknown state must surface as 400 Bad Request",
+        StatusCode::SEE_OTHER,
+        "unknown state must redirect (303) to /login with a typed error code",
     );
-    let body = maybe_json(&mut response)
-        .await
-        .expect("400 body should be JSON");
-    assert_eq!(body["code"], "bad_request");
+    let location = response
+        .headers()
+        .get(header::LOCATION)
+        .expect("Location header must be present on 303");
+    let location_str = location.to_str().expect("Location must be ASCII");
+    assert!(
+        location_str.starts_with("/login?error=bad_request"),
+        "Location must point at /login with error=bad_request; got {location_str}",
+    );
     Ok(())
 }
 

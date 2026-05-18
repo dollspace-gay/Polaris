@@ -1463,16 +1463,16 @@ impl FederationConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
         let enabled = parse_optional_bool_env("POLARIS_FEDERATION_ENABLED")?.unwrap_or(false);
 
-        let public_key_cache_ttl_secs =
-            match env::var("POLARIS_FEDERATION_KEY_CACHE_TTL_SECS").ok() {
-                Some(raw) => raw
-                    .parse::<u64>()
-                    .map_err(|source| ConfigError::InvalidInt {
-                        field: "POLARIS_FEDERATION_KEY_CACHE_TTL_SECS",
-                        source,
-                    })?,
-                None => default_federation_key_cache_ttl_secs(),
-            };
+        let public_key_cache_ttl_secs = match env::var("POLARIS_FEDERATION_KEY_CACHE_TTL_SECS").ok()
+        {
+            Some(raw) => raw
+                .parse::<u64>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_FEDERATION_KEY_CACHE_TTL_SECS",
+                    source,
+                })?,
+            None => default_federation_key_cache_ttl_secs(),
+        };
 
         let peers = parse_federation_peers_env()?;
 
@@ -1510,11 +1510,13 @@ fn parse_federation_peers_env() -> Result<Vec<PeerConfig>, ConfigError> {
             };
 
             // Split DID and PDS host on `@`.
-            let (did, pds_host) = at_part.split_once('@').ok_or(ConfigError::InvalidEnumValue {
-                field: "POLARIS_FEDERATION_PEERS",
-                value: entry.to_owned(),
-                accepted: &["<did>@<pds_host>[+direction]"],
-            })?;
+            let (did, pds_host) = at_part
+                .split_once('@')
+                .ok_or(ConfigError::InvalidEnumValue {
+                    field: "POLARIS_FEDERATION_PEERS",
+                    value: entry.to_owned(),
+                    accepted: &["<did>@<pds_host>[+direction]"],
+                })?;
 
             let direction = match direction_str {
                 "bidirectional" => FederationDirection::Bidirectional,

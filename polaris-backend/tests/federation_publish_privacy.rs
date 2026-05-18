@@ -122,8 +122,7 @@ fn wire_form_does_not_contain_internal_id() {
     let id_str = esc.id.to_string();
 
     let wire = to_lexicon_escalation(&esc).expect("safe escalation must map without error");
-    let wire_json =
-        serde_json::to_string(&wire).expect("wire form must be JSON-serializable");
+    let wire_json = serde_json::to_string(&wire).expect("wire form must be JSON-serializable");
 
     assert!(
         !wire_json.contains(&id_str),
@@ -201,8 +200,7 @@ fn wire_form_contains_expected_public_fields() {
     let reason = esc.reason.clone();
 
     let wire = to_lexicon_escalation(&esc).expect("safe escalation must map without error");
-    let wire_json =
-        serde_json::to_string(&wire).expect("wire form must be JSON-serializable");
+    let wire_json = serde_json::to_string(&wire).expect("wire form must be JSON-serializable");
 
     assert!(
         wire_json.contains(&source_did),
@@ -287,11 +285,8 @@ async fn publish_path_body_does_not_contain_internal_id() {
         recorded: Arc::clone(&recorded),
     };
     let xrpc = Arc::new(
-        proto_blue::xrpc::XrpcClient::with_fetch_handler(
-            "https://bsky.social",
-            Arc::new(fetcher),
-        )
-        .unwrap(),
+        proto_blue::xrpc::XrpcClient::with_fetch_handler("https://bsky.social", Arc::new(fetcher))
+            .unwrap(),
     );
 
     let publisher = OutboundPublisher::new(

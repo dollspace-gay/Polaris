@@ -37,7 +37,6 @@ pub mod api;
 pub mod audit;
 pub mod auth;
 pub mod bus;
-pub mod config;
 /// ML classifier integration (issue #126 / M5 #45 PR 2 foundational).
 ///
 /// Polaris consumes classifier output via gRPC as another Observation
@@ -45,6 +44,7 @@ pub mod config;
 /// the action. The fan-out worker, circuit breaker, and opt-in feedback
 /// path land in #127, #128, #130 respectively.
 pub mod classifier;
+pub mod config;
 pub mod db;
 pub mod evidence;
 /// Cross-instance federation (issue #107 / M5 PR 1).
@@ -54,15 +54,16 @@ pub mod evidence;
 /// signatures, and materialises records into `federation_quarantine`.
 pub mod federation;
 pub mod ingest;
+pub mod labeler;
+pub mod middleware;
 /// Mobile push-notification subsystem (issue #116 / M5 #44 PR 2).
 ///
 /// APNs / FCM / ntfy.sh dispatchers behind the [`notifications::PushProvider`]
 /// trait. Push payloads carry NO PII per AC-8 / REQ-8.
 pub mod notifications;
-pub mod labeler;
-pub mod middleware;
 pub mod pattern;
 pub mod repo;
 pub mod reputation;
 pub mod routing;
+pub mod scheduled_takedown_worker;
 pub mod wellness;

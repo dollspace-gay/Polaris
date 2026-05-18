@@ -215,8 +215,8 @@ async fn run(cli: Cli) -> Result<String> {
     let (_signer_tx, signer_rx) = watch::channel(signer);
 
     // ── 6. Build XRPC client ─────────────────────────────────────────────
-    let xrpc = proto_blue::xrpc::XrpcClient::new(&pds_url)
-        .context("building XRPC client for PDS")?;
+    let xrpc =
+        proto_blue::xrpc::XrpcClient::new(&pds_url).context("building XRPC client for PDS")?;
 
     // ── 7. Publish ───────────────────────────────────────────────────────
     let publisher = OutboundPublisher::new(signer_rx, Arc::new(xrpc), local_did);
@@ -248,8 +248,7 @@ fn classify_error(err: &anyhow::Error) -> u8 {
         {
             return EXIT_USER_ERROR;
         }
-        if msg.contains("ATProto repo write failed")
-            || msg.contains("building XRPC client for PDS")
+        if msg.contains("ATProto repo write failed") || msg.contains("building XRPC client for PDS")
         {
             return EXIT_EXTERNAL_ERROR;
         }

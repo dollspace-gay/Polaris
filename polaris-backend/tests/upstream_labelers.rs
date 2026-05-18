@@ -436,3 +436,188 @@ async fn cursor_persists_across_consumer_reinstantiation() {
         .expect("load cursor 3");
     assert_eq!(seq, 99, "stale writer must not rewind cursor");
 }
+
+/// `indexed_labels` write — the bunnynabbit local-store half. A verified
+/// label must materialise as a row in `indexed_labels` keyed by
+/// `(src, uri, val, neg)`, so the case-view query path (#181) can read
+/// it without any AppView round-trip.
+#[tokio::test]
+async fn verified_label_lands_in_indexed_labels() {
+    if !docker_available() {
+        println!("SKIP indexed_labels test: docker not reachable");
+        return;
+    }
+    let (_container, pool) = start_db().await;
+
+    let upstream_did = "did:plc:upstream-indexed";
+    let signer = K256Keypair::generate();
+    let signing_did = signer.did();
+    let weights = serde_json::json!({});
+    seed_upstream(&pool, upstream_did, &signing_did, &weights).await;
+
+    let cfg = UpstreamLabelerConfig::from_row(
+        upstream_did.to_owned(),
+        "labeler.example".to_owned(),
+        &weights,
+    );
+    let cache = Arc::new(UpstreamKeyCache::new(
+        pool.clone(),
+        Arc::new(StubFetcher {
+            did_key: signing_did.clone(),
+        }),
+    ));
+    let observations = Arc::new(PgObservationRepo::new(pool.clone()));
+    let consumer = UpstreamLabelerConsumer::new(cfg, pool.clone(), observations, cache);
+
+    // Post-level URI — the kind of label the original AppView-based
+    // panel was *not* surfacing because the operator's account doesn't
+    // exist as a Polaris subject.
+    let target_uri = "at://did:plc:victim/app.bsky.feed.post/3lkabcdef12";
+    let (label, _) = build_signed_label(&signer, target_uri, "spam");
+
+    let returned_seq = consumer
+        .handle_frame_with_seq(&label, 1234)
+        .await
+        .expect("verified label must be accepted");
+    assert_eq!(returned_seq, 1234, "handle_frame returns the envelope seq");
+
+    // The row must exist with every wire-shape field populated.
+    let row = sqlx::query!(
+        r#"
+        SELECT src, uri, val, neg, seq, sig, cts, exp
+        FROM indexed_labels
+        WHERE src = $1 AND uri = $2 AND val = $3
+        "#,
+        signing_did,
+        target_uri,
+        "spam",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("indexed_labels row exists");
+    assert_eq!(row.src, signing_did);
+    assert_eq!(row.uri, target_uri);
+    assert_eq!(row.val, "spam");
+    assert!(!row.neg, "label was an assertion, not a negation");
+    assert_eq!(row.seq, 1234);
+    assert!(
+        row.sig.is_some_and(|s| !s.is_empty()),
+        "signature bytes must persist",
+    );
+    assert!(row.cts.timestamp() > 0, "cts must be a valid timestamp");
+    assert!(row.exp.is_none(), "no exp was supplied on this fixture");
+
+    // Idempotent upsert: re-emit the SAME (src, uri, val, neg) with a
+    // newer seq. Row count stays 1; seq advances.
+    let (label2, _) = build_signed_label(&signer, target_uri, "spam");
+    consumer
+        .handle_frame_with_seq(&label2, 9999)
+        .await
+        .expect("re-emission must succeed");
+    let after = sqlx::query!(
+        r#"
+        SELECT seq, COUNT(*) OVER () AS row_count
+        FROM indexed_labels
+        WHERE src = $1 AND uri = $2 AND val = $3 AND neg = FALSE
+        "#,
+        signing_did,
+        target_uri,
+        "spam",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("indexed_labels row after re-emit");
+    assert_eq!(after.row_count, Some(1), "re-emission is an upsert");
+    assert_eq!(after.seq, 9999, "newer seq wins");
+
+    // Cursor regression guard: a stale frame (seq < current) must not
+    // rewrite the row.
+    let (label3, _) = build_signed_label(&signer, target_uri, "spam");
+    consumer
+        .handle_frame_with_seq(&label3, 100)
+        .await
+        .expect("stale re-emit must not error");
+    let stable = sqlx::query!(
+        "SELECT seq FROM indexed_labels WHERE src = $1 AND uri = $2 AND val = $3 AND neg = FALSE",
+        signing_did,
+        target_uri,
+        "spam",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("indexed_labels row after stale frame");
+    assert_eq!(stable.seq, 9999, "stale seq must not rewrite");
+}
+
+/// Negation preserves history: assert then retract the same value →
+/// two rows, one `neg=false`, one `neg=true`.
+#[tokio::test]
+async fn assert_then_negate_preserves_both_rows() {
+    if !docker_available() {
+        println!("SKIP indexed_labels negation test: docker not reachable");
+        return;
+    }
+    let (_container, pool) = start_db().await;
+
+    let upstream_did = "did:plc:upstream-neg";
+    let signer = K256Keypair::generate();
+    let signing_did = signer.did();
+    let weights = serde_json::json!({});
+    seed_upstream(&pool, upstream_did, &signing_did, &weights).await;
+
+    let cfg = UpstreamLabelerConfig::from_row(
+        upstream_did.to_owned(),
+        "labeler.example".to_owned(),
+        &weights,
+    );
+    let cache = Arc::new(UpstreamKeyCache::new(
+        pool.clone(),
+        Arc::new(StubFetcher {
+            did_key: signing_did.clone(),
+        }),
+    ));
+    let observations = Arc::new(PgObservationRepo::new(pool.clone()));
+    let consumer = UpstreamLabelerConsumer::new(cfg, pool.clone(), observations, cache);
+
+    let target = "did:plc:victim-neg";
+    let (asserted, _) = build_signed_label(&signer, target, "warn");
+    consumer
+        .handle_frame_with_seq(&asserted, 1)
+        .await
+        .expect("assert");
+
+    // Build a negation: same label but `neg = Some(true)`, re-signed.
+    let src = ProtoDid::new(&signing_did).expect("valid did:key");
+    let mut retract = ProtoLabel {
+        cid: None,
+        cts: ProtoDatetime::from_utc(Utc::now()),
+        exp: None,
+        neg: Some(true),
+        sig: None,
+        src,
+        uri: target.to_owned(),
+        val: "warn".to_owned(),
+        ver: Some(1),
+    };
+    let json = serde_json::to_value(&retract).expect("serialize");
+    let lex = lex_json::json_to_lex(&json);
+    let cbor = lex_cbor::encode(&lex).expect("encode");
+    retract.sig = Some(signer.sign(&cbor).expect("sign"));
+    consumer
+        .handle_frame_with_seq(&retract, 2)
+        .await
+        .expect("retract");
+
+    let rows = sqlx::query!(
+        "SELECT neg FROM indexed_labels WHERE src = $1 AND uri = $2 AND val = $3 ORDER BY neg",
+        signing_did,
+        target,
+        "warn",
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("rows");
+    assert_eq!(rows.len(), 2, "assert + retract both persist");
+    assert!(!rows[0].neg);
+    assert!(rows[1].neg);
+}

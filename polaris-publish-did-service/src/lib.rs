@@ -57,6 +57,14 @@ pub const PDS_SERVICE_TYPE: &str = "AtprotoPersonalDataServer";
 /// as a relative `#fragment` per atproto convention.
 pub const ATPROTO_VERIFICATION_ID: &str = "#atproto";
 
+/// Identifier of the labeler signing-key verification method, written
+/// as a relative `#fragment` per atproto convention. Paired with
+/// [`LABELER_SERVICE_ID`] in the DID document so downstream consumers
+/// can resolve the labeler's signing key via DID resolution and
+/// verify the signatures on emitted `com.atproto.label.defs#label`
+/// records.
+pub const ATPROTO_LABEL_VERIFICATION_ID: &str = "#atproto_label";
+
 /// `type` discriminator for the verification method. ATProto uses the
 /// W3C Multikey 2024 spec.
 pub const ATPROTO_VERIFICATION_TYPE: &str = "Multikey";
@@ -348,19 +356,70 @@ pub fn validate_did_document(
 /// builds always carries a `service` array).
 #[must_use]
 pub fn build_plc_services_payload(doc: &Value) -> Option<Value> {
-    doc.get("service").cloned()
+    // PLC's `signPlcOperation` lexicon declares `services` as a
+    // `Map<fragment_id, ServiceEntry>` where `ServiceEntry =
+    // {type, endpoint}`. The DID-document `service` array uses the
+    // W3C DID-Core shape `[{id, type, serviceEndpoint}]`. Translate
+    // by stripping the leading `#` from each `id` to use as the map
+    // key, and renaming `serviceEndpoint` → `endpoint`. A bad
+    // (non-array, non-object) entry is skipped silently rather than
+    // failing the whole call — the lexicon validator on the PDS will
+    // surface a precise error if the remaining shape is wrong.
+    let arr = doc.get("service")?.as_array()?;
+    let mut out = serde_json::Map::new();
+    for entry in arr {
+        let Some(entry_obj) = entry.as_object() else {
+            continue;
+        };
+        let Some(id) = entry_obj.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let fragment = id.rsplit_once('#').map_or(id, |(_, suffix)| suffix);
+        let ty = entry_obj.get("type").cloned().unwrap_or(Value::Null);
+        let endpoint = entry_obj
+            .get("serviceEndpoint")
+            .cloned()
+            .unwrap_or(Value::Null);
+        out.insert(
+            fragment.to_owned(),
+            serde_json::json!({ "type": ty, "endpoint": endpoint }),
+        );
+    }
+    Some(Value::Object(out))
 }
 
-/// Extract the `verificationMethod` array from a built DID document for
-/// use in `sign_plc_operation::Input.verification_methods`.
+/// Build the PLC `verificationMethods` payload from a built DID document.
 ///
-/// Mirror of [`build_plc_services_payload`] for the verification-methods
-/// half of the PLC sign call. Same `unknown`-typed `verificationMethods`
-/// field on the lexicon, same opaque-JSON wire shape, same `None`
-/// semantics on a missing top-level key.
+/// PLC's `signPlcOperation` declares `verificationMethods` as a
+/// `Map<fragment_id, did_key_string>` — each value is a `did:key:z…`
+/// reference, **not** an object. The DID-document `verificationMethod`
+/// array uses the Multikey shape `{id, type, controller,
+/// publicKeyMultibase}`. Translate by stripping the leading `#` from
+/// each `id` to use as the map key, and reconstructing the
+/// `did:key:` prefix in front of `publicKeyMultibase`. Entries that
+/// don't have a `Multikey` type or are missing `publicKeyMultibase`
+/// are skipped silently.
 #[must_use]
 pub fn build_plc_verification_methods_payload(doc: &Value) -> Option<Value> {
-    doc.get("verificationMethod").cloned()
+    let arr = doc.get("verificationMethod")?.as_array()?;
+    let mut out = serde_json::Map::new();
+    for entry in arr {
+        let Some(entry_obj) = entry.as_object() else {
+            continue;
+        };
+        let Some(id) = entry_obj.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+        let fragment = id.rsplit_once('#').map_or(id, |(_, suffix)| suffix);
+        let Some(multibase) = entry_obj.get("publicKeyMultibase").and_then(Value::as_str) else {
+            continue;
+        };
+        out.insert(
+            fragment.to_owned(),
+            Value::String(format!("did:key:{multibase}")),
+        );
+    }
+    Some(Value::Object(out))
 }
 
 /// Compare two service-entry ids, treating absolute and relative

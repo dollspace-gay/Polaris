@@ -234,6 +234,23 @@ getrandom = { version = "0.4", features = ["wasm_js"] }
 # Date/time
 chrono = { version = "0.4", features = ["serde"] }
 
+# lettre 0.11 (MIT/Apache-2.0): SMTP client for the Ozone-parity EMAIL
+# verb (#190). The handler builds a typed `Message`, hands it to a
+# pooled `SmtpTransport` if the operator has configured SMTP creds at
+# startup, and persists the delivery outcome (sent / queued / failed)
+# in `moderator_emails`. `rustls-tls` keeps the build pure-Rust (no
+# openssl dep) and `builder` is the typed message-construction API.
+# `smtp-transport` carries the actual delivery client.
+lettre = { version = "0.11", default-features = false, features = [
+    "smtp-transport",
+    "rustls-tls",
+    "tokio1-rustls-tls",
+    "tokio1",
+    "builder",
+    "hostname",
+    "pool",
+] }
+
 # CLI (xtask)
 clap = { version = "4", features = ["derive"] }
 
@@ -453,6 +470,39 @@ aws-sdk-s3 = { version = "1", default-features = false, features = [
     "rustls",
     "rt-tokio",
     "behavior-version-latest",
+] }
+
+# GCP and Azure KMS rotation paths are implemented via direct REST
+# calls over the existing workspace `reqwest` dep (with `rustls-tls`),
+# rather than pulling the official Google Cloud / Azure Rust SDKs.
+#
+# Rationale: the cloud-KMS rotation flow needs at most two HTTP calls
+# per provider (create key + atomic-swap the active pointer). Pulling
+# the full Google Cloud Rust SDK (300+ crates transitively) or the
+# Azure SDK for Rust (200+) would balloon `cargo build` time and the
+# release-binary size for a CLI invoked at most a few times per year
+# during scheduled key rotation. The REST surface is the same
+# protocol the SDKs wrap; we use it directly.
+#
+# Auth tokens:
+# - GCP: service-account JWT signed with the operator's private key,
+#   exchanged at `oauth2.googleapis.com/token` for an access token
+#   with the `cloudkms` scope. The signing uses the workspace
+#   `jsonwebtoken` dep (added below) which is pure-rust and already
+#   in our transitive lockfile via webauthn-rs.
+# - Azure: client-credentials flow against
+#   `login.microsoftonline.com/<tenant>/oauth2/v2.0/token` with the
+#   scope `https://vault.azure.net/.default`. Standard form-encoded
+#   request, no SDK required.
+
+# `jsonwebtoken` 9.x: MIT. Pure-Rust JWT signer used by the GCP
+# OAuth2 service-account flow. Gated through the same
+# `kms-integration` feature so the default build doesn't pay for it.
+# (Note: jsonwebtoken is already transitively present via
+# `proto-blue`'s atproto OAuth wiring — re-declared at the workspace
+# level here so the major pin is explicit at every consumer site.)
+jsonwebtoken = { version = "9", default-features = false, features = [
+    "use_pem",
 ] }
 
 # Observability — metrics surface (Workstream D, REQ-D2).

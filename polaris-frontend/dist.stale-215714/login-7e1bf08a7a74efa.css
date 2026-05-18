@@ -1,0 +1,73 @@
+/*
+ * Login page styles. Centred single-field form on a calm background.
+ */
+
+.login-page {
+  max-width: 26rem;
+  margin: var(--space-xl) auto;
+  padding: var(--space-lg);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated);
+  color: var(--color-fg-primary);
+}
+
+.login-page h1 {
+  font-size: var(--font-size-xl);
+  margin-bottom: var(--space-xs);
+}
+
+.login-page__tagline {
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.login-page__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.login-page__form label {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  font-weight: 500;
+}
+
+.login-page__form input {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-primary);
+  color: var(--color-fg-primary);
+  font-size: var(--font-size-base);
+}
+
+.login-page__form input:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+  border-color: var(--color-border-focus);
+}
+
+.login-page__form button[type="submit"] {
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-accent);
+  color: var(--color-accent-fg);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: var(--font-size-base);
+}
+
+.login-page__form button[type="submit"]:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.login-page__hint {
+  margin-top: var(--space-md);
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+}

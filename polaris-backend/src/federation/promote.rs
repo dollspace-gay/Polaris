@@ -61,7 +61,10 @@ const BATCH_SIZE: i64 = 50;
 /// Safe to drop mid-tick: the underlying transaction is either committed
 /// (idempotent next-tick) or rolled back (quarantine row untouched).
 #[must_use]
-pub fn spawn_promote_worker(pool: PgPool, cancel: CancellationToken) -> tokio::task::JoinHandle<()> {
+pub fn spawn_promote_worker(
+    pool: PgPool,
+    cancel: CancellationToken,
+) -> tokio::task::JoinHandle<()> {
     spawn_promote_worker_with_interval(pool, cancel, DEFAULT_INTERVAL_SECS)
 }
 
@@ -217,8 +220,7 @@ mod tests {
         let cancel = CancellationToken::new();
 
         // Use a very long interval so the test does not block on a real tick.
-        let handle =
-            spawn_promote_worker_with_interval(pool, cancel.clone(), 3600);
+        let handle = spawn_promote_worker_with_interval(pool, cancel.clone(), 3600);
 
         // Cancel immediately.
         cancel.cancel();

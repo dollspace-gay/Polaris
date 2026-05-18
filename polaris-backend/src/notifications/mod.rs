@@ -20,22 +20,32 @@
 //!   its push token.
 //! - Push payload type + serde-Serialize derive.
 //!
+//! # Provider matrix
+//!
+//! - [`NtfyProvider`] — operator-public ntfy.sh transport. No
+//!   credentials; works against `https://ntfy.sh` or a self-hosted
+//!   ntfy server. Suited to the labeler profile.
+//! - [`ApnsProvider`] — Apple HTTP/2 push gateway with ES256 JWT
+//!   auth. Reads `POLARIS_APNS_*` env vars; the operator supplies
+//!   a `.p8` key file, team id, key id, and bundle topic.
+//! - [`FcmProvider`] — Firebase Cloud Messaging v1 with OAuth2
+//!   service-account auth. Reads `POLARIS_FCM_*` env vars; the
+//!   operator supplies a Firebase service-account JSON.
+//!
 //! What's NOT in this PR (deferred):
 //!
-//! - The live APNs / FCM HTTP clients — they need real provider
-//!   credentials (Apple Dev account, Firebase project) to integration
-//!   test. The trait impls in `apns.rs` / `fcm.rs` ship as
-//!   `unimplemented!()`-shaped stubs that the integration work
-//!   replaces in a follow-up. The `NtfyProvider` ships functional
-//!   because ntfy.sh requires no per-operator credentials.
 //! - The fan-out subscriber that consumes the v1 internal bus and
 //!   dispatches to PushProvider. That's the spawn-and-loop wiring;
 //!   the PushProvider abstraction it spawns against ships here.
 
+pub mod apns;
+pub mod fcm;
 pub mod payload;
 pub mod provider;
 pub mod registration;
 
+pub use apns::{ApnsConfig, ApnsProvider};
+pub use fcm::{FcmConfig, FcmProvider};
 pub use payload::PushPayload;
 pub use provider::{NtfyProvider, PushError, PushProvider};
 pub use registration::{MobileDeviceRecord, Platform};

@@ -16,6 +16,10 @@
 //! - `/setup` — [`SetupWizard`](crate::pages::setup::SetupWizard)
 //!   (issue #84, the first-run setup wizard: generate key + publish
 //!   labeler record + publish DID document service entry).
+//! - `/admin/moderators` —
+//!   [`AdminModeratorsPage`](crate::pages::admin_moderators::AdminModeratorsPage)
+//!   (issue #214 / #217, admin-only moderator allow-list
+//!   management).
 //!
 //! # Session-less landing
 //!
@@ -53,9 +57,13 @@ use proto_blue::lexicon::Lexicons;
 
 use crate::api_client::dto::WhoamiResponse;
 use crate::api_client::{ApiError, PolarisApiClient, default_client};
+use crate::components::command_palette::CommandPalette;
+use crate::components::exposure_counter::ExposureCounter;
+use crate::pages::admin_moderators::AdminModeratorsPage;
 use crate::pages::case_view::CaseView;
 use crate::pages::dashboard::PatternDashboard;
 use crate::pages::login::{LoginPage, is_unauthorized, redirect_to_login};
+use crate::pages::queue::TriageQueue;
 use crate::pages::setup::{SETUP_PATH, SetupWizard};
 use crate::validation::build_shared_registry;
 
@@ -108,9 +116,14 @@ pub fn App() -> impl IntoView {
     // contract, and silently degrading to "no validation" would let a
     // moderator submit malformed records the server will reject.
     let registry_result = build_shared_registry();
+    match &registry_result {
+        Ok(_) => web_sys::console::log_1(&"App: registry built OK".into()),
+        Err(e) => web_sys::console::log_1(&format!("App: registry build FAILED: {e}").into()),
+    }
     if let Ok(registry) = &registry_result {
         provide_context(LexiconRegistry(Arc::clone(registry)));
     }
+    web_sys::console::log_1(&"App: building view".into());
 
     view! {
         <Title text="Polaris"/>
@@ -124,12 +137,37 @@ pub fn App() -> impl IntoView {
             }.into_any(),
             Ok(_) => view! {
                 <Router>
+                    // Issue #92: command palette mounts OUTSIDE the
+                    // `<Routes>` block so the Ctrl/Cmd-K overlay is
+                    // reachable from every page (dashboard, queue,
+                    // case view, …). The component owns its own
+                    // visibility signal and renders an empty subtree
+                    // when closed, so the always-mounted cost is one
+                    // signal allocation + one window-level keydown
+                    // listener.
+                    <CommandPalette/>
+                    // Issue #95: moderator-wellness exposure counter
+                    // mounts at the same global level so its toast
+                    // nag surfaces on every page (queue, case view,
+                    // dashboard). The component owns its own signal
+                    // backed by `sessionStorage`; child components
+                    // ([`MediaPreview`], [`ActionComposer`]) reach
+                    // the signal via Leptos context.
+                    <ExposureCounter/>
                     <main id="polaris-root">
                         <Routes fallback=|| view! { <p>"Not found."</p> }>
                             <Route path=path!("") view=RootRoute/>
                             <Route path=path!("/cases/:subject_id") view=CaseView/>
                             <Route path=path!("/login") view=LoginPage/>
+                            <Route path=path!("/queue") view=TriageQueue/>
                             <Route path=path!("/setup") view=SetupWizard/>
+                            // Issue #214 / #217: admin-only
+                            // moderator-management page. The page
+                            // itself reads `whoami` and the backend
+                            // independently rejects the data fetch
+                            // for non-admins — the route is reachable
+                            // by anyone, but the contents are gated.
+                            <Route path=path!("/admin/moderators") view=AdminModeratorsPage/>
                         </Routes>
                     </main>
                 </Router>

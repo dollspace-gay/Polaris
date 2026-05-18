@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT did, hostname, weights\n        FROM upstream_labelers\n        WHERE enabled = TRUE\n          AND (dormant_until IS NULL OR dormant_until <= now())\n        ORDER BY did\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "did",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "hostname",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "weights",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "96439f06709bd2518c9358442b11fbd15e103e98aad3ebffb4369fda3ccda167"
+}

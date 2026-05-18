@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COUNT(*) AS \"count!\"\n        FROM upstream_labelers\n        WHERE enabled = TRUE\n          AND dormant_until IS NOT NULL\n          AND dormant_until > now()\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "db570b26289435eaab7c08c389f89ab959d86df462a2cc2f395d950361de2346"
+}

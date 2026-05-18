@@ -123,22 +123,22 @@ fn decode_quarantine_cbor(
     raw_cbor: &[u8],
     cid: &str,
 ) -> Result<DecodedEscalation, FederationRepoError> {
-    let lex_value = proto_blue::lex_cbor::decode(raw_cbor).map_err(|e| {
-        FederationRepoError::CborDecode {
+    let lex_value =
+        proto_blue::lex_cbor::decode(raw_cbor).map_err(|e| FederationRepoError::CborDecode {
             cid: cid.to_owned(),
             message: e.to_string(),
-        }
-    })?;
+        })?;
 
     let json_value = proto_blue::lex_json::lex_to_json(&lex_value);
 
-    let wire = serde_json::from_value::<polaris_lexicons::gay::dollspace::polaris::escalation::Main>(
-        json_value,
-    )
-    .map_err(|e| FederationRepoError::CborDecode {
-        cid: cid.to_owned(),
-        message: format!("escalation deserialise: {e}"),
-    })?;
+    let wire =
+        serde_json::from_value::<polaris_lexicons::gay::dollspace::polaris::escalation::Main>(
+            json_value,
+        )
+        .map_err(|e| FederationRepoError::CborDecode {
+            cid: cid.to_owned(),
+            message: format!("escalation deserialise: {e}"),
+        })?;
 
     let escalation = lexicon_mapping::from_lexicon_escalation(wire)?;
     Ok(DecodedEscalation {
@@ -241,20 +241,23 @@ pub async fn materialize_from_quarantine(
             source_did = %decoded.source_did, target_did = %decoded.target_did,
             "materialised quarantine row into federation_escalations",
         );
-        MaterializeOutcome::Created { escalation_id: new_id }
+        MaterializeOutcome::Created {
+            escalation_id: new_id,
+        }
     } else {
-        let existing_row = sqlx::query(
-            "SELECT id FROM federation_escalations WHERE original_cid = $1",
-        )
-        .bind(quarantine_cid)
-        .fetch_one(&mut *tx)
-        .await?;
+        let existing_row =
+            sqlx::query("SELECT id FROM federation_escalations WHERE original_cid = $1")
+                .bind(quarantine_cid)
+                .fetch_one(&mut *tx)
+                .await?;
         let existing_id: Uuid = existing_row.try_get("id")?;
         tracing::info!(
             cid = %quarantine_cid, escalation_id = %existing_id,
             "quarantine row already materialised; skipping duplicate",
         );
-        MaterializeOutcome::AlreadyMaterialized { escalation_id: existing_id }
+        MaterializeOutcome::AlreadyMaterialized {
+            escalation_id: existing_id,
+        }
     };
 
     // ── 5. Delete the quarantine row ──────────────────────────────────────
@@ -372,10 +375,7 @@ mod tests {
         let e = FederationRepoError::QuarantineNotFound {
             cid: "bafyxyz".to_owned(),
         };
-        assert!(
-            e.to_string().contains("bafyxyz"),
-            "expected cid in {e}",
-        );
+        assert!(e.to_string().contains("bafyxyz"), "expected cid in {e}",);
     }
 
     /// Validate [`MaterializeOutcome`] variants are distinct.

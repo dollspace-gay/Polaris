@@ -101,6 +101,10 @@ getrandom_02 = { package = "getrandom", version = "0.2", features = ["js"] }
 # native too (the `#[wasm_bindgen_test]` attribute is target-aware).
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+# Stylesheet-discipline tests (issue B / REQ-B2..B5) — pure native parsers
+# over `polaris-frontend/styles/` and the BEM class literals in `src/`.
+walkdir.workspace = true
+regex.workspace = true
 
 [lints]
 workspace = true

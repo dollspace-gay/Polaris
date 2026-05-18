@@ -1,11 +1,17 @@
 //! `SubjectHeader` — the top-of-page banner for a [`Subject`].
 //!
 //! Renders the subject's stable identifiers (id, kind, DID, AT-URI) plus
-//! the two creation timestamps from `design.md` §5.2. Follower counts and
-//! posting cadence are not yet available — the network/profile fetch
-//! lands in M2 (#20) when proto-blue's public profile reads are wired
-//! into the page. Until then, the section renders a clearly-labelled
-//! "M2 will populate" placeholder so the panel never shows a blank gap.
+//! the two creation timestamps from `design.md` §5.2.
+//!
+//! Follower / following / posting-cadence are NOT rendered here — those
+//! are network-context signals owned by [`crate::components::network_panel::NetworkPanel`]
+//! which fetches them from `/api/cases/{subject_id}/network-context`
+//! and renders them in the case-view sidebar. Putting them here too
+//! would duplicate the data fetch and the visual real-estate.
+//!
+//! Media preview activates when the case-view DTO actually carries
+//! media URIs; until that wire-up lands, the media section renders
+//! nothing rather than a placeholder.
 
 use leptos::prelude::*;
 use polaris_types::Subject;
@@ -78,11 +84,6 @@ pub fn SubjectHeader(
                 <dt>"First seen by Polaris"</dt>
                 <dd>
                     <time>{first_seen}</time>
-                </dd>
-
-                <dt>"Follower / following counts"</dt>
-                <dd class="subject-header__placeholder">
-                    "M2 will populate from the public profile fetch."
                 </dd>
             </dl>
         </header>

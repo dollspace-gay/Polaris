@@ -33,10 +33,10 @@ use serde::{Deserialize, Serialize};
 pub mod dto;
 
 use dto::{
-    CaseView, DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList,
-    PublishLabelerRecordRequest, PublishLabelerRecordResponse, RequestPlcSignatureResponse,
-    ReverseBody, SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse,
-    WhoamiResponse,
+    AddModeratorRequest, AdminModerator, CaseView, DashboardFilters, DashboardSnapshot, Escalate,
+    GenerateKeyResponse, IncidentList, PatchModeratorRoleRequest, PublishLabelerRecordRequest,
+    PublishLabelerRecordResponse, RequestPlcSignatureResponse, ReverseBody, SubjectLookupResponse,
+    SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
 };
 
 // The `#![cfg(...)]` inner attribute at the top of each impl file is the
@@ -112,6 +112,21 @@ pub trait PolarisApiClient {
         body: SubmitAction,
     ) -> Result<Action, ApiError>;
 
+    /// `POST /api/bulk-actions` — apply one action body to N subjects
+    /// (issue #195). Returns the per-subject succeeded/failed split.
+    async fn bulk_action(
+        &self,
+        body: crate::api_client::dto::BulkSubmitAction,
+    ) -> Result<crate::api_client::dto::BulkActionOutcome, ApiError>;
+
+    /// `POST /api/moderation/muted-reporters` — add a reporter DID
+    /// to the silent-drop list (issue #192). Idempotent: muting an
+    /// already-muted DID updates reason / `until` / `muted_by`.
+    async fn mute_reporter(
+        &self,
+        body: crate::api_client::dto::MuteReporterBody,
+    ) -> Result<crate::api_client::dto::MutedReporterRow, ApiError>;
+
     /// `POST /api/cases/{incident_id}/escalate` — escalate an incident.
     async fn escalate(&self, incident_id: IncidentId, body: Escalate)
     -> Result<Incident, ApiError>;
@@ -183,15 +198,156 @@ pub trait PolarisApiClient {
         req: SubmitPlcOperationRequest,
     ) -> Result<SubmitPlcOperationResponse, ApiError>;
 
+    /// `POST /api/subjects/lookup` — command-palette subject lookup
+    /// (issue #92).
+    ///
+    /// Resolves a moderator-pasted identifier (URL, DID, AT-URI, or
+    /// handle) to a canonical Polaris `subjects` row. The handler
+    /// inserts a new row when the identifier resolves but no
+    /// existing row matches; otherwise it returns the existing row's
+    /// id. The frontend's command-palette overlay uses the returned
+    /// `subject_id` to navigate to `/cases/{subject_id}`.
+    async fn lookup_subject(&self, identifier: &str) -> Result<SubjectLookupResponse, ApiError>;
+
     /// `GET /api/dashboard` — composite snapshot for the pattern dashboard.
     ///
     /// Returns the four-panel [`DashboardSnapshot`] described in
     /// `design.md` §5.1: report-volume timeline, incident clusters,
     /// coordinated-action signals, and moderator-load summary. The
-    /// frontend polls this endpoint on a 5-second interval; a WebSocket
-    /// live feed is a follow-up (#20-followup) to keep this issue's scope
-    /// tight.
-    async fn get_dashboard(&self) -> Result<DashboardSnapshot, ApiError>;
+    /// frontend polls this endpoint on a 5-second interval and uses
+    /// the WebSocket live feed (#57) for incremental diffs in
+    /// between.
+    ///
+    /// This is the backward-compatible variant: it issues the
+    /// pre-#94 unfiltered request (no facet query parameters). New
+    /// call sites should prefer
+    /// [`dashboard`](Self::dashboard).
+    async fn get_dashboard(&self) -> Result<DashboardSnapshot, ApiError> {
+        self.dashboard(&DashboardFilters::default()).await
+    }
+
+    /// `GET /api/dashboard?<facet>=...` — composite snapshot for the
+    /// pattern dashboard with optional facet filters (issue #94 /
+    /// mod-workstation feature #4).
+    ///
+    /// Each `Some` field on [`DashboardFilters`] is serialised as a
+    /// URL query parameter (percent-encoded). Empty fields are omitted
+    /// from the URL entirely. The backend's `Query<DashboardQuery>`
+    /// extractor decodes the parameters and applies them as an
+    /// AND-composed predicate over the clusters panel; an empty
+    /// `DashboardFilters` (the default) is identical on the wire to
+    /// the bare `/api/dashboard` request (AC-6 backward compat).
+    async fn dashboard(&self, filters: &DashboardFilters) -> Result<DashboardSnapshot, ApiError>;
+
+    /// `GET /api/labeler/policies` — fetch the operator's declared
+    /// label policies for the subscriber-effect preview (issue #96 /
+    /// mod-workstation #6).
+    ///
+    /// Returns the same `LabelerPolicies` shape the labeler service
+    /// record carries on the operator's PDS: `label_values` plus the
+    /// per-value `label_value_definitions`. The frontend reads the
+    /// matching definition for the moderator's in-progress label
+    /// value and computes a published-default distribution over
+    /// hide / warn / ignore to render the inline forecast bar.
+    ///
+    /// Returns [`ApiError::Http`] with status 404 when the operator
+    /// has not yet completed the publish-labeler-record step (no
+    /// policies to preview). The frontend renders an
+    /// "Open setup wizard" prompt in that case.
+    async fn labeler_policies(
+        &self,
+    ) -> Result<crate::api_client::dto::LabelerPoliciesResponse, ApiError>;
+
+    /// `GET /api/cases/{subject_id}/network-context` — fetch the
+    /// subject's network-context signals (issue #97 / M2 panel).
+    ///
+    /// Returns the full [`NetworkContext`] shape: profile counts,
+    /// follow graph, reply graph, cohort signals, shared-image
+    /// matches. Each section's availability is surfaced via the
+    /// [`SignalQuality`] flags so the frontend can render
+    /// per-section "unavailable" states on partial upstream
+    /// failures.
+    ///
+    /// Returns [`ApiError::Http`] with status 404 when the subject
+    /// id does not match a row; 400 (`subject_has_no_did`) when the
+    /// subject has no DID populated; 502 when every upstream fetch
+    /// failed (the handler degrades to an empty shell otherwise).
+    ///
+    /// [`NetworkContext`]: crate::api_client::dto::NetworkContext
+    /// [`SignalQuality`]: crate::api_client::dto::SignalQuality
+    async fn network_context(
+        &self,
+        subject_id: &str,
+    ) -> Result<crate::api_client::dto::NetworkContext, ApiError>;
+
+    /// `GET /api/cases/{subject_id}/media` — fetch the case-view
+    /// media gallery (issue #95).
+    ///
+    /// The backend triggers an on-demand deep walk of the
+    /// subject's `app.bsky.feed.getAuthorFeed` (paginated, alt-text
+    /// aware), persists every new blob row into
+    /// `subject_image_blobs`, and returns the full deduped list
+    /// for this subject — one entry per unique blob CID, ordered
+    /// newest-first.
+    ///
+    /// The `upstream_ok` flag on the response indicates whether
+    /// the walk reached the AppView. A `false` flag with a
+    /// non-empty `blobs` Vec means the cache survived an upstream
+    /// failure; the frontend renders the cached set and surfaces
+    /// an inline "could not refresh" hint.
+    ///
+    /// Returns [`ApiError::Http`] with status 404 when the subject
+    /// id does not match a row; 400 (`subject_has_no_did`) when
+    /// the subject has no DID populated (list / feed-kind subjects
+    /// have no media to walk).
+    async fn media_gallery(
+        &self,
+        subject_id: SubjectId,
+    ) -> Result<crate::api_client::dto::MediaGalleryResponse, ApiError>;
+
+    /// `GET /api/admin/moderators` — list every moderator with their
+    /// role set, pinned flag, and last-login timestamp (issue #214 /
+    /// #217).
+    ///
+    /// Admin-only on the backend; callers without `Role::Admin` see
+    /// [`ApiError::Http`] with status `403`. The frontend's
+    /// admin-moderators page surfaces that case as a Forbidden banner.
+    async fn list_admin_moderators(&self) -> Result<Vec<AdminModerator>, ApiError>;
+
+    /// `POST /api/admin/moderators` — grant a role to a new (or
+    /// existing) moderator.
+    ///
+    /// `body.handle` accepts a bare handle (resolved through the
+    /// shared identity resolver) or a `did:` literal (trusted
+    /// verbatim). The backend returns the canonical moderator row on
+    /// success and a 4xx error code on a bad input shape, a handle
+    /// that did not resolve, or an already-granted role pair.
+    async fn add_admin_moderator(
+        &self,
+        body: AddModeratorRequest,
+    ) -> Result<AdminModerator, ApiError>;
+
+    /// `PATCH /api/admin/moderators/{did}/roles` — toggle a single
+    /// role on a moderator.
+    ///
+    /// `body.grant = true` adds the role; `body.grant = false` revokes
+    /// it. The backend refuses with `409 Conflict` when the change
+    /// would remove the last admin or demote a pinned admin's `admin`
+    /// row.
+    async fn patch_admin_moderator_role(
+        &self,
+        did: &str,
+        body: PatchModeratorRoleRequest,
+    ) -> Result<AdminModerator, ApiError>;
+
+    /// `DELETE /api/admin/moderators/{did}` — remove a moderator and
+    /// cascade their role grants.
+    ///
+    /// The backend refuses with `409 Conflict` when the target is
+    /// `pinned_admin = TRUE`. The frontend mirrors that rule in the
+    /// row's "Remove" button (`disabled` + tooltip) so the click
+    /// fails up-front rather than waiting on the round-trip.
+    async fn delete_admin_moderator(&self, did: &str) -> Result<(), ApiError>;
 }
 
 /// Typed wire shape of `GET /healthz`.

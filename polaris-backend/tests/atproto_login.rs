@@ -384,8 +384,26 @@ async fn atproto_login_flow_persists_session_row() {
     );
     assert!(session_row.0.len() >= 28);
 
-    // Roles are empty (none granted) but the type is correct.
-    assert!(result.ctx.roles.is_empty());
+    // First-user-admin grant (Workstream A — REQ-A's first-run path
+    // in `polaris-backend/src/auth/atproto.rs::maybe_grant_first_user_admin`):
+    // the very first moderator to complete login on a fresh database
+    // is automatically granted `Role::Admin` so the setup wizard is
+    // immediately reachable from their session without an out-of-band
+    // role-assignment step. This test seeds an empty `moderators` +
+    // `moderator_roles` pair (via the fresh testcontainer), so the
+    // moderator we just logged in is the first user — they must
+    // therefore see `["admin"]` in their role set.
+    assert_eq!(
+        result
+            .ctx
+            .roles
+            .iter()
+            .map(polaris_backend::auth::Role::as_db_str)
+            .collect::<Vec<_>>(),
+        vec!["admin"],
+        "first moderator on a fresh deployment must get Role::Admin via the \
+         first-user-admin grant (Workstream A)",
+    );
 }
 
 #[tokio::test]

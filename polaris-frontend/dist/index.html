@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polaris</title>
+
+    <!--
+      Stylesheet bundle (REQ-B1).
+      Trunk picks up each `<link data-trunk rel="css">` and copies the file
+      into `dist/`; load order matters because the cascade flows top-to-bottom.
+      Tokens MUST load before any component file so the cascade has the
+      custom-property values defined when the component rules reference them.
+    -->
+    <link rel="stylesheet" href="/tokens-bd88732cf26d2d55.css" integrity="sha384-jNuGjiFPDps4Cb3+pWjkoEDnHgz6pXfrX33Vy61dS679VqbTcOtVuS0tIzf9Cl+6"/>
+    <link rel="stylesheet" href="/reset-952214cbe387b863.css" integrity="sha384-2cJHxzn0iY3QJMwOLkzeuybtzpPjisHv1mp+j3SPHP/oyNplEADpSDF3g19S39S3"/>
+    <link rel="stylesheet" href="/login-ce4ed9f541f1596a.css" integrity="sha384-VNcxQvyvbPk5h8b/UwSCO5LFdrWzM9mlr3a4cnYm/ZfMQu3mT7e55TS/zUqyi2la"/>
+    <link rel="stylesheet" href="/setup-wizard-96d9bf96973c0d63.css" integrity="sha384-Jtg6oTrbXYw5hGhzRLelGZDHNsm5VeiOuYn1DKPbCYioFVJGVKkHh8X3MtQOpCMX"/>
+    <link rel="stylesheet" href="/pattern-dashboard-5c144be5e52028f3.css" integrity="sha384-91G9OSFMdqnsYxIPfiZTio7xd9aj1pV5TIVKHeTtAv9NUNxwUVmkSfSRfZwrgNcX"/>
+    <link rel="stylesheet" href="/queue-e9bb949bc66da73d.css" integrity="sha384-aBxW6qG72fZAbLy7NLqiTZemVSnBXBHD9VKRxKx2RQcFtDWiDFcXmmYII8dLoLFy"/>
+    <link rel="stylesheet" href="/case-view-4ba86e05da0e97cd.css" integrity="sha384-74loaXKYd0qSYK6IKwGPzaCuhhHn65/VppxvVE/0GfrJyiqfaUKMX/l+WBFbHJH1"/>
+    <link rel="stylesheet" href="/action-composer-cfcbeebcb3d176cc.css" integrity="sha384-+0FqfvRbHCUJMkD9AmW96hiUr6gHc+DTcI4joPH0U/cUx5CyZyDfDNUd5HevpKyX"/>
+    <link rel="stylesheet" href="/command-palette-8121b18ba3c036f0.css" integrity="sha384-NujCREZIwXfovUmPtV47bpMJL9UciBCPZPUJw34EFVlNg1tfGGC/k5UgGnGP5BqI"/>
+    <link rel="stylesheet" href="/filter-bar-725dad3376566ad5.css" integrity="sha384-tHKP8jVIBtspsuNvimj1A5sMeWziaoTtIFoC2+9/yBNMpKrxJwutNcQcR0/NCRSc"/>
+    <link rel="stylesheet" href="/cluster-list-71516a57601595bc.css" integrity="sha384-Ep6ifQweVKlKO2KK6gwF4IO0AG+LGhzddpEZPGzpjg6UeesRO+rUGmbKL8ByAFAB"/>
+    <link rel="stylesheet" href="/report-list-d0eb4fd43e0a05e3.css" integrity="sha384-8aVbDTQ3RpU18UddYqQyt2gmH0w3W6e0xIk1AtKkp8YrYnIRm+hjMQ/hGrgakC/m"/>
+    <link rel="stylesheet" href="/subject-header-a1459022a6682be7.css" integrity="sha384-bCMpLYsxPm2fYM+c5wMiD13mx4Z4zLa8GCF0pPqXLX9C1LaiSc2r+pGRjBxRTCj8"/>
+    <link rel="stylesheet" href="/history-timeline-8613e6d9ab01d9d7.css" integrity="sha384-lLqJWnh1API6glx2bSX+3IIqTx8ZsVM8/ZacPDVXWDLd1qskimyOjYUrVOMIYRy9"/>
+    <link rel="stylesheet" href="/related-actions-timeline-66f088a2847d228b.css" integrity="sha384-knoJl/mf3ASS2DUHuRGbXKZCkZxS9hZ0gz4Dy9sc+Bccce02Z6Xs+8DWb6OWJ2Nm"/>
+    <link rel="stylesheet" href="/third-party-labels-panel-33acb28a77c27fda.css" integrity="sha384-/egfi7Hd91tsjlST/X0N1Gxuw0fedJQNma5IXhNlyD+OUeaHt527VWxI/2YqejWg"/>
+    <link rel="stylesheet" href="/report-volume-chart-7fbed95750298f4e.css" integrity="sha384-8GBJI1zJYoP++r/gH+G/ywIanLsd98ZXJBFlgwQab2Ik1XiuisCHPT2O7OHooiBP"/>
+    <link rel="stylesheet" href="/coordinated-signals-216bcea274a138de.css" integrity="sha384-CDmaKFHwa0NNz/foefRkvLhIRoZ/wcv160Nww1we7rPmxotEbXa2gx3knzjFIURE"/>
+    <link rel="stylesheet" href="/moderator-load-1a278adcd2824b68.css" integrity="sha384-6PXHqUht/J5LD8xfBd7Fz8J7WNMvmQ4mMg+VUjJaQnJNNV472gmnZKkGFeCHKunx"/>
+    <link rel="stylesheet" href="/media-preview-d2960641998e2b66.css" integrity="sha384-ep6Kb0pf1ni/564wjScJ+SjSAovZ8gV3hGEJm3dA2G8X0OMh1KOo+oJ2RMp/rbgz"/>
+    <link rel="stylesheet" href="/network-panel-caf800fa8ef52610.css" integrity="sha384-lcZc1towAaIxpEtiVY4SuQ4a3mP7HlpiKYWjEin1I/mgkiDLwU3tlcQjaNrlrI80"/>
+    <link rel="stylesheet" href="/classifier-panel-3c3f9e08d69858ab.css" integrity="sha384-BNG5u+/GC/rNfAmCuSUGfNCGlpIdtAhJgfsQT8U6V7Umz8l55NZWz8C+3nfJxFQH"/>
+    <link rel="stylesheet" href="/observations-panel-9cedd5a18b0515d7.css" integrity="sha384-olTiT0vnQ6INLqPAKBV4dPELvC8GA87o2Zf0+uuSf3Q8JV3XFq9gmJwTdpUwEcPP"/>
+    <link rel="stylesheet" href="/media-gallery-91851a38fefd91ee.css" integrity="sha384-iQJWdgmfkpmN/F2wc3ek5KDSZ3Jx4vcsCDjB19kRJLt4DJdhZSCrMkkwWLRuEDb0"/>
+    <link rel="stylesheet" href="/case-drawer-9fea716cbac747c3.css" integrity="sha384-oAiTeChqQaOs4j5pjOjDf2ph8gCPCHpub/KXjCeYnAvpeYbhKiXob/++wXf2TK1m"/>
+    <link rel="stylesheet" href="/exposure-counter-1c963833b0280673.css" integrity="sha384-/By0YmgiLeQCW/9WIU6nv44OAuG82QrZ2XVUqtfVicFMhayRUsLCl3ZS9oADym34"/>
+    <link rel="stylesheet" href="/subscriber-effect-preview-fa90d7605bfee882.css" integrity="sha384-ikhGYrSEppxuP4FiqdXsNvQu5QrGbPPJxkXsmW4uy98s8gTOSXUSoSvE6vI0oxjH"/>
+    <link rel="stylesheet" href="/subject-lookup-bar-8e1c263127f2dc86.css" integrity="sha384-B5tzsyNPSfJnL4XnItwq7GkV+UcYJ2AMdSiP1RhKzTjOnkAoTKqIInxv3mhCHQ5e"/>
+    <link rel="stylesheet" href="/admin-moderators-13220a679ae6a3df.css" integrity="sha384-nTsh8GHkpazQW5DJsVp9tcvpXfFjrlAPUMY4DoZJgT983PpKSGIREPgqqzcINsDQ"/>
+
+    
+<script type="module">
+import init, * as bindings from '/polaris-frontend-23f988350c9b29b1.js';
+const wasm = await init({ module_or_path: '/polaris-frontend-23f988350c9b29b1_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
+  <link rel="modulepreload" href="/polaris-frontend-23f988350c9b29b1.js" crossorigin="anonymous" integrity="sha384-6OATMkqPR568YWsvqzdafOL9Qf73UN0kAU9/hs4MqX5d2n4BRN1AieKp62Z4J8GW"><link rel="preload" href="/polaris-frontend-23f988350c9b29b1_bg.wasm" crossorigin="anonymous" integrity="sha384-fItoshs9PupgysSE9Lw5eNZgrxiCqyRSAv0EZ/CDc+XuEKaPm+UsgELWGqACY4PZ" as="fetch" type="application/wasm"></head>
+  <body></body>
+</html>

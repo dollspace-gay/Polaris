@@ -1,0 +1,94 @@
+# Lexicon-contract drift detector (REQ-E3 / AC-E3 of
+# `.design/polaris-operationally-complete.md`).
+#
+# This workflow runs `cargo xtask lexicon-contract` on a weekly cron
+# and on manual dispatch. The xtask fetches Bluesky's published
+# lexicon JSONs at a pinned upstream commit and re-runs Polaris's
+# wire-shape validators against the fresh schemas. If the wire shapes
+# Polaris ships (`signPlcOperation` body, `app.bsky.labeler.service`
+# record, etc.) drift from upstream, the xtask exits non-zero with a
+# diff-style message naming the offending field.
+#
+# Notification policy: **a new GitHub issue is opened on every
+# failure** (per the design doc's "new issue per failure" decision).
+# Per-event visibility is preserved; closing the issue is the operator
+# signal that the drift was addressed.
+#
+# This workflow does NOT gate PRs. Drift is monitored, not blocking —
+# Polaris's main `ci.yml` runs the offline-cached tests; this file
+# tracks upstream movement on its own cadence.
+
+name: lexicon-contract
+
+on:
+  schedule:
+    # Monday 06:00 UTC (chosen to surface drift at the start of the
+    # working week without burning weekend hours).
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  # Required to open the drift-tracking issue on failure.
+  issues: write
+  contents: read
+
+jobs:
+  contract:
+    name: cargo xtask lexicon-contract
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+      # The xtask uses sqlx-pinned types via the `polaris-backend` path
+      # dep; the offline cache keeps the build hermetic and matches the
+      # main `ci.yml` posture.
+      SQLX_OFFLINE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.88
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo xtask lexicon-contract
+        id: run
+        # Capture stdout+stderr to a file so the issue-creation step can
+        # quote the diff in the body. `tee` keeps the live log visible
+        # in the Actions UI while persisting the buffer.
+        run: |
+          set -o pipefail
+          cargo xtask lexicon-contract 2>&1 | tee /tmp/lexicon-contract.log
+
+      - name: prepare drift issue body
+        if: failure() && steps.run.outcome == 'failure'
+        run: |
+          {
+            echo "## Lexicon drift detected"
+            echo
+            echo "The scheduled lexicon-contract job at \`${{ github.run_id }}\` failed against"
+            echo "the upstream commit pinned in \`xtask/src/lexicon_contract.rs\`. The diff"
+            echo "below is the verbatim xtask output."
+            echo
+            echo "Resolve by one of:"
+            echo "1. Updating Polaris's wire shapes to match upstream (preferred when the upstream change is canonical)."
+            echo "2. Bumping the \`UPSTREAM_LEXICON_COMMIT\` pin to a known-good earlier SHA (only if the drift is upstream-side breaking)."
+            echo "3. Filing an issue on \`bluesky-social/atproto\` (only if the drift looks like an upstream regression)."
+            echo
+            echo "Close this issue when the drift is addressed; the next scheduled run will open a fresh issue if drift persists."
+            echo
+            echo "<details><summary>xtask output</summary>"
+            echo
+            echo '```'
+            cat /tmp/lexicon-contract.log
+            echo '```'
+            echo
+            echo "</details>"
+          } > /tmp/lexicon-drift-body.md
+
+      - name: open drift issue
+        if: failure() && steps.run.outcome == 'failure'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "Lexicon drift detected (run ${{ github.run_id }})"
+          content-filepath: /tmp/lexicon-drift-body.md
+          labels: |
+            lexicon-drift

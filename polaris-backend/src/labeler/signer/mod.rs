@@ -280,8 +280,7 @@ pub enum SigningError {
 /// warning. Operators clicking through land on the setup-wizard
 /// section of the design doc that explains how to mint the key over
 /// HTTP.
-const SETUP_WIZARD_DOCS: &str =
-    "https://github.com/dollspace-gay/polaris/blob/main/.design/polaris-operationally-complete.md#a-first-run-boot-from-zero-state";
+const SETUP_WIZARD_DOCS: &str = "https://github.com/dollspace-gay/polaris/blob/main/.design/polaris-operationally-complete.md#a-first-run-boot-from-zero-state";
 
 /// Tracks whether the deferred-provisioning WARN has already been
 /// emitted in this process. REQ-A2 mandates the message appear

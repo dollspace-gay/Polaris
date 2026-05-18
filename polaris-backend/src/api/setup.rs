@@ -51,6 +51,7 @@
 
 use std::io::Write as _;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Extension, State};
@@ -62,6 +63,8 @@ use crate::api::error::ApiError;
 use crate::api::state::ApiState;
 use crate::auth::{AnyModeratorAuth, ModeratorAuthCtx, Role};
 use crate::config::LabelerSigningKeyConfig;
+use crate::labeler::signer::SigningKey;
+use crate::labeler::signer::file_plain::FilePlainSigner;
 
 /// Response from `POST /api/setup/generate-key`.
 ///
@@ -73,6 +76,13 @@ use crate::config::LabelerSigningKeyConfig;
 pub struct GenerateKeyResponse {
     /// `did:key:z…` multikey form of the public key.
     pub did_key: String,
+    /// `true` when the configured key file already held a valid
+    /// K-256 secret and the handler adopted it instead of writing a
+    /// fresh key. This lets the wizard render "Existing signing key
+    /// detected" rather than "Generated signing key" so the operator
+    /// is not misled. `false` for the freshly-minted path.
+    #[serde(default)]
+    pub already_provisioned: bool,
 }
 
 /// Request body for `POST /api/setup/publish-labeler-record`.
@@ -150,9 +160,23 @@ fn atproto_verifier(
     }
 }
 
-/// `POST /api/setup/generate-key` — mint a fresh K-256 keypair, write
-/// the private half to the configured path with mode 0o600, and
-/// persist the public DID in `polaris_setup_state`.
+/// `POST /api/setup/generate-key` — provision the labeler's K-256
+/// signing key at the configured path and persist the public DID in
+/// `polaris_setup_state`.
+///
+/// The handler is **idempotent**:
+///
+/// - If the configured path holds no key (file missing or empty), a
+///   fresh K-256 secret is minted and written with mode 0o600. The
+///   response carries `already_provisioned = false`.
+/// - If the configured path already holds a valid hex-encoded K-256
+///   secret, the handler derives its `did:key:z…`, persists it to
+///   `polaris_setup_state`, and returns `already_provisioned = true`
+///   *without rewriting the file*. This lets the wizard fill the DB
+///   record for an operator who pre-provisioned the key (e.g. a
+///   smoke-test bootstrap or a migration from a prior labeler) and
+///   keeps the labeler signer's in-process key consistent with what
+///   gets advertised in steps 2 & 3.
 ///
 /// Only the `file-plain` custody mode is supported through this
 /// endpoint. Other modes (`passphrase-sealed`, `os-keychain`,
@@ -165,16 +189,30 @@ fn atproto_verifier(
 /// - [`ApiError::Forbidden`] when the caller lacks `Role::Admin`.
 /// - [`ApiError::BadRequest`] when the configured signing-key mode
 ///   is not `file-plain`.
-/// - [`ApiError::Conflict`] when the configured path already exists
-///   with non-empty content (refusing to overwrite an existing key
-///   is part of the safety contract).
+/// - [`ApiError::Conflict`] when the configured path holds non-empty
+///   content that does not parse as a 32-byte hex K-256 secret
+///   (refusing to overwrite or "adopt" a corrupt file is part of the
+///   safety contract).
 /// - [`ApiError::Internal`] on filesystem failure or DB update
 ///   failure.
 pub async fn generate_key(
     State(state): State<ApiState>,
     Extension(ctx): Extension<ModeratorAuthCtx>,
 ) -> Result<Json<GenerateKeyResponse>, ApiError> {
-    require_admin(&ctx)?;
+    let result = generate_key_inner(&state, &ctx).await;
+    record_wizard_step("generate_key", result.is_ok());
+    result.map(Json)
+}
+
+/// Inner generate-key flow. Pulled out of the handler so the metric
+/// emission at the call site stays exhaustive (one increment per
+/// invocation, success-or-failure) without sprinkling `record_wizard_step`
+/// at every `?` site.
+async fn generate_key_inner(
+    state: &ApiState,
+    ctx: &ModeratorAuthCtx,
+) -> Result<GenerateKeyResponse, ApiError> {
+    require_admin(ctx)?;
 
     let path = match &state.labeler_signing_key_cfg {
         LabelerSigningKeyConfig::FilePlain { path } => path.clone(),
@@ -187,9 +225,14 @@ pub async fn generate_key(
         }
     };
 
-    refuse_existing_key_file(&path)?;
-    let (private_hex, did_key) = mint_k256_keypair_hex();
-    write_private_key_file(&path, &private_hex)?;
+    let (did_key, already_provisioned) = if let Some(existing_did) = adopt_existing_key_did(&path)?
+    {
+        (existing_did, true)
+    } else {
+        let (private_hex, fresh_did) = mint_k256_keypair_hex();
+        write_private_key_file(&path, &private_hex)?;
+        (fresh_did, false)
+    };
 
     let path_str = path.display().to_string();
     sqlx::query!(
@@ -205,7 +248,97 @@ pub async fn generate_key(
     .await
     .map_err(|e| ApiError::Internal(anyhow::Error::new(e)))?;
 
-    Ok(Json(GenerateKeyResponse { did_key }))
+    // REQ-A4: hot-swap the labeler's active signer through the
+    // process-wide watch channel. Before this call the slot held a
+    // `StubSigner`; afterwards every `emit()` reads through to the
+    // freshly-loaded `FilePlainSigner` — no process restart needed.
+    // Best-effort: a failed hot-swap is logged but does NOT roll the
+    // DB update back. The setup wizard's idempotent re-invocation is
+    // the recovery path (the DB row is already correct; a re-POST
+    // adopts the same key and re-publishes through the channel).
+    hot_swap_signer(state, &path);
+
+    Ok(GenerateKeyResponse {
+        did_key,
+        already_provisioned,
+    })
+}
+
+/// REQ-D2: bump `polaris_setup_wizard_steps_total{step,status}`. One
+/// invocation per handler-exit; `status` is `"success"` for `Ok`
+/// flows and `"failed"` for any `Err` exit. Operators alert on
+/// `rate(polaris_setup_wizard_steps_total{status="failed"}[15m]) > 0`
+/// to catch a wedged wizard.
+fn record_wizard_step(step: &'static str, ok: bool) {
+    metrics::counter!(
+        "polaris_setup_wizard_steps_total",
+        "step" => step,
+        "status" => if ok { "success" } else { "failed" },
+    )
+    .increment(1);
+}
+
+/// Load the freshly-written key file as a real
+/// [`FilePlainSigner`] and push it through the active-signer watch
+/// channel (REQ-A4).
+///
+/// The channel is held on `ApiState::active_signer_tx`. Production
+/// wiring in `main.rs` always installs it; integration tests that
+/// exercise AC-A4 install it via [`ApiState::with_active_signer_tx`].
+/// When the slot is `None` (test fixtures that don't exercise the
+/// hot-swap, or the `--no-labeler` deploy posture) the call is a
+/// no-op and a single debug line records the skip.
+///
+/// Errors at this stage are logged at WARN and discarded so the
+/// `generate_key` handler does not surface them to the caller:
+///
+/// 1. The DB row is already updated — the wizard's view-of-the-world
+///    is correct.
+/// 2. A subsequent action submission will surface a precise emit-
+///    side error if the key is unreadable, and the operator can
+///    retry the wizard step (the handler is idempotent — it adopts
+///    the existing key on a re-POST).
+///
+/// The failure modes here are narrow: the file was just written
+/// successfully so the only realistic causes are a races against
+/// a concurrent file modification or filesystem corruption.
+fn hot_swap_signer(state: &ApiState, path: &std::path::Path) {
+    let Some(tx) = state.active_signer_tx.as_ref() else {
+        tracing::debug!(
+            path = %path.display(),
+            "no active-signer channel installed; skipping hot-swap (test fixture or --no-labeler deploy)",
+        );
+        return;
+    };
+    match FilePlainSigner::from_path(path) {
+        Ok(signer) => {
+            let new_signer: Arc<dyn SigningKey> = Arc::new(signer);
+            let new_did = new_signer.public_key_did().to_owned();
+            // `watch::Sender::send` only returns Err when every
+            // receiver has been dropped; production wiring keeps a
+            // receiver alive on `ApiState::active_signer` for the
+            // process lifetime, so this branch fires only in the
+            // tear-down phase of a test.
+            if let Err(err) = tx.send(new_signer) {
+                tracing::warn!(
+                    error = %err,
+                    "active-signer channel has no live receivers; hot-swap dropped",
+                );
+            } else {
+                tracing::info!(
+                    signing_did = %new_did,
+                    "hot-swapped labeler signing key into active-signer slot",
+                );
+            }
+        }
+        Err(err) => {
+            tracing::warn!(
+                error = ?err,
+                path = %path.display(),
+                "freshly-written signing key could not be re-loaded for hot-swap; emit path will reload on next process restart",
+            );
+        }
+    }
 }
 
 /// Mint a fresh K-256 keypair and return the hex-encoded private
@@ -218,17 +351,55 @@ fn mint_k256_keypair_hex() -> (String, String) {
     (hex::encode(private), did)
 }
 
-/// Refuse to overwrite an existing non-empty key file.
-fn refuse_existing_key_file(path: &std::path::Path) -> Result<(), ApiError> {
-    match std::fs::metadata(path) {
-        Ok(meta) if meta.is_file() && meta.len() > 0 => Err(ApiError::Conflict(
-            "labeler signing-key file already exists at the configured path",
-        )),
-        // File does not exist (or exists but is empty) — both are
-        // accepted, the write will overwrite the empty placeholder
-        // the operator may have created to set permissions.
-        Ok(_) | Err(_) => Ok(()),
+/// Probe the configured key path; if it already holds a valid K-256
+/// secret, return the `did:key:z…` derived from it.
+///
+/// Three outcomes:
+///
+/// - `Ok(None)` — file does not exist or exists but is empty. The
+///   caller should mint and write a fresh key.
+/// - `Ok(Some(did))` — file exists with non-empty content that
+///   parses as a 32-byte hex K-256 secret. The caller should adopt
+///   this key (persist the did to `polaris_setup_state`, no write).
+/// - `Err(ApiError::Conflict)` — file exists with non-empty content
+///   that is **not** a valid K-256 secret (wrong length, malformed
+///   hex, or unreadable). Refusing to overwrite a non-empty file
+///   that doesn't parse keeps an operator's mis-pointed
+///   `POLARIS_LABELER_SIGNING_KEY_PATH` from silently destroying
+///   whatever lives at the path.
+fn adopt_existing_key_did(path: &std::path::Path) -> Result<Option<String>, ApiError> {
+    // ENOENT (or anything else that prevents stat) — treat as
+    // "no key here yet" and let the fresh-mint path run. A real
+    // permission problem will resurface immediately at the
+    // create_dir_all / open call with a precise error.
+    let Ok(meta) = std::fs::metadata(path) else {
+        return Ok(None);
+    };
+    if !meta.is_file() || meta.len() == 0 {
+        return Ok(None);
     }
+    let raw = std::fs::read_to_string(path).map_err(|e| {
+        ApiError::Internal(anyhow::anyhow!(
+            "labeler signing-key file at the configured path exists but could not be read: {e}"
+        ))
+    })?;
+    let hex_str = raw.trim();
+    let bytes = hex::decode(hex_str).map_err(|_| {
+        ApiError::Conflict(
+            "labeler signing-key path holds content that is not valid hex; refusing to overwrite",
+        )
+    })?;
+    if bytes.len() != 32 {
+        return Err(ApiError::Conflict(
+            "labeler signing-key path holds non-empty content that is not a 32-byte K-256 secret; refusing to overwrite",
+        ));
+    }
+    let kp = K256Keypair::from_private_key(&bytes).map_err(|_| {
+        ApiError::Conflict(
+            "labeler signing-key path holds 32 bytes that are not a valid K-256 secret scalar; refusing to overwrite",
+        )
+    })?;
+    Ok(Some(kp.did()))
 }
 
 /// Write the hex-encoded private key to `path` with mode 0o600.
@@ -315,9 +486,35 @@ pub async fn publish_labeler_record(
     Extension(ctx): Extension<ModeratorAuthCtx>,
     Json(req): Json<PublishLabelerRecordRequest>,
 ) -> Result<Json<PublishLabelerRecordResponse>, ApiError> {
-    require_admin(&ctx)?;
+    let result = publish_labeler_record_inner(&state, &ctx, req).await;
+    record_wizard_step("publish_labeler_record", result.is_ok());
+    result.map(Json)
+}
 
-    let signing_pubkey_did = load_signing_pubkey_did(&state).await?;
+/// Inner publish-labeler-record flow. Pulled out so the metric
+/// emission is exhaustive (see [`generate_key_inner`]).
+async fn publish_labeler_record_inner(
+    state: &ApiState,
+    ctx: &ModeratorAuthCtx,
+    req: PublishLabelerRecordRequest,
+) -> Result<PublishLabelerRecordResponse, ApiError> {
+    require_admin(ctx)?;
+
+    let signing_pubkey_did = load_signing_pubkey_did(state).await?;
+
+    // Issue #96 / mod-workstation feature #6: persist the operator-
+    // supplied label values + the auto-generated definitions on
+    // `polaris_setup_state` so the subscriber-effect preview can
+    // serve them locally without a round-trip to the operator's PDS.
+    // We clone `req.label_values` here (rather than reading the
+    // built record's vector back out) so the persisted shape mirrors
+    // the wizard's input verbatim. The definitions are generated by
+    // the same `default_definitions_for` helper the record builder
+    // uses, so the persisted definitions match the published
+    // `labelValueDefinitions` field byte-for-byte.
+    let label_values_for_persist = req.label_values.clone();
+    let definitions_for_persist =
+        polaris_publish_labeler_record::default_definitions_for(&label_values_for_persist);
 
     // Build + validate the record using the shared library code so
     // the wizard and the CLI emit identical wire shapes.
@@ -338,7 +535,7 @@ pub async fn publish_labeler_record(
         ))
     })?;
 
-    let verifier = atproto_verifier(&state)?;
+    let verifier = atproto_verifier(state)?;
     let oauth_ctx = verifier
         .build_oauth_session_for_moderator(ctx.moderator_id)
         .await
@@ -358,9 +555,7 @@ pub async fn publish_labeler_record(
     })?;
 
     let endpoint = format!("{}/xrpc/com.atproto.repo.putRecord", oauth_ctx.pds_url);
-    let response = oauth_ctx
-        .session
-        .post(&endpoint, &put_input_value)
+    let response = post_with_dpop_nonce_retry(&oauth_ctx.session, &endpoint, &put_input_value)
         .await
         .map_err(|e| {
             tracing::warn!(error = %e, "putRecord OAuth POST failed");
@@ -386,18 +581,35 @@ pub async fn publish_labeler_record(
     let at_uri = output.uri.to_string();
     let cid = output.cid;
 
+    // Serialise the auto-generated definitions to JSON for the JSONB
+    // column. The shape MUST match what the labeler record published
+    // upstream so the subscriber-effect preview reads the same values
+    // the AppView sees. `LabelValueDefinition`'s `Serialize` impl
+    // (camelCase, skip_serializing_if-None) is the lexicon wire shape;
+    // we round-trip through `serde_json::Value` exactly because that's
+    // what the policies endpoint will hand back to the frontend.
+    let definitions_json = serde_json::to_value(&definitions_for_persist).map_err(|e| {
+        ApiError::Internal(anyhow::anyhow!(
+            "serialising label_value_definitions to JSON failed: {e}"
+        ))
+    })?;
+
     sqlx::query!(
         r"UPDATE polaris_setup_state
           SET labeler_record_uri = $1,
+              label_values = $2,
+              label_value_definitions = $3,
               updated_at = now()
           WHERE id = TRUE",
         &at_uri,
+        &label_values_for_persist,
+        definitions_json,
     )
     .execute(&state.pool)
     .await
     .map_err(|e| ApiError::Internal(anyhow::Error::new(e)))?;
 
-    Ok(Json(PublishLabelerRecordResponse { at_uri, cid }))
+    Ok(PublishLabelerRecordResponse { at_uri, cid })
 }
 
 /// `POST /api/setup/request-plc-signature` — ask the moderator's
@@ -412,26 +624,35 @@ pub async fn request_plc_signature(
     State(state): State<ApiState>,
     Extension(ctx): Extension<ModeratorAuthCtx>,
 ) -> Result<Json<RequestPlcSignatureResponse>, ApiError> {
-    require_admin(&ctx)?;
+    let result = request_plc_signature_inner(&state, &ctx).await;
+    record_wizard_step("request_plc_signature", result.is_ok());
+    result.map(Json)
+}
 
-    let verifier = atproto_verifier(&state)?;
+/// Inner request-plc-signature flow. Pulled out for metric exhaustivity.
+async fn request_plc_signature_inner(
+    state: &ApiState,
+    ctx: &ModeratorAuthCtx,
+) -> Result<RequestPlcSignatureResponse, ApiError> {
+    require_admin(ctx)?;
+
+    let verifier = atproto_verifier(state)?;
     let oauth_ctx = verifier
         .build_oauth_session_for_moderator(ctx.moderator_id)
         .await
         .map_err(|e| map_oauth_setup_error(&e))?;
 
-    // The lexicon for `requestPlcOperationSignature` declares no
-    // input. proto-blue's OAuthSession::post always writes a JSON
-    // body so we send `{}` — matches what the CLI in
-    // polaris-publish-did-service does.
-    let empty = serde_json::Value::Object(serde_json::Map::new());
+    // The lexicon for `requestPlcOperationSignature` declares **no
+    // input**. bsky.social's PDS strictly rejects any body (`400
+    // InvalidRequest "A request body was provided when none was
+    // expected"`), so we bypass `OAuthSession::post` (which always
+    // serialises a JSON body) and use a bodyless DPoP-bound POST
+    // helper that builds the proof from the context's bound key.
     let endpoint = format!(
         "{}/xrpc/com.atproto.identity.requestPlcOperationSignature",
         oauth_ctx.pds_url
     );
-    let response = oauth_ctx
-        .session
-        .post(&endpoint, &empty)
+    let response = post_no_body_with_dpop_nonce_retry(&oauth_ctx, &endpoint)
         .await
         .map_err(|e| {
             tracing::warn!(error = %e, "requestPlcOperationSignature OAuth POST failed");
@@ -451,10 +672,10 @@ pub async fn request_plc_signature(
         )));
     }
 
-    Ok(Json(RequestPlcSignatureResponse {
+    Ok(RequestPlcSignatureResponse {
         message: "Check your email for the PLC operation token. The email comes from your PDS."
             .to_owned(),
-    }))
+    })
 }
 
 /// `POST /api/setup/submit-plc-operation` — sign and submit the PLC
@@ -469,75 +690,84 @@ pub async fn request_plc_signature(
 ///   inputs.
 /// - [`ApiError::Internal`] — PDS / PLC-directory rejection,
 ///   malformed response, or DB update failure.
-#[allow(
-    clippy::too_many_lines,
-    reason = "5-step PLC flow (lookup → build payloads → sign → submit → persist) reads more clearly as one linear function than a chain of micro-helpers"
-)]
 pub async fn submit_plc_operation(
     State(state): State<ApiState>,
     Extension(ctx): Extension<ModeratorAuthCtx>,
     Json(req): Json<SubmitPlcOperationRequest>,
 ) -> Result<Json<SubmitPlcOperationResponse>, ApiError> {
-    require_admin(&ctx)?;
+    let result = submit_plc_operation_inner(&state, &ctx, req).await;
+    // REQ-D2: a single `polaris_plc_operations_total{status}` increment
+    // per invocation captures PDS-side success or failure. The setup-
+    // wizard step counter (`polaris_setup_wizard_steps_total`) fires
+    // alongside so an operator can correlate the two (a step that
+    // fails because the PDS rejected the signed op vs. one that fails
+    // before reaching the PDS).
+    let ok = result.is_ok();
+    metrics::counter!(
+        "polaris_plc_operations_total",
+        "status" => if ok { "success" } else { "failed" },
+    )
+    .increment(1);
+    record_wizard_step("submit_plc_operation", ok);
+    result.map(Json)
+}
 
-    let signing_pubkey_did = load_signing_pubkey_did(&state).await?;
+/// Inner submit-plc-operation flow. Pulled out for metric exhaustivity.
+#[allow(
+    clippy::too_many_lines,
+    reason = "5-step PLC flow (lookup → build payloads → sign → submit → persist) reads more clearly as one linear function than a chain of micro-helpers"
+)]
+async fn submit_plc_operation_inner(
+    state: &ApiState,
+    ctx: &ModeratorAuthCtx,
+    req: SubmitPlcOperationRequest,
+) -> Result<SubmitPlcOperationResponse, ApiError> {
+    require_admin(ctx)?;
 
-    let verifier = atproto_verifier(&state)?;
+    // The labeler's signing public DID (did:key:z…) is needed both
+    // as a precondition (step 1 must have run) and as the value that
+    // gets published as the `#atproto_label` verification method in
+    // the DID document so downstream consumers can verify the
+    // signatures on emitted labels.
+    let signing_pubkey_did = load_signing_pubkey_did(state).await?;
+
+    let verifier = atproto_verifier(state)?;
     let oauth_ctx = verifier
         .build_oauth_session_for_moderator(ctx.moderator_id)
         .await
         .map_err(|e| map_oauth_setup_error(&e))?;
 
-    // Look up the moderator's handle for the did:web id derivation.
-    // The handle is the value the OAuth complete-login path wrote
-    // into `moderators.display_name` (see
-    // `upsert_atproto_moderator_in_tx`).
-    let handle = sqlx::query_scalar!(
-        r"SELECT display_name FROM moderators WHERE id = $1",
-        ctx.moderator_id.0,
-    )
-    .fetch_optional(&state.pool)
-    .await
-    .map_err(|e| ApiError::Internal(anyhow::Error::new(e)))?
-    .flatten()
-    .ok_or(ApiError::BadRequest(
-        "moderator row has no handle on file; re-login with --atproto",
-    ))?;
-
-    // Build the target DID document so we can extract the
-    // `service` + `verificationMethod` payloads for the PLC sign
-    // call. Re-uses the same library function the CLI uses; the
-    // wire shape is therefore identical.
-    let target_doc = polaris_publish_did_service::build_did_web_document(
-        &handle,
-        &oauth_ctx.pds_url,
-        &signing_pubkey_did,
-        &req.service_url,
-    )
-    .map_err(|e| {
-        tracing::warn!(error = %e, "build_did_web_document rejected setup inputs");
-        ApiError::BadRequest("DID document build failed; check service URL + signing key")
-    })?;
-
-    let services_payload = polaris_publish_did_service::build_plc_services_payload(&target_doc)
-        .ok_or_else(|| {
-            ApiError::Internal(anyhow::anyhow!(
-                "internal: built DID document missing service array"
-            ))
+    // PLC operations are full-snapshot REPLACE semantics on every
+    // field of `signPlcOperation::Input`: omitting a field tells the
+    // PDS to preserve the current value; including a field tells the
+    // PDS to use exactly that value (no merging). For
+    // `polarislabeler.bsky.social` (a did:plc account) the existing
+    // verification methods (`atproto`) and the existing service
+    // (`atproto_pds`) MUST be preserved — replacing them would
+    // overwrite bsky.social's identity key for the account and
+    // remove the PDS service entry, breaking login.
+    //
+    // We resolve the current DID document, splice the wizard's
+    // `atproto_labeler` service entry on top of the existing
+    // services map, and submit ONLY `services` — omitting
+    // `verificationMethods`, `alsoKnownAs`, and `rotationKeys`
+    // entirely so the PDS preserves them.
+    let current_doc = verifier
+        .resolve_did_document(&oauth_ctx.did)
+        .await
+        .map_err(|e| {
+            tracing::warn!(error = %e, did = %oauth_ctx.did, "could not resolve current DID document for PLC update");
+            ApiError::Internal(anyhow::anyhow!("could not resolve current DID document"))
         })?;
+    let services_payload = build_plc_services_with_labeler(&current_doc, &req.service_url);
     let verification_methods_payload =
-        polaris_publish_did_service::build_plc_verification_methods_payload(&target_doc)
-            .ok_or_else(|| {
-                ApiError::Internal(anyhow::anyhow!(
-                    "internal: built DID document missing verificationMethod array"
-                ))
-            })?;
+        build_plc_verification_methods_with_label(&current_doc, &signing_pubkey_did);
 
-    // Sign the PLC operation. The lexicon declares an `Input` with
-    // `token` + optional services/verificationMethods/rotationKeys/
-    // alsoKnownAs; we leave the rotation keys + alsoKnownAs to the
-    // PDS's existing values (passing `None` preserves them) so the
-    // labeler-service entry is an additive update.
+    // Sign the PLC operation. We send `services` + `verificationMethods`
+    // (both pre-merged so the existing `#atproto` key + `#atproto_pds`
+    // service are preserved alongside the new labeler entries); the
+    // rest of `signPlcOperation::Input` (alsoKnownAs / rotationKeys)
+    // is omitted so the PDS preserves the current values.
     let sign_body = serde_json::json!({
         "token": req.token,
         "services": services_payload,
@@ -547,9 +777,7 @@ pub async fn submit_plc_operation(
         "{}/xrpc/com.atproto.identity.signPlcOperation",
         oauth_ctx.pds_url
     );
-    let sign_response = oauth_ctx
-        .session
-        .post(&sign_endpoint, &sign_body)
+    let sign_response = post_with_dpop_nonce_retry(&oauth_ctx.session, &sign_endpoint, &sign_body)
         .await
         .map_err(|e| {
             tracing::warn!(error = %e, "signPlcOperation OAuth POST failed");
@@ -584,14 +812,13 @@ pub async fn submit_plc_operation(
         "{}/xrpc/com.atproto.identity.submitPlcOperation",
         oauth_ctx.pds_url
     );
-    let submit_response = oauth_ctx
-        .session
-        .post(&submit_endpoint, &submit_body)
-        .await
-        .map_err(|e| {
-            tracing::warn!(error = %e, "submitPlcOperation OAuth POST failed");
-            ApiError::Internal(anyhow::anyhow!("submitPlcOperation OAuth POST failed"))
-        })?;
+    let submit_response =
+        post_with_dpop_nonce_retry(&oauth_ctx.session, &submit_endpoint, &submit_body)
+            .await
+            .map_err(|e| {
+                tracing::warn!(error = %e, "submitPlcOperation OAuth POST failed");
+                ApiError::Internal(anyhow::anyhow!("submitPlcOperation OAuth POST failed"))
+            })?;
     if !submit_response.is_success() {
         tracing::warn!(
             status = submit_response.status,
@@ -614,7 +841,7 @@ pub async fn submit_plc_operation(
     .await
     .map_err(|e| ApiError::Internal(anyhow::Error::new(e)))?;
 
-    Ok(Json(SubmitPlcOperationResponse { did: oauth_ctx.did }))
+    Ok(SubmitPlcOperationResponse { did: oauth_ctx.did })
 }
 
 /// Build the `put_record::Input` for the labeler service record.
@@ -669,6 +896,248 @@ async fn load_signing_pubkey_did(state: &ApiState) -> Result<String, ApiError> {
     ))
 }
 
+/// Build the `verificationMethods` map for `signPlcOperation`,
+/// preserving the account's existing verification methods (e.g. the
+/// PDS-controlled `#atproto` identity key) and splicing in (or
+/// replacing) `atproto_label` pointing at the labeler's signing key.
+///
+/// Without this entry, downstream `AppViews` have no published key to
+/// verify the signature on labels we emit — the labeler would be
+/// registered but its emitted labels would be unverifiable.
+/// `verificationMethods` is REPLACE-on-presence, so we MUST include
+/// the existing `#atproto` entry alongside the new `#atproto_label`
+/// one, otherwise the PDS-controlled identity key gets clobbered and
+/// the account's normal login flow breaks.
+///
+/// Entries whose `public_key_multibase` is absent are skipped (the
+/// PLC map values are required to be `did:key:` strings, and an
+/// entry without multibase material cannot produce one).
+fn build_plc_verification_methods_with_label(
+    current_doc: &proto_blue::common::DidDocument,
+    labeler_signing_pubkey_did: &str,
+) -> serde_json::Value {
+    let mut map = serde_json::Map::new();
+    for vm in &current_doc.verification_method {
+        let fragment = vm
+            .id
+            .rsplit_once('#')
+            .map_or(vm.id.as_str(), |(_, suffix)| suffix);
+        let Some(multibase) = vm.public_key_multibase.as_deref() else {
+            continue;
+        };
+        map.insert(
+            fragment.to_owned(),
+            serde_json::Value::String(format!("did:key:{multibase}")),
+        );
+    }
+    map.insert(
+        polaris_publish_did_service::ATPROTO_LABEL_VERIFICATION_ID
+            .trim_start_matches('#')
+            .to_owned(),
+        serde_json::Value::String(labeler_signing_pubkey_did.to_owned()),
+    );
+    serde_json::Value::Object(map)
+}
+
+/// Build the `services` map for `signPlcOperation`, preserving the
+/// account's existing service entries and splicing in (or replacing)
+/// `atproto_labeler` to point at `service_url`.
+///
+/// PLC operations REPLACE on presence, so the wizard must send the
+/// **full** current set of services plus the new `atproto_labeler`
+/// entry. We translate `DidDocument::service` (W3C DID-Core
+/// `[{id, type, serviceEndpoint}]` shape) into the PLC `Map<fragment,
+/// {type, endpoint}>` shape, fragment-keyed by the suffix after `#`
+/// in each `id`. Service entries whose `serviceEndpoint` is not a
+/// JSON string are skipped — the PLC lexicon expects a string
+/// endpoint; an object-shaped W3C entry (rare) would be rejected by
+/// the directory anyway.
+fn build_plc_services_with_labeler(
+    current_doc: &proto_blue::common::DidDocument,
+    service_url: &str,
+) -> serde_json::Value {
+    let mut map = serde_json::Map::new();
+    for service in &current_doc.service {
+        let fragment = service
+            .id
+            .rsplit_once('#')
+            .map_or(service.id.as_str(), |(_, suffix)| suffix);
+        // Preserve string-shaped endpoints; skip exotic object-shaped
+        // serviceEndpoint values (W3C allows them but PLC doesn't).
+        let Some(endpoint_str) = service.service_endpoint.as_str() else {
+            continue;
+        };
+        map.insert(
+            fragment.to_owned(),
+            serde_json::json!({
+                "type": service.service_type,
+                "endpoint": endpoint_str,
+            }),
+        );
+    }
+    // Splice in (or overwrite) the labeler entry.
+    map.insert(
+        polaris_publish_did_service::LABELER_SERVICE_ID
+            .trim_start_matches('#')
+            .to_owned(),
+        serde_json::json!({
+            "type": polaris_publish_did_service::LABELER_SERVICE_TYPE,
+            "endpoint": service_url,
+        }),
+    );
+    serde_json::Value::Object(map)
+}
+
+/// POST `endpoint` with **no body** through the moderator's bound
+/// DPoP key, with a single `use_dpop_nonce` retry.
+///
+/// proto-blue 0.3.2's `OAuthSession::post` always serialises and
+/// transmits a JSON body — even for an empty object `{}`. The
+/// `com.atproto.identity.requestPlcOperationSignature` lexicon
+/// declares **no input**, so the PDS rejects any request that
+/// carries a body (`400 InvalidRequest "A request body was provided
+/// when none was expected"`). This helper bypasses
+/// `OAuthSession::post` and uses the context's `dpop_key`,
+/// `dpop_nonces`, `access_token`, and `fetcher` to build a bodyless
+/// DPoP-signed POST directly via the same `FetchHandler` the session
+/// would use, so the request looks identical on the wire except for
+/// the absent body / `content-type`.
+async fn post_no_body_with_dpop_nonce_retry(
+    ctx: &crate::auth::atproto::ModeratorOAuthContext,
+    endpoint: &str,
+) -> Result<proto_blue::common::fetch::HttpResponse, proto_blue::oauth::OAuthError> {
+    let first = post_no_body_once(ctx, endpoint).await?;
+    if is_use_dpop_nonce_response(&first) {
+        // The first response's DPoP-Nonce header was absorbed into
+        // ctx.dpop_nonces by post_no_body_once before returning; the
+        // retry will pick it up.
+        tracing::debug!(
+            endpoint = %endpoint,
+            "resource server challenged bodyless POST with use_dpop_nonce; retrying"
+        );
+        return post_no_body_once(ctx, endpoint).await;
+    }
+    Ok(first)
+}
+
+/// One bodyless DPoP-bound POST attempt. Absorbs any `DPoP-Nonce`
+/// response header into `ctx.dpop_nonces` before returning so the
+/// caller's retry (and any subsequent `OAuthSession::post` against
+/// the same origin) sees the rotated nonce.
+async fn post_no_body_once(
+    ctx: &crate::auth::atproto::ModeratorOAuthContext,
+    endpoint: &str,
+) -> Result<proto_blue::common::fetch::HttpResponse, proto_blue::oauth::OAuthError> {
+    use proto_blue::common::fetch::HttpRequest;
+    use proto_blue::oauth::build_dpop_proof;
+
+    let origin = url::Url::parse(endpoint)
+        .ok()
+        .map(|u| u.origin().ascii_serialization());
+    let nonce = origin.as_ref().and_then(|o| ctx.dpop_nonces.get(o));
+
+    // `htu` must omit query + fragment per RFC 9449 §4.2.
+    let htu = strip_query_fragment(endpoint);
+    let proof = build_dpop_proof(
+        &ctx.dpop_key,
+        "POST",
+        &htu,
+        nonce.as_deref(),
+        Some(&ctx.access_token),
+    )?;
+
+    let req = HttpRequest::post(endpoint)
+        .with_header("authorization", format!("DPoP {}", ctx.access_token))
+        .with_header("dpop", proof);
+
+    let resp = ctx.fetcher.fetch(req).await?;
+
+    // Mirror OAuthSession::request: absorb the response nonce before
+    // returning so the next attempt (or any session.post call against
+    // the same origin) carries it.
+    if let (Some(origin), Some(nonce_str)) = (origin.as_ref(), resp.header("dpop-nonce")) {
+        ctx.dpop_nonces.set(origin, nonce_str);
+    }
+
+    Ok(resp)
+}
+
+/// Strip the `?query` and `#fragment` from `url`, returning the base.
+/// Falls back to the original string when `url` does not parse — the
+/// DPoP proof will then carry the raw input and the server's
+/// signature validation will reject any malformed `htu` cleanly.
+fn strip_query_fragment(url: &str) -> String {
+    match url::Url::parse(url) {
+        Ok(mut u) => {
+            u.set_query(None);
+            u.set_fragment(None);
+            u.to_string()
+        }
+        Err(_) => url.to_owned(),
+    }
+}
+
+/// POST `body` to `endpoint` through the moderator's OAuth session and
+/// retry **once** on a `use_dpop_nonce` server challenge.
+///
+/// Resource servers (e.g. bsky.social's PDS) require DPoP proofs to
+/// carry a server-issued `nonce` claim. The first request from a
+/// freshly-reconstructed [`OAuthSession`] cannot carry that nonce
+/// because the cache is empty (the proto-blue 0.3.2 `OAuthSession`
+/// keeps the cache per-instance and `build_oauth_session_for_moderator`
+/// re-instantiates it on every call). The server responds with a
+/// `use_dpop_nonce` challenge — body JSON `{"error":"use_dpop_nonce",
+/// …}` and either a `401` (PDS / resource-server form) or `400` (AS
+/// form). The session **does** auto-absorb the `DPoP-Nonce` header
+/// from the response into its cache, so a single retry from the same
+/// session will carry the right nonce and succeed.
+///
+/// The retry is bounded to one extra attempt: if the server still
+/// challenges after that, the failure is genuine (token expired,
+/// scope mismatch, …) and we surface it to the caller verbatim.
+async fn post_with_dpop_nonce_retry(
+    session: &proto_blue::oauth::OAuthSession,
+    endpoint: &str,
+    body: &serde_json::Value,
+) -> Result<proto_blue::common::fetch::HttpResponse, proto_blue::oauth::OAuthError> {
+    let first = session.post(endpoint, body).await?;
+    if is_use_dpop_nonce_response(&first) {
+        // The session.post body above also wrote the new nonce into
+        // the session's DpopNonceCache (see proto-blue-oauth 0.3.2
+        // session.rs `if let Some(nonce_str) = resp.header(...)`);
+        // a single retry from the same session picks it up.
+        tracing::debug!(
+            endpoint = %endpoint,
+            "resource server challenged with use_dpop_nonce; retrying with fresh nonce"
+        );
+        return session.post(endpoint, body).await;
+    }
+    Ok(first)
+}
+
+/// True when `resp` is a `use_dpop_nonce` challenge. Matches both the
+/// AS-style `400 {"error":"use_dpop_nonce"}` and the RS-style
+/// `401 …` (either WWW-Authenticate-carried or body-carried; bsky's
+/// PDS uses the body-carried form).
+fn is_use_dpop_nonce_response(resp: &proto_blue::common::fetch::HttpResponse) -> bool {
+    if resp.status != 401 && resp.status != 400 {
+        return false;
+    }
+    if let Some(auth) = resp.header("www-authenticate") {
+        if auth.contains("error=\"use_dpop_nonce\"") {
+            return true;
+        }
+    }
+    if let Ok(body) = std::str::from_utf8(&resp.body) {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(body) {
+            if v.get("error").and_then(|e| e.as_str()) == Some("use_dpop_nonce") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Map a `build_oauth_session_for_moderator` error to an
 /// `ApiError`. The opaque mapping is deliberate: every
 /// auth-side variant (session not found, crypto failure, JWK
@@ -676,7 +1145,22 @@ async fn load_signing_pubkey_did(state: &ApiState) -> Result<String, ApiError> {
 /// shape does not leak why the per-moderator OAuth session
 /// is unusable.
 fn map_oauth_setup_error(err: &crate::auth::AuthError) -> ApiError {
-    tracing::warn!(error = %err, "setup endpoint failed to rebuild moderator OAuth session");
+    // Walk the source chain so diagnostics like "DPoP binding failed"
+    // surface the underlying cause (serde shape mismatch, missing JWK
+    // field, K-256 import failure, …) — the top-level Display alone
+    // gives the operator no actionable signal.
+    let mut chain = format!("{err}");
+    let mut next: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(err);
+    while let Some(cause) = next {
+        chain.push_str(" -> ");
+        chain.push_str(&cause.to_string());
+        next = cause.source();
+    }
+    tracing::warn!(
+        error = %err,
+        chain = %chain,
+        "setup endpoint failed to rebuild moderator OAuth session"
+    );
     match err {
         crate::auth::AuthError::SessionNotFound => ApiError::BadRequest(
             "no active moderator session bound to this account; re-login required",
@@ -768,19 +1252,42 @@ mod tests {
         assert!(matches!(err, ApiError::BadRequest(_)), "got {err:?}");
     }
 
+    // Coverage for the file-state probe lives at the integration
+    // level in `tests/setup_endpoints.rs::generate_key_conflict_on_existing_file`,
+    // which drives the whole admin-gated handler against a real
+    // Postgres testcontainer and asserts the 409 response shape.
+    // The earlier unit-level shims referenced a helper that was
+    // refactored away into [`adopt_existing_key_did`]; the
+    // integration test is the load-bearing assertion now.
+
     #[test]
-    fn refuse_existing_key_file_accepts_missing_path() {
+    fn adopt_existing_key_did_returns_none_for_missing_file() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join("does-not-exist.key");
-        refuse_existing_key_file(&path).expect("missing path is fine");
+        assert!(
+            adopt_existing_key_did(&path)
+                .expect("missing path is fine")
+                .is_none(),
+            "missing path must be the fresh-mint path (None)",
+        );
     }
 
     #[test]
-    fn refuse_existing_key_file_rejects_existing_nonempty_file() {
+    fn adopt_existing_key_did_returns_none_for_empty_file() {
         let tmp = tempfile::NamedTempFile::new().expect("tempfile");
-        std::fs::write(tmp.path(), "existing-content").unwrap();
-        let err =
-            refuse_existing_key_file(tmp.path()).expect_err("existing non-empty file must reject");
+        assert!(
+            adopt_existing_key_did(tmp.path())
+                .expect("empty file is the fresh-mint path")
+                .is_none(),
+        );
+    }
+
+    #[test]
+    fn adopt_existing_key_did_rejects_corrupt_nonempty_file() {
+        let tmp = tempfile::NamedTempFile::new().expect("tempfile");
+        std::fs::write(tmp.path(), "not-hex-content").unwrap();
+        let err = adopt_existing_key_did(tmp.path())
+            .expect_err("non-empty malformed content must surface Conflict");
         assert!(matches!(err, ApiError::Conflict(_)), "got {err:?}");
     }
 }

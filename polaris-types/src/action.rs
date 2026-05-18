@@ -44,6 +44,11 @@ pub enum ActionKind {
     NoAction,
     /// Reverse a prior action. Must carry a non-null `reverses_action_id`.
     Reverse,
+    /// Moderator note attached to the subject. No state change; the
+    /// `reasoning` text is the note itself. Ozone-parity (`#modEventComment`).
+    /// Use when a moderator wants to record context for future reviewers
+    /// without taking an enforcement action.
+    Comment,
 }
 
 impl ActionKind {
@@ -58,6 +63,7 @@ impl ActionKind {
             Self::Escalate => "escalate",
             Self::NoAction => "no_action",
             Self::Reverse => "reverse",
+            Self::Comment => "comment",
         }
     }
 
@@ -72,6 +78,7 @@ impl ActionKind {
             "escalate" => Some(Self::Escalate),
             "no_action" => Some(Self::NoAction),
             "reverse" => Some(Self::Reverse),
+            "comment" => Some(Self::Comment),
             _ => None,
         }
     }
@@ -202,6 +209,7 @@ mod tests {
             ActionKind::Escalate,
             ActionKind::NoAction,
             ActionKind::Reverse,
+            ActionKind::Comment,
         ] {
             assert_eq!(ActionKind::from_wire(k.as_str()), Some(k));
         }

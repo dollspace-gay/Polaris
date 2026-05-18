@@ -1,0 +1,49 @@
+/*
+ * Subject header — top-of-case identity strip.
+ */
+
+.subject-header {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
+  color: var(--color-fg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.subject-header__title {
+  font-size: var(--font-size-lg);
+  margin: 0;
+}
+
+.subject-header__id {
+  color: var(--color-fg-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  word-break: break-all;
+}
+
+.subject-header__meta {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+}
+
+.subject-header__placeholder {
+  color: var(--color-fg-muted);
+  font-style: italic;
+  font-size: var(--font-size-sm);
+}
+
+/*
+ * Media slot (issue #95 / mod-workstation feature #5). Hosts either
+ * the blur-by-default `<MediaPreview/>` per blob (once the case-view
+ * DTO surfaces media URIs) or the empty-state placeholder.
+ */
+.subject-header__media {
+  margin-top: var(--space-md);
+}

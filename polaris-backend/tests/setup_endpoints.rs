@@ -221,13 +221,21 @@ fn make_verifier(
 
 // ── Session-bundle plumbing ──────────────────────────────────────────
 
-/// Mirror of the private `atproto::SerializedSessionState`. Same fields,
-/// same order — the bincode envelope must be byte-identical so
-/// `build_oauth_session_for_moderator` can decode it.
+/// Mirror of the `pub(crate)` `atproto::SerializedSessionState`. Same
+/// fields, same order — the JSON envelope must be byte-decodable by
+/// `build_oauth_session_for_moderator` (which calls
+/// `serde_json::from_slice` per the smoke-session bincode→serde_json
+/// migration; bincode can't round-trip
+/// `#[serde(skip_serializing_if = "Option::is_none")]` Option fields,
+/// which `TokenSet` uses on `refresh_token`, `expires_at`, and `aud`,
+/// so the production decoder picks one off the back of any None-bearing
+/// bundle with `UnexpectedEnd { additional: N }`).
 ///
-/// If production drifts, the `atproto_refresh.rs` test will fail in
-/// lockstep — we re-derive it here rather than re-export it from the
-/// crate's public API.
+/// We mirror the struct shape here rather than re-export the
+/// `pub(crate)` type from the crate's public API; if production
+/// drifts the field set, the `atproto_refresh.rs` test would fail in
+/// lockstep and the drift would be caught before this fixture
+/// reproduces it.
 #[derive(serde::Serialize)]
 struct TestBundle {
     dpop_keypair_jwk_json: Vec<u8>,
@@ -257,7 +265,15 @@ fn seal_session_bundle(crypto: &Crypto, did: &str, pds_url: &str) -> Vec<u8> {
         dpop_keypair_jwk_json: serde_json::to_vec(&dpop_key.private_jwk).unwrap(),
         token_set,
     };
-    let plain = bincode::serde::encode_to_vec(&bundle, bincode::config::standard()).unwrap();
+    // Issue #89 closure: production uses `serde_json::to_vec` for the
+    // bundle envelope (see `polaris-backend/src/auth/atproto.rs::encode_bundle`).
+    // The pre-fix code here used `bincode::serde::encode_to_vec`,
+    // which silently failed at decode time the moment any optional
+    // `TokenSet` field happened to be `None` — `UnexpectedEnd { additional: N }`.
+    // Match production verbatim to make these happy-path tests green
+    // and to keep the fixture aligned with the encoder it's meant to
+    // mirror.
+    let plain = serde_json::to_vec(&bundle).unwrap();
     let sealed = crypto.seal(&plain).unwrap();
     sealed.to_bytes()
 }
@@ -854,6 +870,38 @@ async fn submit_plc_operation_happy_path() -> Result<(), Box<dyn std::error::Err
     let crypto = Crypto::new([7_u8; 32]);
     let sessions = SessionStore::new(pool.clone(), crypto.clone());
     let fetcher = Arc::new(MockFetcher::new());
+
+    // Issue #89 closure: `submit_plc_operation` resolves the
+    // moderator's current DID document via the PLC directory
+    // (added in Workstream C / REQ-C2 for the services +
+    // verificationMethods merge), then sends a merged signPlcOperation
+    // body. Mock the plc.directory response so the merge has a
+    // current `#atproto_pds` service + `#atproto` verification
+    // method to preserve. Without this route the handler 500s on
+    // resolution failure before ever touching the sign/submit stubs.
+    fetcher.route(
+        HttpMethod::Get,
+        format!("https://plc.directory/{TEST_DID}"),
+        Canned::json(serde_json::json!({
+            "@context": [
+                "https://www.w3.org/ns/did/v1",
+                "https://w3id.org/security/multikey/v1",
+            ],
+            "id": TEST_DID,
+            "alsoKnownAs": [format!("at://{TEST_HANDLE}")],
+            "verificationMethod": [{
+                "id": format!("{TEST_DID}#atproto"),
+                "type": "Multikey",
+                "controller": TEST_DID,
+                "publicKeyMultibase": "zQ3shXjHeiBuRCKmM36cuYnm7YEMzhGnCmCyW92sRJ9pribSF",
+            }],
+            "service": [{
+                "id": "#atproto_pds",
+                "type": "AtprotoPersonalDataServer",
+                "serviceEndpoint": TEST_PDS_URL,
+            }],
+        })),
+    );
 
     // signPlcOperation returns the signed operation envelope; the
     // handler then forwards `.operation` to submitPlcOperation.

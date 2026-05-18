@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM subject_tags WHERE subject_id = $1 AND tag = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4fd1365c598e69541b593fe25fdc19ef6ff95dd359ce91adeb9b062ad1fd1e57"
+}

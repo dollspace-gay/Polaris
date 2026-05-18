@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT subject_id, queue, diverted_by, diverted_at, reason,\n               cleared_at, cleared_by\n        FROM subject_routing\n        ORDER BY diverted_at DESC\n        LIMIT 200\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "subject_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "queue",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "diverted_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "diverted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "cleared_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "cleared_by",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "68f8b8598eb725d3e87929114b7ea6877e1f48cb5fd687adaa889c38a0f86267"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO evidence_jobs (action_id, subject_uri)\n            VALUES ($1, $2)\n            ON CONFLICT (action_id) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2201668533de7d99a47c75801fe9eefcb44effcfce74201633eb8f15ef01e13f"
+}

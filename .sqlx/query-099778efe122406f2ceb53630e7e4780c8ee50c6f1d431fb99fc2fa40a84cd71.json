@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE upstream_labelers\n        SET consecutive_failures = consecutive_failures + 1,\n            updated_at = now()\n        WHERE did = $1\n        RETURNING consecutive_failures\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "consecutive_failures",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "099778efe122406f2ceb53630e7e4780c8ee50c6f1d431fb99fc2fa40a84cd71"
+}

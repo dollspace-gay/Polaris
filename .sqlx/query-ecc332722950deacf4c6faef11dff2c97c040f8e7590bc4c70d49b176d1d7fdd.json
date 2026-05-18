@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO subject_image_blobs\n                  (subject_id, blob_cid, post_uri, alt_text, owner_did,\n                   post_indexed_at, walked_at)\n              VALUES ($1, $2, $3, $4, $5, $6, now())\n              ON CONFLICT (subject_id, blob_cid, post_uri)\n              DO UPDATE SET\n                  alt_text        = EXCLUDED.alt_text,\n                  owner_did       = EXCLUDED.owner_did,\n                  post_indexed_at = EXCLUDED.post_indexed_at,\n                  walked_at       = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ecc332722950deacf4c6faef11dff2c97c040f8e7590bc4c70d49b176d1d7fdd"
+}

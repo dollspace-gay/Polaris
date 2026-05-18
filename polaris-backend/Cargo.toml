@@ -37,6 +37,18 @@ path = "src/bin/polaris_federation_escalate.rs"
 name = "polaris-sample-classifier"
 path = "src/bin/polaris_sample_classifier.rs"
 
+# Issue #209: polaris-setup — one-shot config templating CLI for the
+# "easy install" code path. Generates `.env` (chmod 0o600) and
+# `client-metadata.json` from a hostname prompt + OsRng-derived
+# secrets, so a fresh operator goes from clone to working stack
+# without hand-rolling openssl + cp + edit. Idempotent on re-run.
+# Lives in polaris-backend (not a separate crate) so it inherits the
+# same workspace deps (`rand`, `hex`, `clap`, `anyhow`) without
+# adding a new crate to the workspace graph.
+[[bin]]
+name = "polaris-setup"
+path = "src/bin/polaris_setup.rs"
+
 [lib]
 name = "polaris_backend"
 path = "src/lib.rs"
@@ -68,7 +80,7 @@ s3-blob-store = ["dep:aws-sdk-s3", "dep:aws-config"]
 # integration test against localstack lives behind the same gate. Note
 # that `s3-blob-store` also opts into `aws-config` — both features
 # share the same SDK transport / credential plumbing.
-kms-integration = ["dep:aws-sdk-kms", "dep:aws-config"]
+kms-integration = ["dep:aws-sdk-kms", "dep:aws-config", "dep:k256"]
 
 [dependencies]
 # Axum: the `ws` feature is required for the labeler's
@@ -144,6 +156,13 @@ clap.workspace = true
 ciborium.workspace = true
 uuid.workspace = true
 chrono.workspace = true
+# Issue #190: lettre carries the SMTP client for the EMAIL moderator
+# verb. The handler imports `lettre::Message` + `lettre::AsyncSmtpTransport`
+# / `lettre::AsyncTransport` for typed message construction and
+# tokio-rustls-backed delivery. Operators configure SMTP via env vars;
+# when unconfigured the handler persists the record as `queued` so the
+# audit trail still captures the intent.
+lettre.workspace = true
 
 # Appeals workflow (issue #24). `sha2` hashes the appellant's source IP at
 # the API boundary before persistence — the privacy bar is "we never store
@@ -198,6 +217,14 @@ keyring.workspace = true
 zeroize.workspace = true
 aws-sdk-kms = { workspace = true, optional = true }
 aws-config = { workspace = true, optional = true }
+# Issue #2: GCP / Azure cloud-KMS rotation. The two providers are wired
+# via direct REST calls (`reqwest` + JSON) rather than full cloud SDKs
+# — see the workspace Cargo.toml for the rationale. `jsonwebtoken` is
+# the GCP service-account JWT signer; `k256` is required by both the
+# existing `cloud_kms.rs` AWS path (low-S signature normalisation) and
+# the new GCP/Azure paths.
+jsonwebtoken = { workspace = true }
+k256 = { version = "0.13", default-features = false, features = ["ecdsa", "pem"], optional = true }
 
 # Evidence preservation (#33). The S3-backed blob store is feature-
 # gated behind `s3-blob-store` so a stock build (labeler profile) does

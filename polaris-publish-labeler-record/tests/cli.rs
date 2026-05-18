@@ -22,7 +22,8 @@ use std::process::Command;
 
 use polaris_publish_labeler_record::{
     BuildError, LabelerServiceMain, RECORD_COLLECTION, RECORD_RKEY, RecordValue,
-    build_labeler_service_record, record_at_uri, validate_record,
+    build_labeler_service_record, build_labeler_service_record_with_definitions,
+    default_definitions_for, record_at_uri, validate_record,
 };
 
 /// Canonical inputs for the happy path. Kept as constants so every test
@@ -310,4 +311,183 @@ fn cli_oauth_missing_client_metadata_file_exits_user_error() {
         "expected exit 1 (UserError); got {code}, stderr={}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+// ── Issue #6 regression: labelValueDefinitions are emitted ────────────
+
+/// `build_labeler_service_record` (the no-explicit-definitions entry
+/// point) auto-populates `policies.labelValueDefinitions` so
+/// bsky.app's profile UI can render the labeler's offering. A record
+/// without definitions makes the AppView show a blank "Labels"
+/// surface — the regression we're pinning.
+#[test]
+fn build_record_emits_default_label_value_definitions() {
+    let main = build_sample();
+    let main: &LabelerServiceMain = main.as_main();
+
+    let defs = main
+        .policies
+        .label_value_definitions
+        .as_ref()
+        .expect("issue #6 regression: labelValueDefinitions must be Some(_)");
+    assert_eq!(
+        defs.len(),
+        sample_label_values().len(),
+        "definitions must be 1:1 with label_values",
+    );
+
+    let by_id: std::collections::HashMap<&str, _> =
+        defs.iter().map(|d| (d.identifier.as_str(), d)).collect();
+    for value in sample_label_values() {
+        let def = by_id
+            .get(value.as_str())
+            .unwrap_or_else(|| panic!("missing definition for value {value}"));
+        // Defaults: inform / none / warn / English locale present.
+        assert_eq!(def.severity, "inform", "default severity");
+        assert_eq!(def.blurs, "none", "default blur behavior");
+        assert_eq!(def.default_setting.as_deref(), Some("warn"));
+        assert!(
+            def.locales.iter().any(|s| s.lang == "en"),
+            "default definition must carry at least one English locale entry",
+        );
+    }
+}
+
+/// `default_definitions_for` is order-preserving so a downstream
+/// renderer can rely on positional indexing.
+#[test]
+fn default_definitions_for_preserves_input_order() {
+    let values = vec!["b".to_owned(), "a".to_owned(), "c".to_owned()];
+    let defs = default_definitions_for(&values);
+    let ids: Vec<&str> = defs.iter().map(|d| d.identifier.as_str()).collect();
+    assert_eq!(ids, vec!["b", "a", "c"]);
+}
+
+/// Operator-supplied definitions are honored verbatim — the build
+/// path does not silently replace them with defaults.
+#[test]
+fn build_record_with_definitions_honors_caller_metadata() {
+    use proto_blue::api::com::atproto::label::defs::{
+        LabelValueDefinition, LabelValueDefinitionStrings,
+    };
+    let values = vec!["adult-content".to_owned()];
+    let definitions = vec![LabelValueDefinition {
+        adult_only: Some(true),
+        blurs: "media".to_owned(),
+        default_setting: Some("hide".to_owned()),
+        identifier: "adult-content".to_owned(),
+        locales: vec![LabelValueDefinitionStrings {
+            description: "Sexual or pornographic media".to_owned(),
+            lang: "en".to_owned(),
+            name: "Adult Content".to_owned(),
+        }],
+        severity: "alert".to_owned(),
+    }];
+
+    let record = build_labeler_service_record_with_definitions(
+        SERVICE_URL,
+        SIGNING_PUBKEY,
+        values,
+        definitions,
+    )
+    .expect("explicit definitions should be accepted");
+    let main = record.as_main();
+    let defs = main.policies.label_value_definitions.as_ref().unwrap();
+    assert_eq!(defs.len(), 1);
+    let d = &defs[0];
+    assert_eq!(d.identifier, "adult-content");
+    assert_eq!(d.severity, "alert");
+    assert_eq!(d.blurs, "media");
+    assert_eq!(d.default_setting.as_deref(), Some("hide"));
+    assert_eq!(d.adult_only, Some(true));
+    assert_eq!(d.locales[0].name, "Adult Content");
+}
+
+/// 1:1 contract: a definition whose identifier isn't in `label_values`
+/// is rejected (extras would leave bsky.app rendering metadata for a
+/// value the labeler never claims to emit).
+#[test]
+fn build_record_rejects_extra_definition_identifier() {
+    use proto_blue::api::com::atproto::label::defs::{
+        LabelValueDefinition, LabelValueDefinitionStrings,
+    };
+    let values = vec!["spam".to_owned()];
+    let definitions = vec![
+        LabelValueDefinition {
+            adult_only: Some(false),
+            blurs: "none".to_owned(),
+            default_setting: Some("warn".to_owned()),
+            identifier: "spam".to_owned(),
+            locales: vec![LabelValueDefinitionStrings {
+                description: String::new(),
+                lang: "en".to_owned(),
+                name: "Spam".to_owned(),
+            }],
+            severity: "inform".to_owned(),
+        },
+        LabelValueDefinition {
+            adult_only: Some(false),
+            blurs: "none".to_owned(),
+            default_setting: Some("warn".to_owned()),
+            identifier: "ghost-value".to_owned(),
+            locales: vec![LabelValueDefinitionStrings {
+                description: String::new(),
+                lang: "en".to_owned(),
+                name: "Ghost".to_owned(),
+            }],
+            severity: "inform".to_owned(),
+        },
+    ];
+
+    let err = build_labeler_service_record_with_definitions(
+        SERVICE_URL,
+        SIGNING_PUBKEY,
+        values,
+        definitions,
+    )
+    .expect_err("extra definition must be rejected");
+    match err {
+        BuildError::DefinitionMismatch { missing, extra } => {
+            assert!(missing.is_empty(), "no values were missing");
+            assert_eq!(extra, vec!["ghost-value".to_owned()]);
+        }
+        other => panic!("expected DefinitionMismatch, got {other:?}"),
+    }
+}
+
+/// 1:1 contract: a value without a matching definition is rejected
+/// (gaps would produce a half-rendered offering on bsky.app).
+#[test]
+fn build_record_rejects_value_without_definition() {
+    use proto_blue::api::com::atproto::label::defs::{
+        LabelValueDefinition, LabelValueDefinitionStrings,
+    };
+    let values = vec!["spam".to_owned(), "phishing".to_owned()];
+    let definitions = vec![LabelValueDefinition {
+        adult_only: Some(false),
+        blurs: "none".to_owned(),
+        default_setting: Some("warn".to_owned()),
+        identifier: "spam".to_owned(),
+        locales: vec![LabelValueDefinitionStrings {
+            description: String::new(),
+            lang: "en".to_owned(),
+            name: "Spam".to_owned(),
+        }],
+        severity: "inform".to_owned(),
+    }];
+
+    let err = build_labeler_service_record_with_definitions(
+        SERVICE_URL,
+        SIGNING_PUBKEY,
+        values,
+        definitions,
+    )
+    .expect_err("missing definition must be rejected");
+    match err {
+        BuildError::DefinitionMismatch { missing, extra } => {
+            assert_eq!(missing, vec!["phishing".to_owned()]);
+            assert!(extra.is_empty());
+        }
+        other => panic!("expected DefinitionMismatch, got {other:?}"),
+    }
 }

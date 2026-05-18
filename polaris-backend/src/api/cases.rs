@@ -36,13 +36,13 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::{Extension, Json};
 use polaris_types::{
-    Action, ActionKind, Incident, IncidentId, IncidentStatus, NewAction as TypesNewAction,
-    SubjectId,
+    Action, ActionId, ActionKind, Incident, IncidentId, IncidentStatus,
+    NewAction as TypesNewAction, ReportId, SubjectId,
 };
 
 use crate::api::dto::{
     CaseView, Escalate, IncidentList, IncidentListQuery, IncidentSummary, ReporterContext,
-    SubmitAction,
+    SubjectMediaBlob, SubmitAction,
 };
 use crate::api::error::ApiError;
 use crate::api::policy;
@@ -56,8 +56,14 @@ use crate::repo::{
 /// Hard upper bound on the per-call row count returned by list-style repo
 /// methods. The case view fetches "everything for this subject"; a bounded
 /// `LIMIT` keeps a pathological case (10k actions on one subject) from
-/// blowing past the response budget. M2 will introduce pagination.
-const MAX_ROWS_PER_LIST: i64 = 256;
+/// blowing past the response budget. The paginated cases-list handler
+/// clamps caller-supplied `?limit=` values to this ceiling.
+pub(crate) const MAX_ROWS_PER_LIST: i64 = 256;
+
+/// Default page size for `GET /api/cases` when the caller omits `?limit=`.
+/// Sized to fit comfortably in a single dashboard render without forcing
+/// the frontend into an immediate second fetch.
+const DEFAULT_PAGE_LIMIT: i64 = 50;
 
 // ── 1. GET /api/cases/:subject_id ───────────────────────────────────────
 
@@ -86,14 +92,164 @@ async fn build_case_view(state: &ApiState, subject_id: SubjectId) -> Result<Case
         .await?;
     let observations = state.observations.list_by_subject(subject_id).await?;
     let reporter_contexts = build_reporter_contexts(state, &reports).await?;
+    let media_blobs = build_media_blobs(state, subject_id).await?;
+    let related_actions = build_related_actions(state, &subject).await?;
     Ok(CaseView {
         subject,
         history,
         reports,
         reporter_contexts,
         observations,
+        media_blobs,
+        related_actions,
         network_context: serde_json::Value::Null,
     })
+}
+
+/// Gather every Polaris moderation action targeting a subject that
+/// shares this case's DID — accounts under the same DID, plus posts
+/// authored by this DID — and excluding the current case's own
+/// `subject_id` (those rows are already in the primary `history`).
+///
+/// Returns an empty Vec when this subject has no `did` populated
+/// (list-/feed-kind subjects). Otherwise issues ONE SQL pass with
+/// a JOIN from `actions` to `subjects` so the timeline can render
+/// the target subject's kind/uri alongside each action without an
+/// N+1 hydrate.
+async fn build_related_actions(
+    state: &ApiState,
+    subject: &polaris_types::Subject,
+) -> Result<Vec<crate::api::dto::RelatedAction>, ApiError> {
+    let Some(did) = subject.did.as_ref().map(ToString::to_string) else {
+        return Ok(Vec::new());
+    };
+    let primary_id = subject.id.as_uuid();
+
+    // Single SQL pass: actions joined to their target subject row,
+    // filtered to subjects with the same `did` but EXCLUDING the
+    // current case's subject id. Ordered newest-first; capped at the
+    // standard row budget.
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            a.id                AS action_id,
+            a.incident_id       AS incident_id,
+            a.subject_id        AS action_subject_id,
+            a.moderator_id      AS moderator_id,
+            a.kind              AS "kind!: String",
+            a.label_value       AS label_value,
+            a.reasoning         AS reasoning,
+            a.policy_refs       AS policy_refs,
+            a.reversible_until  AS reversible_until,
+            a.reverses_action_id AS reverses_action_id,
+            a.emitted_to_atproto AS emitted_to_atproto,
+            a.evidence_car_cid  AS evidence_car_cid,
+            a.created_at        AS created_at,
+            s.kind              AS "target_kind!: String",
+            s.uri               AS target_uri
+        FROM actions a
+        JOIN subjects s ON s.id = a.subject_id
+        WHERE s.did = $1
+          AND s.id <> $2
+        ORDER BY a.created_at DESC
+        LIMIT $3
+        "#,
+        did,
+        primary_id,
+        MAX_ROWS_PER_LIST,
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::repo::RepoError::from)?;
+
+    let mut out = Vec::with_capacity(rows.len());
+    for row in rows {
+        let action = crate::repo::action::row_to_action(
+            row.action_id,
+            row.incident_id,
+            row.action_subject_id,
+            row.moderator_id,
+            &row.kind,
+            row.label_value,
+            row.reasoning,
+            row.policy_refs,
+            row.reversible_until,
+            row.reverses_action_id,
+            row.emitted_to_atproto,
+            row.evidence_car_cid,
+            row.created_at,
+        )
+        .map_err(ApiError::from)?;
+        out.push(crate::api::dto::RelatedAction {
+            action,
+            target_subject_id: SubjectId::from(row.action_subject_id),
+            target_subject_kind: row.target_kind,
+            target_subject_uri: row.target_uri,
+        });
+    }
+    Ok(out)
+}
+
+/// Build the per-subject [`SubjectMediaBlob`] list from the
+/// `subject_image_blobs` index (issue #97 work landed migration 0026).
+///
+/// The case-view DTO surfaces every distinct (`blob_cid`, `post_uri`)
+/// pair the network-context handler has observed for this subject so
+/// the case-view can render media blur-by-default previews (#95).
+/// Duplicates from the same blob being re-embedded across multiple
+/// posts are deduplicated on the wire by the `DISTINCT ON (blob_cid)`
+/// clause — the moderator sees one row per unique image, with the
+/// most-recent `post_uri` where it appeared.
+async fn build_media_blobs(
+    state: &ApiState,
+    subject_id: SubjectId,
+) -> Result<Vec<SubjectMediaBlob>, ApiError> {
+    // `DISTINCT ON (blob_cid)` collapses the multi-post-per-blob
+    // case to one row per unique image; `ORDER BY blob_cid,
+    // first_seen_at DESC` then makes the row's `post_uri` +
+    // `alt_text` carry the most-recent post's data. The outer
+    // `ORDER BY first_seen_at DESC` re-sorts the deduped set so
+    // the moderator sees the newest images first in the carousel
+    // (the `SELECT` is wrapped in a subquery because Postgres
+    // does not allow `DISTINCT ON` and a non-leading `ORDER BY`
+    // in the same query level).
+    // Reverse-chronological order — see the matching SELECT in
+    // `polaris_backend::api::media::read_media_blobs` for the
+    // detailed dedup-vs-ordering rationale.
+    let rows = sqlx::query!(
+        r#"
+        SELECT blob_cid, post_uri, alt_text, owner_did, post_indexed_at, first_seen_at
+        FROM (
+            SELECT DISTINCT ON (blob_cid)
+                blob_cid,
+                post_uri,
+                alt_text,
+                owner_did,
+                post_indexed_at,
+                first_seen_at
+            FROM subject_image_blobs
+            WHERE subject_id = $1
+            ORDER BY blob_cid, post_indexed_at DESC NULLS LAST, first_seen_at DESC
+        ) AS distinct_blobs
+        ORDER BY post_indexed_at DESC NULLS LAST, first_seen_at DESC
+        "#,
+        subject_id.as_uuid(),
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(crate::repo::RepoError::from)?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| SubjectMediaBlob {
+            blob_cid: r.blob_cid,
+            post_uri: r.post_uri,
+            alt_text: r.alt_text,
+            owner_did: r.owner_did,
+            post_indexed_at: r.post_indexed_at,
+            first_seen_at: r.first_seen_at,
+        })
+        .collect())
 }
 
 /// Build the [`ReporterContext`] list for every distinct reporter that
@@ -162,48 +318,65 @@ async fn build_reporter_contexts(
     Ok(out)
 }
 
-/// Helper: gather every [`Action`] across every incident attached to the
-/// subject. M2 will introduce a dedicated `ActionRepo::list_by_subject`
-/// query; for #14 we walk incidents-by-subject → actions-by-incident.
+/// Helper: gather every [`Action`] ever taken against `subject_id`.
+///
+/// One SQL pass via [`crate::repo::ActionRepo::list_by_subject`] —
+/// previously this walked every incident in the table, filtered by
+/// `primary_subject == subject_id` in Rust, and then re-queried
+/// actions per matched incident. The dedicated query is correct
+/// against the same column the action insert path writes
+/// (`actions.subject_id`) and is O(1) round-trips instead of O(N).
 async fn list_history_for_subject(
     state: &ApiState,
     subject_id: SubjectId,
 ) -> Result<Vec<Action>, ApiError> {
-    let all_incidents = state
-        .incidents
-        .list_by_status(None, MAX_ROWS_PER_LIST)
-        .await?;
-    let mut history = Vec::new();
-    for incident in all_incidents
-        .into_iter()
-        .filter(|i| i.primary_subject == subject_id)
-    {
-        let mut actions = state
-            .actions
-            .list_by_incident(incident.id, MAX_ROWS_PER_LIST)
-            .await?;
-        history.append(&mut actions);
-    }
-    Ok(history)
+    Ok(state
+        .actions
+        .list_by_subject(subject_id, MAX_ROWS_PER_LIST)
+        .await?)
 }
 
 // ── 2. GET /api/cases?status=open ───────────────────────────────────────
 
 /// Handler: slim incident list (queue-fallback projection).
+///
+/// Pagination contract:
+///   * `?status=open` filters by [`polaris_types::IncidentStatus`] wire
+///     form.
+///   * `?limit=<n>` page size — defaults to [`DEFAULT_PAGE_LIMIT`],
+///     clamped to [`MAX_ROWS_PER_LIST`].
+///   * `?offset=<n>` skip count — defaults to 0; negative values
+///     clamp to 0.
+///
+/// The response's `total` field carries the count of rows matching
+/// the filter BEFORE pagination so the frontend can render the
+/// "showing N of M" affordance without a second probe.
 pub async fn list_cases(
     State(state): State<ApiState>,
     Extension(_ctx): Extension<ModeratorAuthCtx>,
     Query(query): Query<IncidentListQuery>,
 ) -> Result<Json<IncidentList>, ApiError> {
-    let incidents = state
+    // Clamp the caller-supplied paging controls. A non-positive limit
+    // (zero or negative) falls back to the default; offsets clamp at
+    // zero so we never bind a negative `OFFSET` to Postgres.
+    let limit = query
+        .limit
+        .filter(|&n| n > 0)
+        .unwrap_or(DEFAULT_PAGE_LIMIT)
+        .min(MAX_ROWS_PER_LIST);
+    let offset = query.offset.unwrap_or(0).max(0);
+
+    let (incidents, total) = state
         .incidents
-        .list_by_status(query.status, MAX_ROWS_PER_LIST)
+        .list_paginated_by_status(query.status, limit, offset)
         .await?;
     let summaries: Vec<IncidentSummary> = incidents
         .iter()
         .map(IncidentSummary::from_incident)
         .collect();
-    let total = summaries.len() as u64;
+    // `total` is the unfiltered-by-page count from `COUNT(*) OVER ()`;
+    // cast to `u64` is lossless since the SQL value is non-negative.
+    let total = u64::try_from(total).unwrap_or(0);
     Ok(Json(IncidentList {
         incidents: summaries,
         total,
@@ -213,31 +386,389 @@ pub async fn list_cases(
 // ── 3. POST /api/cases/:subject_id/actions ──────────────────────────────
 
 /// Handler: submit a new action against the subject.
+///
+/// REQ-D3 wraps the body in a `submit_action` tracing span carrying
+/// `action_id = %inserted.id` so the action → sign → persist →
+/// broadcast timeline is greppable by a single UUID.
+///
+/// # Per-report idempotency (issue #202)
+///
+/// When `body.report_id` is `Some(_)`, the handler routes through
+/// [`submit_action_with_report`]: a `SELECT … FOR UPDATE` lock on the
+/// `reports` row gates the action insert. A second click with the same
+/// `report_id` returns the existing action verbatim (HTTP 200) rather
+/// than inserting a duplicate. Validation runs on the cold path only —
+/// the idempotent return path echoes the already-stored action without
+/// re-validating the wire body.
+///
+/// When `body.report_id` is `None` (action-composer submissions, the
+/// Mute-Reporter button, bulk-action subroutes), the handler preserves
+/// the pre-#202 behavior: validation + insert + emit, returning HTTP 201.
+#[allow(
+    clippy::missing_panics_doc,
+    reason = "the inserted action ID is always present on the successful path; the panics doc is N/A"
+)]
 pub async fn submit_action(
     State(state): State<ApiState>,
     Extension(ctx): Extension<ModeratorAuthCtx>,
     Path(subject_id): Path<SubjectId>,
     Json(body): Json<SubmitAction>,
 ) -> Result<(StatusCode, Json<Action>), ApiError> {
-    validate_submit_action(&body)?;
-    let new_action = build_new_action(&body, subject_id, &ctx);
+    if let Some(report_id) = body.report_id {
+        return submit_action_with_report(&state, &ctx, subject_id, report_id, &body).await;
+    }
+    submit_action_cold(&state, &ctx, subject_id, &body).await
+}
+
+/// Cold-path action insert — the pre-#202 behavior, used when the wire
+/// body omits `report_id`.
+///
+/// Validates the body, gates emit-shaped kinds on the labeler's signing
+/// key, inserts via [`crate::repo::ActionRepo::insert`] (which opens
+/// its own transaction for the evidence-job + reputation + audit-log
+/// side-effects), then best-effort-emits the label.
+async fn submit_action_cold(
+    state: &ApiState,
+    ctx: &ModeratorAuthCtx,
+    subject_id: SubjectId,
+    body: &SubmitAction,
+) -> Result<(StatusCode, Json<Action>), ApiError> {
+    validate_submit_action(body)?;
+
+    // REQ-A3: emit-shaped actions (Label, Takedown) require the
+    // labeler's signing key to be provisioned — without it the emit
+    // path would either crash on a stub-signer error or silently
+    // skip. We surface that condition as `412 Precondition Failed`
+    // BEFORE the insert so the action is not recorded in a state
+    // the moderator cannot reverse cleanly. Non-emit actions (Mute,
+    // Warn, Escalate, NoAction) bypass the check — those never reach
+    // the emitter and so do not depend on a signing key.
+    if matches!(body.kind, ActionKind::Label | ActionKind::Takedown) {
+        ensure_labeler_provisioned(state).await?;
+    }
+
+    let new_action = build_new_action(body, subject_id, ctx);
     let inserted = state.actions.insert(new_action).await?;
 
-    // Best-effort label emission for kind=Label|Takedown. The action is
-    // already committed; emit failures stay local (logged + recoverable
-    // via re-emit job per #63) so the moderator's submission always
-    // returns 201 on a successful insert. The emit happens BEFORE the
-    // response goes out so the `subscribeLabels` fan-out is observable
-    // by the time the HTTP client knows the request succeeded, but the
-    // response shape does not depend on emit success.
+    instrument_and_emit(state, subject_id, &inserted).await?;
+    Ok((StatusCode::CREATED, Json(inserted)))
+}
+
+/// Per-report idempotent action insert (issue #202).
+///
+/// The transaction shape:
+///   1. `SELECT … FOR UPDATE` on the `reports` row — row-locks
+///      against concurrent clicks of the same Ack / Dismiss /
+///      Escalate button.
+///   2. If `actioned_at IS NOT NULL`, fetch the existing `actions`
+///      row and return it. **No validation, no new insert, no emit.**
+///      Idempotent.
+///   3. Otherwise, validate the body (cold-path rules), insert the
+///      new action via [`crate::repo::PgActionRepo::insert_in_tx`]
+///      (so the evidence-job + reputation + audit-log side-effects
+///      commit in the same tx), then UPDATE the report's
+///      `actioned_at` / `actioned_by_action_id` columns.
+///   4. Commit.
+///
+/// REQ-D2 / REQ-D3 instrumentation and the best-effort label-emit run
+/// AFTER the commit, just as on the cold path.
+async fn submit_action_with_report(
+    state: &ApiState,
+    ctx: &ModeratorAuthCtx,
+    subject_id: SubjectId,
+    report_id: ReportId,
+    body: &SubmitAction,
+) -> Result<(StatusCode, Json<Action>), ApiError> {
+    // The signing-key gate runs BEFORE we open the row lock so a
+    // mis-provisioned labeler does not hold the report row for the
+    // duration of a precondition-failed response. The cold-path
+    // ordering is preserved.
+    if matches!(body.kind, ActionKind::Label | ActionKind::Takedown) {
+        ensure_labeler_provisioned(state).await?;
+    }
+
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(crate::repo::RepoError::from)?;
+
+    // Row-lock against concurrent clicks. The partial index on
+    // `(actioned_at) WHERE actioned_at IS NULL` (migration 45) does
+    // not help here — the predicate inside the `SELECT` filters on
+    // `id`, which uses the partitioned PK — but the lock is the
+    // correctness property either way.
+    let report = sqlx::query!(
+        r#"
+        SELECT id, actioned_at, actioned_by_action_id
+        FROM reports
+        WHERE id = $1
+        FOR UPDATE
+        "#,
+        report_id.as_uuid(),
+    )
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(crate::repo::RepoError::from)?
+    .ok_or(ApiError::NotFound)?;
+
+    // Idempotent path: the report has already been actioned. Return
+    // the stored action verbatim, no new insert, no validation.
+    if report.actioned_at.is_some()
+        && let Some(existing_action_id) = report.actioned_by_action_id
+    {
+        let existing = state
+            .actions
+            .get(ActionId(existing_action_id))
+            .await?
+            .ok_or_else(|| {
+                // The FK has `ON DELETE SET NULL`, so this branch
+                // only fires when the row was hard-deleted out from
+                // under us — operator-side data repair. Surface as
+                // 404 rather than papering over the inconsistency.
+                ApiError::NotFound
+            })?;
+        tx.commit().await.map_err(crate::repo::RepoError::from)?;
+        return Ok((StatusCode::OK, Json(existing)));
+    }
+
+    // Cold path inside the lock: validate, insert, then bind the
+    // action to the report.
+    validate_submit_action(body)?;
+    let new_action = build_new_action(body, subject_id, ctx);
+    let inserted = state.actions.insert_in_tx(&mut tx, new_action).await?;
+
+    sqlx::query!(
+        r#"
+        UPDATE reports
+        SET actioned_at = now(),
+            actioned_by_action_id = $1
+        WHERE id = $2
+        "#,
+        inserted.id.0,
+        report_id.as_uuid(),
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(crate::repo::RepoError::from)?;
+
+    tx.commit().await.map_err(crate::repo::RepoError::from)?;
+
+    instrument_and_emit(state, subject_id, &inserted).await?;
+    Ok((StatusCode::CREATED, Json(inserted)))
+}
+
+/// Post-insert tracing + metrics + best-effort label emit. Shared by
+/// the cold and idempotent paths so the observable side-effects of a
+/// newly-recorded action are identical regardless of caller wire shape.
+async fn instrument_and_emit(
+    state: &ApiState,
+    subject_id: SubjectId,
+    inserted: &Action,
+) -> Result<(), ApiError> {
+    // REQ-D3: scope under a `submit_action` span carrying the
+    // persisted action's UUID. The same UUID appears on the emitter's
+    // `emit_label` span (via `#[instrument(...)]` on
+    // `LabelEmitter::emit`) and on the broadcaster's
+    // `broadcaster_publish` span.
+    let span = tracing::info_span!(
+        "submit_action",
+        action_id = %inserted.id,
+        kind = inserted.kind.as_str(),
+        subject_id = %subject_id.0,
+    );
+    let _enter = span.enter();
+    tracing::info!(
+        action_id = %inserted.id,
+        kind = inserted.kind.as_str(),
+        "moderator action recorded",
+    );
+
+    // REQ-D2: bump `polaris_actions_total{kind}` once per accepted action.
+    metrics::counter!(
+        "polaris_actions_total",
+        "kind" => inserted.kind.as_str().to_owned(),
+    )
+    .increment(1);
+
+    // Best-effort label emission for kind=Label|Takedown. The action
+    // is already committed; emit failures stay local.
     if matches!(inserted.kind, ActionKind::Label | ActionKind::Takedown)
         && let Some(emitter) = state.label_emitter.as_ref()
     {
-        let subject_ref = build_subject_ref(&state, subject_id).await?;
-        let _ = emit_best_effort(emitter, &inserted, &subject_ref, None).await;
+        let subject_ref = build_subject_ref(state, subject_id).await?;
+        let _ = emit_best_effort(emitter, inserted, &subject_ref, None).await;
+    }
+    Ok(())
+}
+
+// ── 4. POST /api/bulk-actions ───────────────────────────────────────────
+//
+// Issue #193: multi-subject bulk apply. The moderator selects N subjects
+// from the dashboard / search surface, fills in a single action body
+// (kind / label / reasoning / policy refs), and the server records one
+// `actions` row per subject — exactly the same shape as a single-subject
+// submission, just N of them in one round-trip.
+
+/// Hard cap on the number of subjects a single bulk-actions call accepts.
+///
+/// Above this threshold the operator must use the typed pattern-actions
+/// surface (`POST /api/pattern-actions`) which carries the senior-cosign
+/// invariant for batches of this scale (design.md §5.3). 50 is a
+/// pragmatic limit: large enough to cover real moderator workflows
+/// (clearing a queue of similar spam reports), small enough that one
+/// person can still review the list before confirming.
+const BULK_ACTIONS_MAX_SUBJECTS: usize = 50;
+
+/// Wire body for `POST /api/bulk-actions`.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct BulkSubmitAction {
+    /// Subject IDs to apply the action to. Length must be in
+    /// `1..=BULK_ACTIONS_MAX_SUBJECTS`.
+    pub subject_ids: Vec<SubjectId>,
+    /// Body applied per-subject. The `incident_id` here is shared
+    /// across all subjects in the batch — for a heterogeneous
+    /// selection where subjects have different incidents, the caller
+    /// must split into per-incident batches.
+    pub body: crate::api::dto::SubmitAction,
+}
+
+/// Per-subject outcome of a bulk action. Mirrors Ozone's
+/// `Promise.allSettled`-style "succeeded / failed" split so a UI
+/// client can render a partial-success summary.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct BulkActionOutcome {
+    /// Subject IDs whose action was recorded.
+    pub succeeded: Vec<SubjectId>,
+    /// Subject IDs whose action failed, with a short reason per row.
+    pub failed: Vec<BulkActionFailure>,
+}
+
+/// One entry of [`BulkActionOutcome::failed`]. Carries the subject
+/// id whose insert failed plus a short operator-readable reason so
+/// the UI can render a "5 succeeded, 2 failed: …" summary without
+/// re-correlating against the request body.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct BulkActionFailure {
+    /// Subject ID that failed.
+    pub subject_id: SubjectId,
+    /// Operator-readable failure cause (typed-error display string).
+    pub reason: String,
+}
+
+/// `POST /api/bulk-actions` — apply a single `SubmitAction` body to
+/// each subject in `subject_ids`. Per-subject failures are collected
+/// rather than aborting the batch.
+///
+/// Per design.md §5.3, every affected subject still gets its own
+/// `actions` row — there's no shared "bulk action" entity. Reversal
+/// + audit therefore work the same as for single-subject actions.
+///
+/// # Errors
+///
+/// * `400 Bad Request` — empty `subject_ids`, batch above
+///   [`BULK_ACTIONS_MAX_SUBJECTS`], or the embedded `body` fails the
+///   same validation as `submit_action`.
+/// * `412 Precondition Failed` — emit-shaped kind (Label / Takedown)
+///   without a provisioned signing key.
+pub async fn submit_bulk_action(
+    State(state): State<ApiState>,
+    Extension(ctx): Extension<ModeratorAuthCtx>,
+    Json(body): Json<BulkSubmitAction>,
+) -> Result<(StatusCode, Json<BulkActionOutcome>), ApiError> {
+    if body.subject_ids.is_empty() {
+        return Err(ApiError::BadRequest("subject_ids must be non-empty"));
+    }
+    if body.subject_ids.len() > BULK_ACTIONS_MAX_SUBJECTS {
+        return Err(ApiError::BadRequest(
+            "subject_ids exceeds bulk-actions limit; use pattern-actions for larger batches",
+        ));
+    }
+    validate_submit_action(&body.body)?;
+
+    if matches!(body.body.kind, ActionKind::Label | ActionKind::Takedown) {
+        ensure_labeler_provisioned(&state).await?;
     }
 
-    Ok((StatusCode::CREATED, Json(inserted)))
+    let mut succeeded: Vec<SubjectId> = Vec::with_capacity(body.subject_ids.len());
+    let mut failed: Vec<BulkActionFailure> = Vec::new();
+    let emit_eligible = matches!(body.body.kind, ActionKind::Label | ActionKind::Takedown);
+
+    for subject_id in &body.subject_ids {
+        let new_action = build_new_action(&body.body, *subject_id, &ctx);
+        match state.actions.insert(new_action).await {
+            Ok(inserted) => {
+                metrics::counter!(
+                    "polaris_actions_total",
+                    "kind" => inserted.kind.as_str().to_owned(),
+                )
+                .increment(1);
+                if emit_eligible && let Some(emitter) = state.label_emitter.as_ref() {
+                    if let Ok(subject_ref) = build_subject_ref(&state, *subject_id).await {
+                        let _ = emit_best_effort(emitter, &inserted, &subject_ref, None).await;
+                    }
+                }
+                succeeded.push(*subject_id);
+            }
+            Err(err) => {
+                tracing::warn!(
+                    subject_id = %subject_id.0,
+                    error = ?err,
+                    "bulk-action: per-subject insert failed; recording in failed[]",
+                );
+                failed.push(BulkActionFailure {
+                    subject_id: *subject_id,
+                    reason: err.to_string(),
+                });
+            }
+        }
+    }
+
+    tracing::info!(
+        succeeded = succeeded.len(),
+        failed = failed.len(),
+        kind = body.body.kind.as_str(),
+        "bulk-action complete",
+    );
+
+    Ok((
+        StatusCode::OK,
+        Json(BulkActionOutcome { succeeded, failed }),
+    ))
+}
+
+/// Verify `polaris_setup_state.signing_pubkey_did IS NOT NULL`.
+///
+/// REQ-A3 gate: an emit-shaped action submitted before the setup
+/// wizard has minted the labeler's signing key would either crash the
+/// emitter (`StubSigner` refuses to sign) or quietly skip the broadcast.
+/// Surfacing the missing-key state as `412` lets the wizard / UI
+/// guide the operator to `/setup` before any moderation work is
+/// recorded.
+///
+/// # Errors
+///
+/// - [`ApiError::PreconditionFailed`] with code
+///   `labeler_not_provisioned` when the column is `NULL`.
+/// - [`ApiError::Repo`] when the underlying SELECT fails (db loss,
+///   schema drift). The repo error is upgraded by the existing
+///   `From<RepoError>` chain.
+async fn ensure_labeler_provisioned(state: &ApiState) -> Result<(), ApiError> {
+    let row = sqlx::query!(r"SELECT signing_pubkey_did FROM polaris_setup_state WHERE id = TRUE",)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(crate::repo::RepoError::from)?;
+    let provisioned = row
+        .and_then(|r| r.signing_pubkey_did)
+        .is_some_and(|did| !did.is_empty());
+    if provisioned {
+        Ok(())
+    } else {
+        Err(ApiError::PreconditionFailed {
+            code: "labeler_not_provisioned",
+            message: "complete /setup before recording labelling actions",
+        })
+    }
 }
 
 /// Resolve the subject row into the emitter-facing [`SubjectRef`].
@@ -384,6 +915,10 @@ mod tests {
             policy_refs: vec![PolicyId::new("polaris.spam")],
             reversible_until: Utc::now() + chrono::Duration::hours(24),
             reverses_action_id: None,
+            // Issue #202: cold-path body. The idempotent path is
+            // exercised by the integration test in
+            // `tests/report_action_idempotency.rs`.
+            report_id: None,
         }
     }
 

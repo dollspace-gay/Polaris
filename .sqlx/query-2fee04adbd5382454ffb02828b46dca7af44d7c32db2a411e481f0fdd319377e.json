@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT id\n        FROM scheduled_takedowns\n        WHERE execute_at <= now()\n          AND executed_at IS NULL\n          AND cancelled_at IS NULL\n        ORDER BY execute_at\n        LIMIT $1\n        FOR UPDATE SKIP LOCKED\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2fee04adbd5382454ffb02828b46dca7af44d7c32db2a411e481f0fdd319377e"
+}

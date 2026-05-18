@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "design_doc": ".design/polaris-operationally-complete.md",
+  "doc_hash": "sha256:f33d77d71f4cef7f2a705877fc77740eba2c3ac21abd576a31ebf9924a61f1cd",
+  "stage": "designed",
+  "plans": [],
+  "runs": []
+}

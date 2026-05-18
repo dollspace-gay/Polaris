@@ -219,7 +219,26 @@ impl ModeratorDirectory for PgModeratorDirectory {
                     FROM incidents i
                     WHERE i.assigned_to = m.id
                       AND i.status IN ('open', 'in_review')
-                ), 0)                                 AS "current_load!: i64"
+                ), 0)                                 AS "current_load!: i64",
+                -- Senior-review agreement rate in [0.0, 1.0]. Aggregated
+                -- from the `calibration_events` table (migration 0010):
+                -- agreement / (agreement + disagreement). NULL on
+                -- moderators with no senior-review history yet; the
+                -- row handler below maps NULL → 0.0 (neutral / unknown).
+                (
+                    SELECT
+                        CASE
+                            WHEN agreement + disagreement = 0 THEN NULL
+                            ELSE agreement::float8 / (agreement + disagreement)::float8
+                        END
+                    FROM (
+                        SELECT
+                            COUNT(*) FILTER (WHERE kind = 'agreement_with_senior')    AS agreement,
+                            COUNT(*) FILTER (WHERE kind = 'disagreement_with_senior') AS disagreement
+                        FROM calibration_events
+                        WHERE moderator_id = m.id
+                    ) rates
+                )                                     AS "agreement_with_senior_rate?: f64"
             FROM moderators m
             "#,
         )
@@ -246,6 +265,20 @@ impl ModeratorDirectory for PgModeratorDirectory {
             // need to model.
             let current_load: u32 = u32::try_from(row.current_load).unwrap_or(u32::MAX);
 
+            // SQL returns Option<f64> (NULL when the moderator has no
+            // senior-review events). Map NULL → 0.0 — the routing
+            // tie-breaker treats 0.0 as "no calibration data yet" and
+            // weights it last.
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "f64 → f32 narrowing on a value already in [0.0, 1.0]; \
+                          f32 has ~7 sig figs, far more than the routing \
+                          tie-breaker needs."
+            )]
+            let agreement_with_senior_rate: f32 = row
+                .agreement_with_senior_rate
+                .map_or(0.0, |v| v.clamp(0.0, 1.0) as f32);
+
             out.push(ModeratorForRouting {
                 id: moderator_id,
                 csam_trained: row.csam_trained,
@@ -253,7 +286,7 @@ impl ModeratorDirectory for PgModeratorDirectory {
                 specialties: HashSet::new(),
                 current_load,
                 exposure_budget_remaining,
-                agreement_with_senior_rate: 0.0,
+                agreement_with_senior_rate,
             });
         }
         Ok(out)
@@ -305,6 +338,15 @@ mod tests {
             _status: Option<IncidentStatus>,
             _limit: i64,
         ) -> Result<Vec<Incident>, RepoError> {
+            unreachable!("not used by RoutingService tests");
+        }
+
+        async fn list_paginated_by_status(
+            &self,
+            _status: Option<IncidentStatus>,
+            _limit: i64,
+            _offset: i64,
+        ) -> Result<(Vec<Incident>, i64), RepoError> {
             unreachable!("not used by RoutingService tests");
         }
 

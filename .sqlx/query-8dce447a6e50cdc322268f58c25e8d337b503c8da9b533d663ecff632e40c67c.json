@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO muted_reporters (reporter_did, muted_by, reason, until)\n        VALUES ($1, $2, $3, $4)\n        ON CONFLICT (reporter_did) DO UPDATE\n        SET muted_by = EXCLUDED.muted_by,\n            reason = EXCLUDED.reason,\n            until = EXCLUDED.until,\n            muted_at = now()\n        RETURNING reporter_did, muted_by, reason, muted_at, until\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "reporter_did",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "muted_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "muted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "until",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "8dce447a6e50cdc322268f58c25e8d337b503c8da9b533d663ecff632e40c67c"
+}

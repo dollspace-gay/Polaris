@@ -200,6 +200,24 @@ async fn seed_fixture(
     grant_moderator_role(pool, moderator_id).await?;
     let session_cookie = mint_session(sessions, moderator_id).await?;
 
+    // REQ-A3: `submit_action` now enforces
+    // `polaris_setup_state.signing_pubkey_did IS NOT NULL` before
+    // accepting Label / Takedown actions. The fixture pre-populates
+    // the column so action-submission tests in this file continue to
+    // hit their `201 Created` / repo-visible-row assertions without
+    // pretending to run the whole setup-wizard flow. Tests that
+    // exercise the missing-key branch live in
+    // `tests/action_blocked_before_provisioning.rs` and do NOT use
+    // this fixture.
+    sqlx::query(
+        r"UPDATE polaris_setup_state
+          SET signing_pubkey_did = $1, updated_at = now()
+          WHERE id = TRUE",
+    )
+    .bind("did:key:zQ3shokFTS3brHcDQrn82RUDfCZESWL1ZdCEJwekUDPQiYBme")
+    .execute(pool)
+    .await?;
+
     Ok(Fixture {
         subject_id: subject.id,
         incident_id: incident.id,

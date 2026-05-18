@@ -257,7 +257,12 @@ fn seed_session_bundle(crypto: &Crypto, issuer: &str) -> (DpopKey, TokenSet, Vec
         dpop_keypair_jwk_json: serde_json::to_vec(&dpop_key.private_jwk).unwrap(),
         token_set: token_set.clone(),
     };
-    let plain = bincode::serde::encode_to_vec(&bundle, bincode::config::standard()).unwrap();
+    // Match production's `encode_bundle` envelope (issue #89 closure):
+    // `polaris-backend/src/auth/atproto.rs` migrated bincode → serde_json
+    // because bincode cannot round-trip `TokenSet`'s `#[serde(skip_serializing_if =
+    // "Option::is_none")]` fields. The fixture must serialise identically
+    // or `decode_bundle` parses garbage and returns `DpopBindingFailed`.
+    let plain = serde_json::to_vec(&bundle).unwrap();
     let sealed = crypto.seal(&plain).unwrap();
     (dpop_key, token_set, sealed.to_bytes())
 }
@@ -443,10 +448,13 @@ async fn atproto_refresh_session_rotates_bundle_and_extends_expiry() {
     );
 
     // 5c. Decoded bundle carries the rotated upstream tokens.
+    // Issue #89 closure: production now decodes via `serde_json::from_slice`
+    // (see `polaris-backend/src/auth/atproto.rs::decode_bundle`), so the
+    // post-refresh bundle is JSON-shaped — bincode would error out
+    // identically to what the bug reported.
     let sealed_post = SealedBytes::from_bytes(&post_bytes).unwrap();
     let plaintext_post = crypto.open(&sealed_post).unwrap();
-    let (decoded, _): (DecodedBundle, usize) =
-        bincode::serde::decode_from_slice(&plaintext_post, bincode::config::standard()).unwrap();
+    let decoded: DecodedBundle = serde_json::from_slice(&plaintext_post).unwrap();
     assert_eq!(
         decoded.token_set.access_token, "rotated-access-token",
         "post-refresh bundle must carry the new access token",

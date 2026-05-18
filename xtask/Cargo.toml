@@ -34,6 +34,27 @@ polaris-backend = { path = "../polaris-backend" }
 sqlx.workspace = true
 tokio.workspace = true
 
+# `lexicon-contract` (REQ-E2 / AC-E2 of
+# `.design/polaris-operationally-complete.md`): fetch Bluesky's published
+# lexicon JSONs at a pinned upstream commit and re-run Polaris's
+# wire-shape validators against the fresh schemas so upstream drift
+# files an issue instead of biting an operator at runtime.
+#
+# - `proto-blue` for `proto_blue::lexicon::{LexiconDoc, LexUserType,
+#   Lexicons}` and the underlying `validate_record` primitive. Re-uses
+#   the workspace pin so xtask and the production validator never diverge.
+# - `polaris-publish-labeler-record` for `build_labeler_service_record`
+#   + `validate_record` — drift-detection re-runs the same validator the
+#   production publish CLI uses, rather than forking a parallel checker.
+# - `reqwest` for the GitHub raw-content fetches (blocking client to
+#   keep the xtask sync entrypoint simple; no tokio runtime needed for
+#   this subcommand).
+# - `serde_json` for the cache files on disk and the LexiconDoc decode.
+proto-blue.workspace = true
+polaris-publish-labeler-record = { path = "../polaris-publish-labeler-record" }
+reqwest = { workspace = true, features = ["blocking"] }
+serde_json.workspace = true
+
 [dev-dependencies]
 # `tempfile` for the check-wasm-budget unit tests (#71) — writes a temp
 # file and asserts the size-budget gate against it. Already in the workspace

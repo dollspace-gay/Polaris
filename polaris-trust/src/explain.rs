@@ -17,7 +17,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{compute_decay_factor, Observation, TrustPolicy, V2Body};
+use crate::{Observation, TrustPolicy, V2Body, compute_decay_factor};
 
 /// Per-factor breakdown of a weight computation.
 ///
@@ -101,7 +101,8 @@ pub fn explain(
             }
         };
 
-    let raw_weight = flat_factor * per_category_factor * time_decay_factor * per_subject_class_factor;
+    let raw_weight =
+        flat_factor * per_category_factor * time_decay_factor * per_subject_class_factor;
     let final_weight = if raw_weight.is_nan() {
         0.0
     } else {
@@ -160,7 +161,7 @@ impl Decomposition {
 )]
 mod tests {
     use super::*;
-    use crate::{weight, TimeDecay};
+    use crate::{TimeDecay, weight};
     use chrono::Utc;
 
     struct StubObs {

@@ -20,7 +20,7 @@
 use chrono::{DateTime, Utc};
 use polaris_types::{
     Action, ActionId, ActionKind, IncidentId, IncidentStatus, LabelValue, ModeratorId, Observation,
-    PolicyId, Report, Severity, Subject, SubjectId,
+    PolicyId, Report, ReportId, Severity, Subject, SubjectId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -57,8 +57,106 @@ pub struct CaseView {
     pub reporter_contexts: Vec<ReporterContext>,
     /// Pattern-engine observations attached to the subject.
     pub observations: Vec<Observation>,
-    /// Network-context panel placeholder. `Value::Null` until M2 populates.
+    /// Distinct image blobs the network-context handler has observed
+    /// for this subject (one row per blob CID, with the most-recent
+    /// post URI). Surfaces media for blur-by-default preview in the
+    /// case-view media panel (issue #95). The list is empty until the
+    /// network-context handler runs at least once for this subject —
+    /// it populates `subject_image_blobs` lazily on case-view load.
+    pub media_blobs: Vec<SubjectMediaBlob>,
+    /// All Polaris moderation actions taken against ANY other subject
+    /// owned by this DID (account-kind subjects under the same DID,
+    /// plus post-kind subjects authored by this DID). The case view's
+    /// timeline groups these alongside `history` so the moderator sees
+    /// every action ever taken against this account or any of its
+    /// posts — not just the actions on the current exact subject row.
+    ///
+    /// Each entry carries the related subject's metadata so the
+    /// timeline can label it ("action on post @rkey", "action on
+    /// related account row") and provide a click-through to that
+    /// subject's case view. Ordered newest-first.
+    ///
+    /// Empty when this subject's row has no `did` populated (list /
+    /// feed-kind subjects don't have a DID to expand on).
+    pub related_actions: Vec<RelatedAction>,
+    /// Network-context panel placeholder. `Value::Null` because the
+    /// rich network-graph data is served by a sibling endpoint
+    /// (`/api/cases/{subject_id}/network-context`) and rendered by the
+    /// frontend's `NetworkPanel` on mount.
     pub network_context: serde_json::Value,
+}
+
+/// One Polaris moderation action targeting a subject related to the
+/// case-view's current subject (same DID owner; different row).
+///
+/// Wire fields:
+///
+/// - `action` — the full [`Action`] row (kind, `label_value`, moderator,
+///   timestamps, etc.). Rendered by the same timeline template the
+///   primary `history` field uses.
+/// - `target_subject_id` — the related subject's UUID; the timeline
+///   makes the row clickable so a moderator can pivot to that
+///   subject's case view.
+/// - `target_subject_kind` — `"account"` / `"post"` / `"list"` /
+///   `"feed"` so the timeline can label the row ("action on post",
+///   "action on related account row").
+/// - `target_subject_uri` — the AT-URI of the related subject when
+///   the kind is record-shaped; `None` for account-kind subjects.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RelatedAction {
+    /// The action row itself, hydrated with every field the timeline
+    /// renders.
+    pub action: Action,
+    /// UUID of the subject the action targets (NOT this case view's
+    /// subject).
+    pub target_subject_id: SubjectId,
+    /// Wire form of the related subject's `kind` column
+    /// (`"account"`/`"post"`/`"list"`/`"feed"`).
+    pub target_subject_kind: String,
+    /// AT-URI of the related subject, when the kind is record-shaped.
+    pub target_subject_uri: Option<String>,
+}
+
+/// Distinct image blob attached to a subject. Mirrors a row from
+/// `subject_image_blobs` (migration 0026; `alt_text` added by
+/// migration 0031; `owner_did` + `walked_at` added by migration
+/// 0032).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubjectMediaBlob {
+    /// ATProto blob CID (content-address). Same bytes produce the
+    /// same CID, which is the load-bearing property for the
+    /// shared-image-cluster signal that the network-context handler
+    /// builds on top of this table.
+    pub blob_cid: String,
+    /// AT-URI of a post that embedded this blob. When the same blob
+    /// is embedded across multiple posts, the most-recent URI is
+    /// surfaced (`ORDER BY first_seen_at DESC` in the case-view
+    /// query).
+    pub post_uri: String,
+    /// Author-provided alternative text for the image, when the
+    /// post's `embed.images[].alt` field was populated. `None`
+    /// means the author did not provide alt text (a moderator
+    /// signal in its own right — missing alt text on spam imagery
+    /// is common). Captured lazily on each case-view load from
+    /// `app.bsky.feed.getAuthorFeed`.
+    pub alt_text: Option<String>,
+    /// DID of the repo that owns the blob (the post's authoring
+    /// repo). The frontend uses this verbatim as the CDN-URL
+    /// authority so the image fetch resolves regardless of
+    /// provenance. `None` for rows persisted before migration
+    /// 0032 — the frontend falls back to the subject's DID,
+    /// which is correct for any subject-authored post.
+    pub owner_did: Option<String>,
+    /// AppView-indexed timestamp of the post that embedded this
+    /// blob (`post.indexedAt` from `getAuthorFeed`). The case-view
+    /// media gallery orders the carousel by this descending, so
+    /// the moderator sees the subject's newest images first.
+    /// `None` for rows persisted before migration 0033 — those
+    /// rows fall to the tail of the carousel via `NULLS LAST`.
+    pub post_indexed_at: Option<DateTime<Utc>>,
+    /// First time the network-context handler observed this
+    /// (subject, blob) pair.
+    pub first_seen_at: DateTime<Utc>,
 }
 
 /// Reporter-context row attached to [`CaseView::reporter_contexts`].
@@ -164,17 +262,48 @@ pub struct SubmitAction {
     pub reversible_until: DateTime<Utc>,
     /// When `kind = Reverse`, the action being reversed.
     pub reverses_action_id: Option<ActionId>,
+    /// When the action is being taken against a specific report (the
+    /// Acknowledge / Dismiss / Escalate buttons on the case-view's
+    /// report card all pass this), the report's id is carried here.
+    ///
+    /// Setting this field opts the request into the per-report
+    /// idempotency path (issue #202): the handler row-locks the report
+    /// (`SELECT … FOR UPDATE`), returns the existing action if the
+    /// report has already been actioned, and inserts a new action
+    /// otherwise. The action insert + the `reports.actioned_at` /
+    /// `reports.actioned_by_action_id` update commit atomically.
+    ///
+    /// Leaving the field `None` (the action-composer's per-subject
+    /// submission path; the Mute-Reporter button; bulk-action workflows)
+    /// preserves the pre-#202 behavior: one row inserted per call, no
+    /// report-state side effect.
+    ///
+    /// `#[serde(default)]` makes the field backwards-compatible — older
+    /// clients that omit it still parse.
+    #[serde(default)]
+    pub report_id: Option<ReportId>,
 }
 
-/// Query string for `GET /api/cases?status=...`.
+/// Query string for `GET /api/cases?status=...&limit=...&offset=...`.
 ///
 /// `status` is optional; the default returns incidents in any status. Wire
 /// values match the [`IncidentStatus`] serde representation (`open`,
 /// `in_review`, `actioned`, `closed`, `escalated`).
+///
+/// `limit` and `offset` are optional pagination controls. Defaults are
+/// `limit = 50`, `offset = 0`. The handler clamps `limit` to the
+/// [`crate::api::cases::MAX_ROWS_PER_LIST`] hard ceiling so a malicious
+/// caller cannot request a 100k-row response. Negative `offset` is
+/// clamped to 0; `limit <= 0` falls back to the default.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct IncidentListQuery {
     /// Filter by status. Omit to return all statuses.
     pub status: Option<IncidentStatus>,
+    /// Page size. Defaults to 50; clamped to the handler's hard
+    /// ceiling.
+    pub limit: Option<i64>,
+    /// Number of rows to skip. Defaults to 0.
+    pub offset: Option<i64>,
 }
 
 /// Request body for `POST /api/cases/:incident_id/escalate`.

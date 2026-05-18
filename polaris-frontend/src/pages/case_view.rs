@@ -9,14 +9,15 @@
 //! # Wiring
 //!
 //! The page reads the `subject_id` path parameter from the router, then
-//! drives a single [`LocalResource`] that calls
-//! [`PolarisApiClient::get_case`]. The resource is consumed inside a
-//! `<Suspense>` + `<ErrorBoundary>` pair so the moderator never sees a
-//! blank panel while the fetch is in flight. The action composer is
-//! wired to a [`ClientSubmitter`] that closes over a freshly-built
-//! [`crate::api_client::default_client`] instance, satisfying the issue
-//! #15 contract that the composer not own a [`crate::api_client::PolarisApiClient`]
-//! handle directly (so the test harness can stub it).
+//! delegates the data load to [`CaseViewBody`]. `CaseView` is a thin
+//! routing wrapper; the actual `LocalResource` lives inside
+//! [`CaseViewBody`] so the same body component can be embedded inside
+//! the right-side drawer rendered from the triage queue (issue #93).
+//! The action composer is wired to a [`ClientSubmitter`] that closes
+//! over a freshly-built [`crate::api_client::default_client`] instance,
+//! satisfying the issue #15 contract that the composer not own a
+//! [`crate::api_client::PolarisApiClient`] handle directly (so the test
+//! harness can stub it).
 
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
@@ -28,10 +29,15 @@ use uuid::Uuid;
 use crate::api_client::dto::CaseView as CaseViewDto;
 use crate::api_client::{ApiError, PolarisApiClient, default_client, dto::SubmitAction};
 use crate::components::action_composer::{ActionComposer, ActionSubmitter};
+use crate::components::classifier_panel::ClassifierPanel;
 use crate::components::history_timeline::HistoryTimeline;
+use crate::components::media_gallery::MediaGallery;
 use crate::components::network_panel::NetworkPanel;
+use crate::components::observations_panel::ObservationsPanel;
+use crate::components::related_actions_timeline::RelatedActionsTimeline;
 use crate::components::report_list::ReportList;
 use crate::components::subject_header::SubjectHeader;
+use crate::components::third_party_labels_panel::ThirdPartyLabelsPanel;
 use crate::pages::login::{is_unauthorized, redirect_to_login};
 
 /// Render the subject-centric case view.
@@ -41,7 +47,9 @@ use crate::pages::login::{is_unauthorized, redirect_to_login};
 /// Reads `:subject_id` from the URL via [`use_params_map`]. An invalid
 /// UUID renders an inline error (no panic — the contract from issue
 /// #15's forbidden-pattern checklist forbids `unwrap` / `expect` on user
-/// input).
+/// input). On a successful parse, defers to [`CaseViewBody`] so the
+/// fetch + Suspense + render path is shared with the drawer call site
+/// in `pages::queue` (issue #93).
 #[allow(clippy::must_use_candidate)]
 #[component]
 pub fn CaseView() -> impl IntoView {
@@ -70,19 +78,35 @@ pub fn CaseView() -> impl IntoView {
                     </p>
                 }.into_any(),
                 Ok(subject_id) => view! {
-                    <CaseViewLoaded subject_id=subject_id/>
+                    <CaseViewBody subject_id=subject_id/>
                 }.into_any(),
             }}
         </main>
     }
 }
 
-/// Body of the case view, parameterised on a successfully-parsed
-/// [`SubjectId`]. Pulled out of [`CaseView`] so the resource lifecycle is
-/// scoped to the route's validity — re-mounts on `:subject_id` change.
+/// Reusable case-view body.
+///
+/// Owns the `LocalResource` that hydrates the case payload, the
+/// refresh-token signal the action composer bumps on success, and the
+/// composition of [`SubjectHeader`], [`HistoryTimeline`], [`ReportList`],
+/// [`ActionComposer`], and [`NetworkPanel`]. Both [`CaseView`] (the
+/// `/cases/:subject_id` page) and the drawer mounted inside the triage
+/// queue (`pages::queue`, issue #93) render this component — the data
+/// fetch is therefore defined exactly once.
+///
+/// # Props
+///
+/// - `subject_id`: parsed subject identifier. Taken by value (not a
+///   signal) so the resource's input is captured once at mount; the
+///   drawer wrapper unmounts + remounts this component when the
+///   active subject changes (Leptos `Show` semantics), so there is no
+///   need for a reactive input here. Embedding it as a signal would
+///   risk a re-fetch loop (the resource would re-run on every render).
+#[allow(clippy::must_use_candidate)]
 #[component]
-fn CaseViewLoaded(
-    /// Successfully-parsed subject identifier from the URL.
+pub fn CaseViewBody(
+    /// Subject identifier the body fetches and renders.
     subject_id: SubjectId,
 ) -> impl IntoView {
     // Refresher signal: the action composer calls this on a successful
@@ -128,7 +152,7 @@ fn CaseViewLoaded(
             {move || Suspend::new(async move {
                 match case_resource.await {
                     Ok(view) => view! {
-                        <CaseViewBody
+                        <CaseViewLoaded
                             subject_id=subject_id
                             data=view
                             on_action_success=on_action_success
@@ -147,12 +171,12 @@ fn CaseViewLoaded(
 
 /// Render the loaded case data plus the action composer.
 #[component]
-fn CaseViewBody(
+fn CaseViewLoaded(
     /// The subject the case view targets.
     subject_id: SubjectId,
     /// Hydrated case-view payload from `GET /api/cases/{subject_id}`.
     data: CaseViewDto,
-    /// Refresh-token bump callback wired from [`CaseViewLoaded`].
+    /// Refresh-token bump callback wired from [`CaseViewBody`].
     on_action_success: Callback<Action>,
 ) -> impl IntoView {
     // The action composer needs an `IncidentId`. The case-view DTO carries
@@ -171,16 +195,46 @@ fn CaseViewBody(
         subject,
         history,
         reports,
-        observations: _,
+        reporter_contexts,
+        observations,
+        // The case-view DTO carries `media_blobs` only as the
+        // synchronous cache snapshot from `subject_image_blobs`. The
+        // MediaGallery component refreshes via its own
+        // `/api/cases/{id}/media` fetch (deeper paginated walker
+        // with alt-text capture), so we discard the snapshot here
+        // rather than render a partial set and then immediately
+        // overwrite it. The wire field stays on the DTO for
+        // backwards compatibility.
+        media_blobs: _,
+        related_actions,
         network_context: _,
     } = data;
+
+    // Clone the observation list so both panels see the same payload.
+    // (Cheap — observations are small structs; the case-view DTO is
+    // already an owned clone from the LocalResource.)
+    let observations_for_classifier = observations.clone();
+    // Same dance for the subject: SubjectHeader takes ownership, so
+    // hand MediaGallery a clone for the CDN-URL owner-DID lookup.
+    let subject_for_media = subject.clone();
 
     view! {
         <SubjectHeader subject=subject/>
         <div class="case-view__columns">
             <div class="case-view__main">
+                <ThirdPartyLabelsPanel subject_id=subject_id/>
                 <HistoryTimeline actions=history/>
-                <ReportList reports=reports/>
+                <RelatedActionsTimeline actions=related_actions/>
+                <ReportList
+                    reports=reports
+                    reporter_contexts=reporter_contexts
+                    subject_id=subject_id
+                    incident_id=incident_id
+                />
+
+                <MediaGallery subject=subject_for_media subject_id=subject_id/>
+                <ObservationsPanel observations=observations/>
+                <ClassifierPanel observations=observations_for_classifier/>
                 <ActionComposer
                     subject_id=subject_id
                     incident_id=incident_id
@@ -189,7 +243,14 @@ fn CaseViewBody(
                 />
             </div>
             <aside class="case-view__sidebar">
-                <NetworkPanel/>
+                // Issue #97 / M2 network panel: per-subject signal
+                // surface (follow graph, reply graph, cohort,
+                // shared-image clusters). Fetches its own data on
+                // mount from `/api/cases/{subject_id}/network-context`
+                // — independent of the main case fetch so a slow
+                // upstream getProfile does not block the
+                // case-view's primary render.
+                <NetworkPanel subject_id=subject_id/>
             </aside>
         </div>
     }
@@ -212,5 +273,36 @@ impl ActionSubmitter for ClientSubmitter {
             let client = default_client("")?;
             client.submit_action(subject_id, body).await
         })
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "test code is allowed to panic — rust-quality §7 convention"
+)]
+mod tests {
+    use super::*;
+
+    /// AC-6 — `CaseViewBody` must compile without a route context.
+    ///
+    /// `#[component]` rewrites the function body and generates a sibling
+    /// `<Name>Props` struct; we form a type-name witness for it so the
+    /// compiler proves the symbol is in scope and the prop wiring still
+    /// type-checks. The component itself is not invoked — invoking it
+    /// would require a Leptos reactive owner. The witness is enough to
+    /// guarantee that the drawer call site in `pages::queue` can build
+    /// `<CaseViewBody subject_id=… />` without entering a `<Router>` /
+    /// `use_params_map` context.
+    #[test]
+    fn case_view_body_is_renderable_without_route_param() {
+        // Materialise both the `SubjectId` argument shape and the
+        // generated props struct so a future rename / signature break
+        // shows up as a compile error here, not at the queue call site.
+        let _id_type = std::any::type_name::<SubjectId>();
+        let _props_type = std::any::type_name::<CaseViewBodyProps>();
+        let _: SubjectId = SubjectId::from(Uuid::nil());
     }
 }

@@ -73,7 +73,9 @@ pub use appeal::{
     AppealDecision, AppealId, AppealStatus, CalibrationEvent, CalibrationEventKind,
     InvalidTransition,
 };
-pub use escalation::{EmbeddedObservation, Escalation, EscalationMessage, SignatureStatus, SubjectRef};
+pub use escalation::{
+    EmbeddedObservation, Escalation, EscalationMessage, SignatureStatus, SubjectRef,
+};
 pub use evidence::EvidencePointer;
 pub use ids::{
     ActionId, AtUri, Did, EscalationId, EscalationMessageId, IncidentId, LabelValue, ModeratorId,

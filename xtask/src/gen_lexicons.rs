@@ -56,9 +56,9 @@ const PROTO_BLUE_CODEGEN_MANIFEST: &str =
 /// - Returns an error if `cargo run` exits non-zero (codegen failure).
 pub fn run() -> Result<()> {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let workspace_root = Path::new(manifest_dir)
-        .parent()
-        .ok_or_else(|| anyhow::anyhow!("xtask manifest dir has no parent — broken workspace layout"))?;
+    let workspace_root = Path::new(manifest_dir).parent().ok_or_else(|| {
+        anyhow::anyhow!("xtask manifest dir has no parent — broken workspace layout")
+    })?;
 
     let lexicons_dir = workspace_root.join("lexicons").join("polaris");
     let output_dir = workspace_root

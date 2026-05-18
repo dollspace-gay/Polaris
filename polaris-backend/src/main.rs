@@ -30,19 +30,29 @@ use polaris_backend::evidence::{
 };
 use polaris_backend::federation;
 use polaris_backend::ingest::aggregator::{AggregatorConfig, ReportAggregator};
-use polaris_backend::ingest::upstream_labels::{
-    self, UpstreamKeyCache, UpstreamKeyFetcher, UpstreamLabelerConsumer,
-};
+use polaris_backend::ingest::labeler_discovery;
+use polaris_backend::ingest::labeler_supervisor;
+use polaris_backend::ingest::plc_key_fetcher::PlcKeyFetcher;
+use polaris_backend::ingest::upstream_labels::{UpstreamKeyCache, UpstreamKeyFetcher};
 use polaris_backend::labeler::emitter::LabelEmitter;
 use polaris_backend::labeler::rotation::{CustodyMode, bootstrap_active_key};
 use polaris_backend::labeler::signer::{SigningKey, build_signing_key};
-use polaris_backend::repo::PgObservationRepo;
 use polaris_backend::{api, config::AppConfig, db};
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 #[tokio::main]
+#[allow(
+    clippy::too_many_lines,
+    reason = "binary entrypoint composes ~12 startup phases (tracing, config, DB, \
+              moderator-auth, signer, emitter, OAuth metadata, supervisor, evidence \
+              worker, aggregator, scheduled-takedown worker, label-backfill worker, \
+              federation supervisor, HTTP serve). Splitting per-phase into helpers \
+              would push 12 `tokio::spawn` plumbing chunks across the helper boundary \
+              and obscure the linear startup order, which is the one thing main() \
+              must keep readable for ops audits."
+)]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
@@ -179,8 +189,20 @@ async fn main() -> anyhow::Result<()> {
     // rotation-discovery task (#65) will eventually own this binding;
     // until then it lives for the process lifetime.
     let _signer_tx_keepalive = Arc::clone(&signer_tx);
+
+    // Issue #51: start the labeler discovery + supervisor before the
+    // ApiState chain so we can thread the shared `UpstreamKeyCache`
+    // through `.with_upstream_key_cache(...)` for the on-demand
+    // backfill driver. The cache is shared with the live
+    // subscriber, so a backfill's signature-verify step reuses any
+    // keys the subscriber has already warmed.
+    let upstream_cancel = CancellationToken::new();
+    let upstream_key_cache =
+        spawn_labeler_discovery_and_supervisor(db.pool().clone(), upstream_cancel.clone());
+
     let api_state = api_state
         .with_label_emitter(emitter)
+        .with_upstream_key_cache(Arc::clone(&upstream_key_cache))
         .with_active_signer(signer_rx)
         .with_active_signer_tx(signer_tx)
         .with_moderator_auth(moderator_auth)
@@ -201,13 +223,12 @@ async fn main() -> anyhow::Result<()> {
         // side of the recorder and is `Arc`-cloneable.
         .with_metrics_handle(Arc::clone(&prometheus_handle));
 
-    // Issue #32: spawn one per-upstream subscribeLabels consumer for every
-    // `upstream_labelers WHERE enabled = TRUE` row. Each task is detached
-    // (`tokio::spawn`) and owns its own cursor by value; the in-memory
-    // signing-key cache is shared via the documented `UpstreamKeyCache`.
-    // Failures are isolated per-upstream — a misbehaving upstream cannot
-    // wedge the HTTP server.
-    spawn_upstream_labeler_consumers(db.pool().clone()).await;
+    // Note: `spawn_labeler_discovery_and_supervisor` already ran
+    // above (before the ApiState chain) so the returned key cache
+    // could be installed via `.with_upstream_key_cache(...)`. The
+    // background tasks it spawned own the shutdown side of
+    // `upstream_cancel` and will tear down on the same SIGINT path
+    // as everything else.
 
     // Issue #33 + #70: spawn the evidence-preservation worker.
     // Bounded concurrency via `tokio::sync::Semaphore` inside the
@@ -229,6 +250,25 @@ async fn main() -> anyhow::Result<()> {
     // exits is task abort. See design.md §9 #4 (T4 mitigation).
     spawn_report_aggregator(&cfg.aggregator, db.pool().clone());
 
+    // L1: scheduled-takedown worker. Polls `scheduled_takedowns`
+    // every 60s for rows whose `execute_at` has passed, materialises
+    // each into an `actions` row of kind=takedown atomically, and
+    // marks the schedule's `executed_at` + `executed_action_id`.
+    let st_cancel = upstream_cancel.clone();
+    let st_pool = db.pool().clone();
+    tokio::spawn(async move {
+        polaris_backend::scheduled_takedown_worker::run(st_pool, st_cancel).await;
+    });
+
+    // Issue #197: label-backfill worker. Drains the
+    // `label_backfill_queue` table populated by the case-view
+    // handler.
+    spawn_label_backfill_worker(
+        db.pool().clone(),
+        Arc::clone(&upstream_key_cache),
+        upstream_cancel.clone(),
+    );
+
     // Issue #107 / M5 PR 1: spawn the federation worker if enabled. The
     // supervisor manages one per-peer Firehose task and drains the JoinSet
     // until cancellation. The CancellationToken is created here and held
@@ -248,79 +288,121 @@ async fn main() -> anyhow::Result<()> {
         .with_context(|| format!("binding HTTP listener to {}", cfg.http.bind))?;
     info!(bind = %cfg.http.bind, "HTTP server listening");
 
-    axum::serve(listener, app)
-        .await
-        .context("axum::serve terminated with an error")?;
+    // `into_make_service_with_connect_info::<SocketAddr>()` is the
+    // axum factory that injects `ConnectInfo<SocketAddr>` into every
+    // request extension. Several handlers (`appeals::submit_appeal`,
+    // `moderation::create_report`) extract the peer's `SocketAddr`
+    // for IP-rate-limiting. Without this wrapper, those handlers
+    // return 500 because the `ConnectInfo` extractor cannot find
+    // its extension at runtime (the equivalent test-time injection
+    // is `axum::extract::connect_info::MockConnectInfo`).
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .context("axum::serve terminated with an error")?;
 
     Ok(())
 }
 
-/// Issue #32: at startup, load every operator-configured upstream labeler
-/// row with `enabled = TRUE` and spawn one detached
-/// [`UpstreamLabelerConsumer`] task per row.
+/// Issue #182 / #185: at startup, spawn (a) the PLC-export labeler
+/// discovery worker and (b) the consumer supervisor that owns one
+/// `UpstreamLabelerConsumer::run` task per enabled row.
 ///
-/// The tasks share a single [`UpstreamKeyCache`] (one entry per upstream
-/// DID; per-process). Each consumer owns its own [`PgObservationRepo`]
-/// handle constructed against the supplied pool — the pool itself is
-/// internally `Arc`-shared so this is a cheap clone, not a re-allocation.
+/// Discovery walks `https://plc.directory/export` and inserts every
+/// labeler DID it finds into `upstream_labelers`. The supervisor
+/// reconciles its in-memory map of running tasks against the table
+/// — on the discovery `Notify`, on a periodic tick, and once at
+/// startup — spawning consumers for any new rows. The two tasks
+/// share a single [`UpstreamKeyCache`] (one entry per upstream
+/// DID; per-process).
 ///
-/// A load failure on the initial query is logged at WARN and the function
-/// returns: the binary continues to come up so the HTTP server is reachable
-/// even when the labeler integrations are misconfigured. Per-consumer
-/// fatal errors are logged at WARN inside the task; the supervisor /
-/// restart loop is filed as #51 (wire-level reconnect integration test)
-/// and #65 (live discovery).
-async fn spawn_upstream_labeler_consumers(pool: sqlx::PgPool) {
-    let configs = match upstream_labels::load_enabled_upstreams(&pool).await {
-        Ok(c) => c,
+/// Both tasks share the supplied `CancellationToken` for graceful
+/// shutdown. Failures inside either task log at WARN and the
+/// pipeline keeps running — a misbehaving upstream cannot wedge
+/// the HTTP server.
+/// Returns the shared [`UpstreamKeyCache`] so the binary can install
+/// it on [`ApiState`] for the on-demand `queryLabels` backfill driver
+/// (issue #51). Both the live subscriber and the case-view-triggered
+/// backfill share this single cache so a backfilled subject's signing
+/// keys are already warm by the time the live frame arrives.
+fn spawn_labeler_discovery_and_supervisor(
+    pool: sqlx::PgPool,
+    cancel: CancellationToken,
+) -> Arc<UpstreamKeyCache> {
+    // Live PLC fetcher: resolves the upstream's signing key by hitting
+    // `https://plc.directory/<did>` (or the did:web equivalent) and
+    // extracting the `#atproto_label` verification method's
+    // `publicKeyMultibase`. Replaces the prior stub that returned an
+    // error on every call — without this every label frame is dropped
+    // at the verify-or-drop boundary and the third-party labels panel
+    // shows nothing for any subject.
+    let fetcher: Arc<dyn UpstreamKeyFetcher> = match PlcKeyFetcher::new() {
+        Ok(f) => Arc::new(f),
         Err(err) => {
             warn!(
-                error = ?err,
-                "failed to load upstream_labelers rows; \
-                 no upstream consumers will run this process lifetime",
+                error = %err,
+                "PLC key fetcher failed to initialise; upstream-label verify will fail for every frame",
             );
-            return;
+            // Fall back to a fetcher that always errors so the operator
+            // still gets actionable per-frame logs. This path is
+            // unreachable in practice (rustls-stack init), but the
+            // typed shape demands a fetcher.
+            Arc::new(PlcDirectoryKeyFetcher)
         }
     };
-    if configs.is_empty() {
-        info!("no enabled upstream labelers configured; skipping spawn");
-        return;
-    }
-    info!(count = configs.len(), "spawning upstream labeler consumers");
+    let key_cache = Arc::new(UpstreamKeyCache::new(pool.clone(), fetcher));
+    let discovery_notify = Arc::new(tokio::sync::Notify::new());
 
-    let fetcher: Arc<dyn UpstreamKeyFetcher> = Arc::new(PlcDirectoryKeyFetcher);
-    let cache = Arc::new(UpstreamKeyCache::new(pool.clone(), fetcher));
-    for cfg in configs {
-        let observations = Arc::new(PgObservationRepo::new(pool.clone()));
-        let consumer =
-            UpstreamLabelerConsumer::new(cfg.clone(), pool.clone(), observations, cache.clone());
-        info!(did = %cfg.did, hostname = %cfg.hostname, "spawned upstream consumer");
-        tokio::spawn(park_consumer(consumer));
-    }
+    // Discovery task.
+    let discovery_pool = pool.clone();
+    let discovery_notify_clone = Arc::clone(&discovery_notify);
+    let discovery_cancel = cancel.clone();
+    tokio::spawn(async move {
+        match labeler_discovery::run(discovery_pool, discovery_notify_clone, discovery_cancel).await
+        {
+            Ok(()) => info!("labeler discovery worker exited cleanly"),
+            Err(err) => warn!(error = %err, "labeler discovery worker exited with error"),
+        }
+    });
+
+    // Supervisor task.
+    let supervisor_pool = pool;
+    let supervisor_notify = discovery_notify;
+    let supervisor_cancel = cancel;
+    let supervisor_key_cache = Arc::clone(&key_cache);
+    tokio::spawn(async move {
+        labeler_supervisor::run(
+            supervisor_pool,
+            supervisor_key_cache,
+            supervisor_notify,
+            supervisor_cancel,
+        )
+        .await;
+        info!("labeler supervisor exited");
+    });
+    key_cache
 }
 
-/// Hold the consumer alive in a spawned task without running its
-/// (deferred) wire loop.
+/// Issue #197: spawn the label-backfill drain worker.
 ///
-/// The run-loop's WebSocket transport lands with #51; until then the
-/// process maintains exactly the structure the brief mandates ("one task
-/// per upstream") and the consumer's owned state (`Arc<dyn
-/// ObservationRepo>`, `Arc<UpstreamKeyCache>`) remains pinned for the
-/// process lifetime. The task makes zero CPU progress — `pending::<()>()`
-/// never completes — so the "no tight-loop reconnect" rule is observed
-/// trivially.
-async fn park_consumer(consumer: UpstreamLabelerConsumer<PgObservationRepo>) {
-    // Hold the consumer alive across the suspended future by binding it
-    // into a name the future captures by ownership. After the (never-
-    // resolving) `pending` await, dropping the binding would release the
-    // `Arc<dyn ObservationRepo>` and the `Arc<UpstreamKeyCache>` — but
-    // since the future never completes the binding stays live for the
-    // process lifetime, which is the intended behaviour.
-    //
-    // The trailing `drop` is unreachable but spells out the ownership
-    // story for the clippy `no_effect_underscore_binding` rule.
-    std::future::pending::<()>().await;
-    drop(consumer);
+/// Decouples the case-view's third-party-labels panel from the
+/// 300-way HTTPS fan-out that used to run inline. The worker reads
+/// rows from `label_backfill_queue` (populated by the case-view
+/// handler's idempotent INSERT) and runs `queryLabels` against each
+/// (subject, labeler) pair in turn at a slow, bounded cadence.
+///
+/// Shares the same `UpstreamKeyCache` the live subscriber uses, so
+/// signature-verify on a backfilled label hits warm keys.
+fn spawn_label_backfill_worker(
+    pool: sqlx::PgPool,
+    key_cache: Arc<UpstreamKeyCache>,
+    cancel: CancellationToken,
+) {
+    tokio::spawn(async move {
+        polaris_backend::ingest::label_backfill_worker::run(pool, key_cache, cancel).await;
+    });
 }
 
 /// Issue #33 + #70: spawn the evidence-preservation worker.
@@ -500,13 +582,16 @@ async fn build_s3_blob_store(bucket: String, region: String) -> Arc<dyn BlobStor
     Arc::new(InMemoryBlobStore::new())
 }
 
-/// Default [`UpstreamKeyFetcher`]: resolves the upstream's signing key by
-/// fetching the PLC directory DID document and extracting the
-/// `#atproto_label` verification method.
+/// Fallback [`UpstreamKeyFetcher`] used only when [`PlcKeyFetcher::new`]
+/// cannot construct a `reqwest::Client` (e.g. TLS-stack init failure).
 ///
-/// Concrete network implementation lands with the wire-level transport
-/// task (#51). For now the stub returns an error so misconfigured rows
-/// surface clearly in logs rather than silently appearing as cache hits.
+/// In normal operation this fetcher is never installed —
+/// [`spawn_labeler_discovery_and_supervisor`] tries [`PlcKeyFetcher`]
+/// first and only falls back here if client construction itself fails,
+/// which is essentially impossible with the rustls/native-roots stack
+/// shipped in this binary. The fallback returns a typed `Fetch` error
+/// on every call so the operator gets actionable per-frame logs rather
+/// than a silent miss.
 #[derive(Debug, Clone, Copy)]
 struct PlcDirectoryKeyFetcher;
 
@@ -527,7 +612,7 @@ impl UpstreamKeyFetcher for PlcDirectoryKeyFetcher {
             Err(
                 polaris_backend::ingest::upstream_labels::CacheError::Fetch {
                     message: format!(
-                        "live PLC fetch not wired in this build; seed upstream_labeler_keys for did={did} manually (#51)"
+                        "PlcKeyFetcher could not be constructed (TLS init failure?); cannot resolve signing key for {did}"
                     ),
                 },
             )

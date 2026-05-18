@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT labeler_record_uri FROM polaris_setup_state WHERE id = TRUE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "labeler_record_uri",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "9451b2ea3b51c6a2c753e7a653523f81d79210349eaf805d92d8de9e34a7da49"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE subject_routing\n        SET cleared_at = now(),\n            cleared_by = $1\n        WHERE subject_id = $2\n          AND cleared_at IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ba97aeefeac288d04cca6b5a82472ac6ca17377363b0e8c067b39c10695d5a9d"
+}

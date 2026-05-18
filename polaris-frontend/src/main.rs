@@ -15,7 +15,32 @@ use polaris_frontend::App;
 #[cfg(target_arch = "wasm32")]
 fn main() {
     console_error_panic_hook::set_once();
+    web_sys::console::log_1(&"polaris-frontend: main() running".into());
     leptos::mount::mount_to_body(App);
+    web_sys::console::log_1(&"polaris-frontend: mount_to_body returned".into());
+
+    // Diagnostic: dump what Leptos actually appended to <body>. mount_to_body
+    // is synchronous wrt initial render in Leptos 0.8, so reading
+    // document.body.innerHTML immediately after it returns should reflect the
+    // mounted tree. If it shows "", Leptos kept ownership of the view but
+    // never rendered it. If it shows markup, the markup is just invisible
+    // (CSS, dimensions, off-screen).
+    if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
+        if let Some(body) = doc.body() {
+            let html = body.inner_html();
+            let child_count = body.child_element_count();
+            web_sys::console::log_1(
+                &format!(
+                    "polaris-frontend: body children={child_count} html_len={}",
+                    html.len()
+                )
+                .into(),
+            );
+            web_sys::console::log_1(&format!("polaris-frontend: body.innerHTML={html}").into());
+        } else {
+            web_sys::console::log_1(&"polaris-frontend: document.body is None".into());
+        }
+    }
 }
 
 /// Native stub.

@@ -46,20 +46,85 @@
 
 use leptos::prelude::*;
 
-use crate::api_client::dto::{DashboardEvent, DashboardSnapshot};
+use crate::api_client::dto::{DashboardEvent, DashboardSnapshot, WhoamiResponse};
 use crate::api_client::{ApiError, PolarisApiClient, default_client};
 use crate::components::dashboard::cluster_list::ClusterList;
 use crate::components::dashboard::coordinated_signals::CoordinatedSignalsPanel;
 use crate::components::dashboard::moderator_load::ModeratorLoadPanel;
 use crate::components::dashboard::report_volume_chart::ReportVolumeChart;
+use crate::components::filter_bar::{FilterBar, FilterState};
+use crate::pages::admin_moderators::ADMIN_MODERATORS_PATH;
 use crate::pages::login::{is_unauthorized, redirect_to_login};
+
+/// Role identifier the backend's `whoami` response uses for the
+/// admin tier (snake-case matching `Role::as_db_str`).
+///
+/// Centralised here so the admin-link gate in the dashboard nav and
+/// any future role-aware affordance read from one constant rather
+/// than re-typing the literal.
+const ROLE_ADMIN: &str = "admin";
+
+/// Pure predicate: does the supplied [`WhoamiResponse`] carry the
+/// admin role?
+///
+/// The frontend uses this to decide whether to render the dashboard's
+/// `Moderators` admin-only link. The backend independently enforces
+/// the gate on every admin endpoint, so this predicate is a UX
+/// affordance — its job is to keep the link out of view for
+/// non-admins, NOT to provide security.
+#[must_use]
+pub fn whoami_is_admin(whoami: &WhoamiResponse) -> bool {
+    whoami.roles.iter().any(|r| r == ROLE_ADMIN)
+}
+
+/// Render the dashboard's role-gated admin-link nav.
+///
+/// Fetches `GET /api/whoami` once on mount; renders the "Moderators"
+/// link iff the response carries `Role::Admin`. Every failure mode
+/// (unauthenticated, transport error, JSON decode error) is treated
+/// as "render nothing" — the dashboard's main fetch already runs the
+/// 401-redirect contract, so a duplicate redirect path here would
+/// race with it. Mirrors the dashboard's anti-flicker philosophy:
+/// the absence of a UI affordance is always safe, the presence of
+/// one is what we gate.
+#[component]
+fn AdminLink() -> impl IntoView {
+    let whoami = LocalResource::new(|| async move {
+        let client = default_client("").ok()?;
+        client.whoami().await.ok()
+    });
+
+    view! {
+        <Suspense fallback=|| ()>
+            {move || Suspend::new(async move {
+                match whoami.await {
+                    Some(response) if whoami_is_admin(&response) => view! {
+                        <a class="pattern-dashboard__admin-link" href=ADMIN_MODERATORS_PATH>
+                            "Moderators →"
+                        </a>
+                    }.into_any(),
+                    _ => ().into_any(),
+                }
+            })}
+        </Suspense>
+    }
+}
 
 /// Polling interval for the polling-fallback refetch trigger, in milliseconds.
 ///
 /// 5 seconds matches the issue #20 baseline. Used when the WebSocket
 /// live feed is unavailable; the new "live" path (issue #57) reflects
 /// updates within 1 second of detection regardless of this constant.
-pub const POLL_INTERVAL_MS: u64 = 5_000;
+// Polling fallback interval. Set to 60 seconds (NOT 5) because the
+// primary data path is the WebSocket live feed (#57); polling exists
+// only as a stale-watcher for when the WS connection drops. A 5s
+// polling cadence was steamrolling the moderator's input focus and
+// visibly flashing the panel grid every tick. The WS pump still
+// pushes diffs at real-time rates; the polling interval governs only
+// how long a WS-disconnected client can drift from server state
+// before a forced refresh — one minute is the right operational
+// floor for that fallback.
+pub const POLL_INTERVAL_MS: u64 = 60_000;
 
 /// WebSocket path on the backend authed subtree.
 pub const LIVE_FEED_PATH: &str = "/api/dashboard/live";
@@ -178,11 +243,34 @@ pub fn PatternDashboard() -> impl IntoView {
     // immediately without waiting for the next polling cycle.
     let live_snapshot = RwSignal::new(None::<DashboardSnapshot>);
 
+    // Anti-flicker cache: the most recent successful snapshot from
+    // the `LocalResource`. The view reads from this signal so the
+    // panels stay mounted across refetches — the polling tick,
+    // filter changes, and WS-induced refetches no longer flash the
+    // "Loading dashboard…" placeholder. The bridging `Effect` below
+    // copies the resource's value into this cache whenever the
+    // resource resolves successfully.
+    let cached_snapshot = RwSignal::new(None::<DashboardSnapshot>);
+
+    // Last-fetch-error signal — surfaced inline beneath the panels
+    // without destroying the cached snapshot. A transient network
+    // blip therefore reads as "panels are stale, here's why" rather
+    // than "everything is gone, retry."
+    let fetch_error = RwSignal::new(None::<String>);
+
+    // Issue #94: faceted-filter state. Lives on the dashboard mount
+    // (NOT in `localStorage`, NOT in the URL). Promotion to URL
+    // params for shareable filtered dashboards is a separate
+    // workstream. The `LocalResource` below keys off this signal so
+    // changing a facet kicks off a re-fetch.
+    let filters = RwSignal::new(FilterState::default());
+
     start_live_feed(set_tick, live_snapshot);
     start_polling(set_tick);
 
     let snapshot = LocalResource::new(move || {
         let _token = tick.get();
+        let filters_snapshot = filters.get();
         async move {
             // Inspect each error against the 401-redirect contract
             // (#82) BEFORE stringifying: an unauthenticated dashboard
@@ -197,12 +285,73 @@ pub fn PatternDashboard() -> impl IntoView {
                 }
                 e.to_string()
             })?;
-            client.get_dashboard().await.map_err(|e: ApiError| {
+            let dto_filters = filters_snapshot.to_filters();
+            client.dashboard(&dto_filters).await.map_err(|e: ApiError| {
                 if is_unauthorized(&e) {
                     redirect_to_login();
                 }
                 e.to_string()
             })
+        }
+    });
+
+    // Anti-flicker bridge: every time the `LocalResource` resolves,
+    // copy its value into the cache / error signal. On success the
+    // panels re-render from `cached_snapshot` without ever flashing
+    // the `<Suspense>` fallback. On failure the cache is preserved
+    // (the moderator keeps seeing the last-known state) and the
+    // inline error band surfaces the reason.
+    Effect::new(move |_| {
+        if let Some(result) = snapshot.get() {
+            match result {
+                Ok(snap) => {
+                    // Anti-flicker safeguard: only push the new
+                    // snapshot through the cache signal if it
+                    // actually differs from what's already there.
+                    // Polling refetches always produce a `Ok(snap)`
+                    // — but if the underlying counts/clusters/etc.
+                    // haven't moved, calling `set()` would still
+                    // fire every reactive subscriber on the view
+                    // side, re-evaluating the closure that renders
+                    // `<DashboardBody>` and ultimately re-mounting
+                    // every panel's child components. The
+                    // serde_json fingerprint comparison is cheap
+                    // (small snapshot, ~ms) and skipping no-op
+                    // updates means the panels hold steady across
+                    // polling ticks. The signal still fires when
+                    // any sub-field changes; we just stop firing
+                    // on every snapshot whose only difference is
+                    // the (server-stamped) `fetched_at` timestamp
+                    // for unchanged data.
+                    let is_distinct = cached_snapshot
+                        .get_untracked()
+                        .as_ref()
+                        .and_then(|existing| {
+                            // Both serialise: compare fingerprints.
+                            // Either fails: fall back to "distinct"
+                            // so we update (visible-value bias is
+                            // safer than a stale display).
+                            let new_json = serde_json::to_string(&snap).ok()?;
+                            let cur_json = serde_json::to_string(existing).ok()?;
+                            Some(cur_json != new_json)
+                        })
+                        .unwrap_or(true);
+                    if is_distinct {
+                        cached_snapshot.set(Some(snap));
+                    }
+                    // Always clear the error flag on a successful
+                    // fetch, even when the data was identical. The
+                    // operator's mental model is "last refresh
+                    // worked", not "last refresh produced different
+                    // data".
+                    if fetch_error.get_untracked().is_some() {
+                        fetch_error.set(None);
+                    }
+                }
+                Err(message) => {
+                    fetch_error.set(Some(message));
+                }
+            }
         }
     });
 
@@ -213,31 +362,85 @@ pub fn PatternDashboard() -> impl IntoView {
                 <p class="pattern-dashboard__tagline">
                     "Pattern-first moderation."
                 </p>
+                // First tab-stop CTA on the dashboard: a keyboard-
+                // focusable link into the triage queue (issue #91,
+                // mod-workstation feature #1). The href matches
+                // `crate::pages::queue::QUEUE_PATH` — kept in sync
+                // there via a unit test. Anchor (not button) so a
+                // middle-click or cmd-click opens in a new tab.
+                <a class="triage-queue__open-cta" href=crate::pages::queue::QUEUE_PATH>
+                    "Open triage queue →"
+                </a>
+                // Issue #214 / #217: admin-only nav link to the
+                // moderator allow-list page. Hidden when the
+                // operator's `whoami` response does not carry
+                // `Role::Admin`. The backend independently rejects
+                // the data fetch on the linked page, so this gate
+                // is decoration — but a missing link prevents an
+                // operator from being confused by a Forbidden
+                // banner they did not expect to see.
+                <AdminLink/>
+                // Issue #92: subdued hint about the global Ctrl/Cmd-K
+                // command palette. Visual only — the palette is mounted
+                // globally in `app.rs` and responds to the keystroke
+                // regardless of which surface has focus. `<kbd>` is the
+                // semantic element for keyboard input; styled by
+                // `pattern-dashboard.css`'s `.pattern-dashboard__cmdk-hint`
+                // selector + the existing `kbd` styling on neighbouring
+                // surfaces.
+                <p class="pattern-dashboard__cmdk-hint">
+                    "or press "<kbd>"⌘K"</kbd>" to jump to any subject."
+                </p>
+                // Pointer-driven counterpart to the keyboard-only
+                // command palette: a visible search bar that accepts
+                // the same identifier shapes (handle, DID, AT-URI,
+                // bsky.app URL) and routes to the case view. Mounted
+                // here in the header so it's the second affordance an
+                // operator sees after the queue CTA.
+                <crate::components::subject_lookup_bar::SubjectLookupBar/>
             </header>
-            <Suspense fallback=move || view! {
-                <p class="pattern-dashboard__loading" role="status">"Loading dashboard…"</p>
-            }>
-                {move || Suspend::new(async move {
-                    let fetched = snapshot.await;
-                    // Live-feed overlay wins when present — it is the
-                    // result of the latest applied diff or the seed the
-                    // live task installed after its own fetch.
-                    let chosen = live_snapshot.get().map_or_else(
-                        || fetched.clone(),
-                        Ok,
-                    );
-                    match chosen {
-                        Ok(snap) => view! {
-                            <DashboardBody snapshot=snap/>
-                        }.into_any(),
-                        Err(message) => view! {
-                            <p class="pattern-dashboard__error" role="alert">
-                                "Dashboard unreachable: "{message}
-                            </p>
-                        }.into_any(),
-                    }
-                })}
-            </Suspense>
+            // Issue #94: faceted-filter toolbar mounted above the
+            // grid. The component owns the keystroke handler that
+            // focuses the reporter-DID input on `/`.
+            <FilterBar state=filters/>
+            // Anti-flicker render path. The `LocalResource`
+            // (`snapshot`) keeps refetching on every polling tick,
+            // filter change, and WS-triggered refresh. The reactive
+            // `Effect` above copies the resource's value into
+            // `cached_snapshot`. The view here reads ONLY from the
+            // cache signal — never from the resource directly — so
+            // the polling refetches do NOT trigger a Suspense
+            // boundary remount, and the panels' child components
+            // keep their mounted DOM nodes across ticks.
+            //
+            // The previous `<Suspense fallback=...>{move || Suspend::new(async move { let _ = snapshot.await; ... })}</Suspense>`
+            // shape re-ran the inner async on every refetch which
+            // caused the panels' children to be reconstructed
+            // — visible to the operator as the panel grid flashing
+            // every few seconds.
+            {move || {
+                let chosen = live_snapshot
+                    .get()
+                    .or_else(|| cached_snapshot.get());
+                match chosen {
+                    Some(snap) => view! { <DashboardBody snapshot=snap/> }.into_any(),
+                    None => view! {
+                        <p class="pattern-dashboard__loading" role="status">
+                            "Loading dashboard…"
+                        </p>
+                    }.into_any(),
+                }
+            }}
+            // Inline non-blocking error band — only renders when the
+            // last fetch failed. Surfaces alongside the (possibly
+            // stale) cached panels so the moderator can see *both*
+            // the last-known data AND the fact that the refresh
+            // failed.
+            {move || fetch_error.get().map(|message| view! {
+                <p class="pattern-dashboard__error" role="alert">
+                    "Dashboard refresh failed: "{message}
+                </p>
+            })}
         </main>
     }
 }
@@ -541,11 +744,18 @@ mod tests {
     }
 
     #[test]
-    fn poll_interval_is_five_seconds() {
-        // Regression: polling is the fallback path. The architect's
-        // pre-flight pins the polling interval at 5s; a future refactor
-        // that quietly changes the constant trips this assertion.
-        assert_eq!(POLL_INTERVAL_MS, 5_000);
+    fn poll_interval_is_sixty_seconds() {
+        // Regression: polling is the fallback path. The 60-second
+        // cadence is the load-bearing constant — a 5-second cadence
+        // (the original value) was steamrolling moderator input focus
+        // and visibly re-mounting the panel grid every tick because
+        // each refetch pushed a new (identical) snapshot through the
+        // cache signal. The WebSocket live feed (#57) is the primary
+        // data path; this interval governs only how long a
+        // WS-disconnected client may drift from server state before a
+        // forced refresh. A future refactor that quietly drops the
+        // interval will trip this assertion.
+        assert_eq!(POLL_INTERVAL_MS, 60_000);
     }
 
     #[test]

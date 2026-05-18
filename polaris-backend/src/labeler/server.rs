@@ -432,6 +432,30 @@ impl Default for LabelBroadcaster {
     }
 }
 
+/// RAII guard that increments
+/// `polaris_subscribe_labels_subscribers` on construction and
+/// decrements it on drop (REQ-D2).
+///
+/// `subscribe_labels` constructs one per connection. Any early return
+/// from the subscription pump (peer disconnect, sink error,
+/// slow-consumer catch-up failure) drops the guard, which decrements
+/// the gauge exactly once. Without RAII the gauge would leak +1 every
+/// time a `select!` arm short-circuited.
+struct SubscriberGauge;
+
+impl SubscriberGauge {
+    fn register() -> Self {
+        metrics::gauge!("polaris_subscribe_labels_subscribers").increment(1.0);
+        Self
+    }
+}
+
+impl Drop for SubscriberGauge {
+    fn drop(&mut self) {
+        metrics::gauge!("polaris_subscribe_labels_subscribers").decrement(1.0);
+    }
+}
+
 // ── HTTP: queryLabels ───────────────────────────────────────────────────
 
 /// Query-parameter shape for `GET /xrpc/com.atproto.label.queryLabels`.
@@ -523,6 +547,14 @@ pub async fn subscribe_labels(
 async fn run_subscription(socket: WebSocket, state: ApiState, mut cursor: i64) {
     let (mut sink, mut client_read) = socket.split();
     let mut rx = state.label_broadcaster.subscribe();
+
+    // REQ-D2: track the active subscriber count via a Prometheus gauge.
+    // The RAII guard increments on construction and decrements on
+    // drop, so a `return` from any branch (peer disconnect, sink
+    // error, slow-consumer fall-through) decrements exactly once.
+    // Without the guard, an early-return from inside the `select!`
+    // would leak the +1.
+    let _subscriber_guard = SubscriberGauge::register();
 
     // ── Phase 1: drain persisted labels (`seq > cursor`). ───────────
     //
@@ -674,9 +706,22 @@ fn label_to_lex(label: &Label) -> LexValue {
     if let Some(cid) = &label.cid {
         m.insert("cid".to_owned(), LexValue::String(cid.clone()));
     }
-    m.insert("cts".to_owned(), LexValue::String(label.cts.to_rfc3339()));
+    // `cts` MUST use `proto_blue::syntax::Datetime::from_utc(...)`
+    // (millisecond precision with `Z` suffix, per
+    // `SecondsFormat::Millis` + `use_z = true`). The canonical
+    // signing path
+    // ([`crate::labeler::canonicalize::encode_canonical_label`])
+    // serialises `proto_blue::syntax::Datetime` into the bytes that
+    // get signed; using `chrono::DateTime::to_rfc3339` here
+    // (microsecond + `+00:00`) drifts the wire bytes from the signed
+    // bytes, breaking downstream consumers that re-canonicalise from
+    // the WS frame instead of asking Polaris for the persisted
+    // `label_cbor` column. Same rule applies to `exp`.
+    let cts = proto_blue::syntax::Datetime::from_utc(label.cts);
+    m.insert("cts".to_owned(), LexValue::String(cts.into_inner()));
     if let Some(exp) = label.exp {
-        m.insert("exp".to_owned(), LexValue::String(exp.to_rfc3339()));
+        let exp = proto_blue::syntax::Datetime::from_utc(exp);
+        m.insert("exp".to_owned(), LexValue::String(exp.into_inner()));
     }
     m.insert("neg".to_owned(), LexValue::Bool(label.neg));
     // `sig` is bytes on the wire — `LexValue::Bytes` is the only shape
@@ -688,6 +733,16 @@ fn label_to_lex(label: &Label) -> LexValue {
     m.insert("src".to_owned(), LexValue::String(label.src.clone()));
     m.insert("uri".to_owned(), LexValue::String(label.uri.clone()));
     m.insert("val".to_owned(), LexValue::String(label.val.clone()));
+    // `ver = 1` — the lexicon-default version Polaris emits (see
+    // [`crate::labeler::emitter::LABEL_VERSION`]). Including it in
+    // the wire form keeps the WS frame byte-identical to the
+    // canonical signing shape, so a downstream consumer can re-encode
+    // the wire fields and reproduce the signed bytes for
+    // verification.
+    m.insert(
+        "ver".to_owned(),
+        LexValue::Integer(crate::labeler::emitter::LABEL_VERSION),
+    );
     LexValue::Map(m)
 }
 
@@ -709,12 +764,26 @@ impl IntoResponse for LabelerError {
 /// Build the labeler subtree of the public router. Returns a stateless
 /// `Router` (state is bound at construction) so the caller can `merge` it
 /// into the top-level router.
+///
+/// Mounts:
+/// - `GET /xrpc/com.atproto.label.queryLabels` — pull-based label query.
+/// - `GET (WebSocket) /xrpc/com.atproto.label.subscribeLabels` —
+///   push-based label stream.
+/// - `POST /xrpc/com.atproto.moderation.createReport` — inbound reports
+///   from external bsky.app users. Handler lives in
+///   [`crate::api::moderation::create_report`] (separate file because
+///   it shares logic with the case-view's report ingest pipeline, not
+///   with the labeler's outbound label-emission surface).
 pub fn router(state: ApiState) -> Router {
     Router::new()
         .route("/xrpc/com.atproto.label.queryLabels", get(query_labels))
         .route(
             "/xrpc/com.atproto.label.subscribeLabels",
             get(subscribe_labels),
+        )
+        .route(
+            "/xrpc/com.atproto.moderation.createReport",
+            axum::routing::post(crate::api::moderation::create_report),
         )
         .with_state(state)
 }

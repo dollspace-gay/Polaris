@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT 1 AS hit\n        FROM muted_reporters\n        WHERE reporter_did = $1\n          AND (until IS NULL OR until > now())\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hit",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "f72de5eabad8ee973326463ac0aa586b5d13b2910a0cc98a4899beb7c60c5732"
+}

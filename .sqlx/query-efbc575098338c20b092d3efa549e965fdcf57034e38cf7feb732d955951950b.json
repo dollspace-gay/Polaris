@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO label_backfill_queue (subject_did, labeler_did)\n        SELECT $1, did\n        FROM upstream_labelers\n        WHERE enabled = TRUE\n          AND (dormant_until IS NULL OR dormant_until <= now())\n        ON CONFLICT (subject_did, labeler_did) DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "efbc575098338c20b092d3efa549e965fdcf57034e38cf7feb732d955951950b"
+}

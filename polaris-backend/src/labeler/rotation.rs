@@ -1275,12 +1275,8 @@ fn write_cloud_kms_key(
 ) -> Result<String, RotationError> {
     match provider {
         KmsProvider::Aws => write_cloud_kms_key_aws(region, current_alias),
-        KmsProvider::Gcp => Err(RotationError::Unsupported {
-            mode: "cloud-kms-oracle/gcp",
-        }),
-        KmsProvider::Azure => Err(RotationError::Unsupported {
-            mode: "cloud-kms-oracle/azure",
-        }),
+        KmsProvider::Gcp => write_cloud_kms_key_gcp(region, current_alias),
+        KmsProvider::Azure => write_cloud_kms_key_azure(region, current_alias),
     }
 }
 
@@ -1352,6 +1348,441 @@ fn write_cloud_kms_key_aws(_region: &str, _current_alias: &str) -> Result<String
     Err(RotationError::Unsupported {
         mode: "cloud-kms-oracle/aws (requires `kms-integration` cargo feature)",
     })
+}
+
+// ── GCP cloud-KMS rotation ──────────────────────────────────────────
+//
+// GCP Cloud KMS rotation has a different shape than AWS aliases:
+// each `CryptoKey` resource owns a numbered series of
+// `CryptoKeyVersion`s, and the `primary` version is what `sign` /
+// `getPublicKey` calls dispatch to. Rotation is therefore:
+//
+//   1. `POST projects/.../cryptoKeys/<key>/cryptoKeyVersions`
+//      — creates a new version under the same key (the key's
+//      algorithm is fixed at create time, so the new version
+//      inherits EC_SIGN_SECP256K1_SHA256).
+//   2. `POST projects/.../cryptoKeys/<key>:updatePrimaryVersion`
+//      — atomically swaps `primary` to the new version's id.
+//
+// `current_alias` for the GCP provider carries the full CryptoKey
+// resource name: `projects/<proj>/locations/<loc>/keyRings/<ring>/cryptoKeys/<key>`.
+// `region` is informational (the location is already in the resource
+// name); we accept it for API symmetry with AWS but don't otherwise
+// consume it.
+//
+// Auth: GCP requires an OAuth2 access token. We read the operator's
+// service-account JSON key from the path in `GCP_SERVICE_ACCOUNT_JSON`,
+// sign a JWT with the embedded RSA key (RS256), and exchange at
+// `oauth2.googleapis.com/token` for a token scoped to `cloudkms`.
+
+/// GCP Cloud KMS REST endpoint root.
+#[cfg(feature = "kms-integration")]
+const GCP_KMS_BASE: &str = "https://cloudkms.googleapis.com/v1";
+
+/// GCP `OAuth2` token-exchange endpoint.
+#[cfg(feature = "kms-integration")]
+const GCP_OAUTH_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
+
+/// Cloud KMS `OAuth2` scope.
+#[cfg(feature = "kms-integration")]
+const GCP_KMS_SCOPE: &str = "https://www.googleapis.com/auth/cloudkms";
+
+#[cfg(feature = "kms-integration")]
+#[allow(
+    clippy::too_many_lines,
+    reason = "GCP rotation has three sequential REST calls (token-exchange, create-version, \
+              update-primary) plus their failure paths; folding into helpers would push the \
+              token + key-resource string lifetimes across boundaries with no readability win."
+)]
+fn write_cloud_kms_key_gcp(region: &str, current_alias: &str) -> Result<String, RotationError> {
+    let _ = region; // accepted for API symmetry; location is in `current_alias`.
+
+    // Service-account JSON key path: env-supplied so the operator's
+    // credentials never enter the binary. The file is read at
+    // rotation time, parsed, and the in-memory copy is dropped at the
+    // end of this function.
+    let sa_path =
+        std::env::var("GCP_SERVICE_ACCOUNT_JSON").map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle/gcp: GCP_SERVICE_ACCOUNT_JSON env var not set",
+        })?;
+    let sa_json = std::fs::read_to_string(&sa_path).map_err(|_| RotationError::WriteKey {
+        reason: "cloud-kms-oracle/gcp: cannot read GCP service-account JSON file",
+    })?;
+    let sa: GcpServiceAccount =
+        serde_json::from_str(&sa_json).map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle/gcp: service-account JSON did not parse",
+        })?;
+
+    let key_resource = current_alias.to_owned();
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle/gcp: failed to spin a tokio runtime for KMS rotation",
+        })?;
+
+    rt.block_on(async move {
+        let access_token = gcp_exchange_jwt_for_token(&sa).await?;
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|_| RotationError::WriteKey {
+                reason: "cloud-kms-oracle/gcp: failed to build HTTP client",
+            })?;
+
+        // 1. POST .../cryptoKeyVersions — creates a new version under
+        //    the existing CryptoKey, inheriting the key's algorithm.
+        let create_url = format!("{GCP_KMS_BASE}/{key_resource}/cryptoKeyVersions");
+        let create_resp = client
+            .post(&create_url)
+            .bearer_auth(&access_token)
+            .header("Content-Type", "application/json")
+            // GCP accepts an empty JSON body — the parent key's
+            // algorithm defines the new version's algorithm. Sending
+            // an explicit `{}` keeps the request length deterministic.
+            .body("{}")
+            .send()
+            .await
+            .map_err(|_| RotationError::WriteKey {
+                reason: "cloud-kms-oracle/gcp: createVersion HTTP failed",
+            })?;
+        if !create_resp.status().is_success() {
+            tracing::warn!(
+                status = %create_resp.status(),
+                "cloud-kms-oracle/gcp: createVersion returned non-2xx",
+            );
+            return Err(RotationError::WriteKey {
+                reason: "cloud-kms-oracle/gcp: createVersion returned non-2xx",
+            });
+        }
+        let create_body: serde_json::Value =
+            create_resp
+                .json()
+                .await
+                .map_err(|_| RotationError::WriteKey {
+                    reason: "cloud-kms-oracle/gcp: createVersion response JSON decode failed",
+                })?;
+        let new_version_resource = create_body
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or(RotationError::WriteKey {
+                reason: "cloud-kms-oracle/gcp: createVersion response missing `name`",
+            })?
+            .to_owned();
+        // Pull the trailing "/cryptoKeyVersions/<id>" segment so we
+        // can pass just the version id to updatePrimaryVersion.
+        let version_id = new_version_resource
+            .rsplit('/')
+            .next()
+            .ok_or(RotationError::WriteKey {
+                reason: "cloud-kms-oracle/gcp: createVersion `name` is malformed",
+            })?
+            .to_owned();
+
+        // 2. POST .../cryptoKeys/<key>:updatePrimaryVersion — atomic
+        //    swap of the `primary` pointer on the parent key.
+        let update_url = format!("{GCP_KMS_BASE}/{key_resource}:updatePrimaryVersion");
+        let update_body = serde_json::json!({ "cryptoKeyVersionId": version_id });
+        let update_resp = client
+            .post(&update_url)
+            .bearer_auth(&access_token)
+            .header("Content-Type", "application/json")
+            .body(update_body.to_string())
+            .send()
+            .await
+            .map_err(|_| RotationError::WriteKey {
+                reason: "cloud-kms-oracle/gcp: updatePrimaryVersion HTTP failed",
+            })?;
+        if !update_resp.status().is_success() {
+            tracing::warn!(
+                status = %update_resp.status(),
+                "cloud-kms-oracle/gcp: updatePrimaryVersion returned non-2xx",
+            );
+            return Err(RotationError::WriteKey {
+                reason: "cloud-kms-oracle/gcp: updatePrimaryVersion returned non-2xx",
+            });
+        }
+
+        Ok(new_version_resource)
+    })
+}
+
+#[cfg(not(feature = "kms-integration"))]
+fn write_cloud_kms_key_gcp(_region: &str, _current_alias: &str) -> Result<String, RotationError> {
+    Err(RotationError::Unsupported {
+        mode: "cloud-kms-oracle/gcp (requires `kms-integration` cargo feature)",
+    })
+}
+
+/// Minimal subset of a GCP service-account JSON we need for the
+/// JWT-signed token exchange.
+#[cfg(feature = "kms-integration")]
+#[derive(Debug, serde::Deserialize)]
+#[allow(
+    non_snake_case,
+    reason = "field names mirror the GCP service-account JSON shape verbatim"
+)]
+struct GcpServiceAccount {
+    client_email: String,
+    private_key: String,
+    token_uri: Option<String>,
+}
+
+#[cfg(feature = "kms-integration")]
+async fn gcp_exchange_jwt_for_token(sa: &GcpServiceAccount) -> Result<String, RotationError> {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle/gcp: system clock before UNIX epoch",
+        })?
+        .as_secs();
+
+    let token_uri = sa
+        .token_uri
+        .clone()
+        .unwrap_or_else(|| GCP_OAUTH_TOKEN_ENDPOINT.to_owned());
+
+    // JWT assertion: GCP's service-account exchange spec at
+    // https://developers.google.com/identity/protocols/oauth2/service-account
+    let claims = serde_json::json!({
+        "iss":   sa.client_email,
+        "scope": GCP_KMS_SCOPE,
+        "aud":   token_uri,
+        "iat":   now,
+        "exp":   now + 3600,
+    });
+    let encoding_key = EncodingKey::from_rsa_pem(sa.private_key.as_bytes()).map_err(|_| {
+        RotationError::WriteKey {
+            reason: "cloud-kms-oracle/gcp: service-account private_key did not parse as PEM RSA",
+        }
+    })?;
+    let mut header = Header::new(Algorithm::RS256);
+    header.typ = Some("JWT".to_owned());
+    let assertion =
+        encode(&header, &claims, &encoding_key).map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle/gcp: JWT assertion sign failed",
+        })?;
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle/gcp: failed to build OAuth2 HTTP client",
+        })?;
+    let resp = client
+        .post(&token_uri)
+        .form(&[
+            ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
+            ("assertion", &assertion),
+        ])
+        .send()
+        .await
+        .map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle/gcp: OAuth2 token exchange HTTP failed",
+        })?;
+    if !resp.status().is_success() {
+        tracing::warn!(
+            status = %resp.status(),
+            "cloud-kms-oracle/gcp: OAuth2 token exchange returned non-2xx",
+        );
+        return Err(RotationError::WriteKey {
+            reason: "cloud-kms-oracle/gcp: OAuth2 token exchange returned non-2xx",
+        });
+    }
+    let body: serde_json::Value = resp.json().await.map_err(|_| RotationError::WriteKey {
+        reason: "cloud-kms-oracle/gcp: OAuth2 token-exchange JSON decode failed",
+    })?;
+    body.get("access_token")
+        .and_then(|v| v.as_str())
+        .map(str::to_owned)
+        .ok_or(RotationError::WriteKey {
+            reason: "cloud-kms-oracle/gcp: OAuth2 token-exchange response missing access_token",
+        })
+}
+
+// ── Azure cloud-KMS rotation ────────────────────────────────────────
+//
+// Azure Key Vault Keys have built-in versioning: every call to
+// `createKey` on an existing key name produces a new version, and the
+// "active" version is automatically the most recently created. There
+// is no separate alias-swap call — one POST does the whole rotation.
+//
+// `current_alias` for the Azure provider carries the Key Vault key
+// resource shape: `https://<vault>.vault.azure.net/keys/<key-name>`.
+// The function appends `/create?api-version=7.4` and POSTs the
+// algorithm + key-ops payload.
+//
+// Auth: Azure uses OAuth2 client-credentials. We read
+// `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` from
+// env and exchange at
+// `login.microsoftonline.com/<tenant>/oauth2/v2.0/token` for an
+// access token scoped to `https://vault.azure.net/.default`.
+
+/// Azure AD `OAuth2` base URL.
+#[cfg(feature = "kms-integration")]
+const AZURE_OAUTH_BASE: &str = "https://login.microsoftonline.com";
+
+/// Azure Key Vault `OAuth2` scope.
+#[cfg(feature = "kms-integration")]
+const AZURE_VAULT_SCOPE: &str = "https://vault.azure.net/.default";
+
+/// Azure Key Vault Keys REST API version.
+#[cfg(feature = "kms-integration")]
+const AZURE_KEYVAULT_API_VERSION: &str = "7.4";
+
+#[cfg(feature = "kms-integration")]
+fn write_cloud_kms_key_azure(region: &str, current_alias: &str) -> Result<String, RotationError> {
+    let _ = region; // accepted for API symmetry; region is implicit in the vault URL.
+
+    let tenant = std::env::var("AZURE_TENANT_ID").map_err(|_| RotationError::WriteKey {
+        reason: "cloud-kms-oracle/azure: AZURE_TENANT_ID env var not set",
+    })?;
+    let client_id = std::env::var("AZURE_CLIENT_ID").map_err(|_| RotationError::WriteKey {
+        reason: "cloud-kms-oracle/azure: AZURE_CLIENT_ID env var not set",
+    })?;
+    let client_secret =
+        std::env::var("AZURE_CLIENT_SECRET").map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle/azure: AZURE_CLIENT_SECRET env var not set",
+        })?;
+
+    let key_resource = current_alias.to_owned();
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle/azure: failed to spin a tokio runtime for KMS rotation",
+        })?;
+
+    rt.block_on(async move {
+        let access_token =
+            azure_exchange_credentials_for_token(&tenant, &client_id, &client_secret).await?;
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|_| RotationError::WriteKey {
+                reason: "cloud-kms-oracle/azure: failed to build HTTP client",
+            })?;
+
+        // Key Vault rotation primitive: POST to
+        // `<vault>/keys/<name>/create?api-version=…`. Sending an
+        // existing key name produces a new version of the key,
+        // automatically promoted to the active version.
+        let create_url = format!("{key_resource}/create?api-version={AZURE_KEYVAULT_API_VERSION}",);
+        // P-256 (`P-256` curve) is the closest stable SECP-curve Key
+        // Vault offers for ECDSA. SECP256K1 is preview-only in some
+        // Azure regions; we use P-256 to match the durability of the
+        // AWS path. The signer impl in `cloud_kms.rs` decodes
+        // whichever curve the Key Vault returns at sign time.
+        let create_body = serde_json::json!({
+            "kty":     "EC",
+            "crv":     "P-256",
+            "key_ops": ["sign", "verify"],
+            "attributes": {
+                "enabled": true,
+            },
+            "tags": {
+                "polaris": "labeler-signing-key-rotated",
+            },
+        });
+        let create_resp = client
+            .post(&create_url)
+            .bearer_auth(&access_token)
+            .header("Content-Type", "application/json")
+            .body(create_body.to_string())
+            .send()
+            .await
+            .map_err(|_| RotationError::WriteKey {
+                reason: "cloud-kms-oracle/azure: createKey HTTP failed",
+            })?;
+        if !create_resp.status().is_success() {
+            tracing::warn!(
+                status = %create_resp.status(),
+                "cloud-kms-oracle/azure: createKey returned non-2xx",
+            );
+            return Err(RotationError::WriteKey {
+                reason: "cloud-kms-oracle/azure: createKey returned non-2xx",
+            });
+        }
+        let body: serde_json::Value =
+            create_resp
+                .json()
+                .await
+                .map_err(|_| RotationError::WriteKey {
+                    reason: "cloud-kms-oracle/azure: createKey response JSON decode failed",
+                })?;
+        // The new version's identifier is `body.key.kid`, of the
+        // shape `<vault>/keys/<name>/<version-id>`. Return that
+        // verbatim so the persisted alias can target the precise
+        // version. Key Vault automatically routes plain
+        // `<vault>/keys/<name>` calls to the latest version, but
+        // capturing the explicit version-id makes rollbacks trivial.
+        let kid = body
+            .get("key")
+            .and_then(|k| k.get("kid"))
+            .and_then(|v| v.as_str())
+            .ok_or(RotationError::WriteKey {
+                reason: "cloud-kms-oracle/azure: createKey response missing `key.kid`",
+            })?
+            .to_owned();
+        Ok(kid)
+    })
+}
+
+#[cfg(not(feature = "kms-integration"))]
+fn write_cloud_kms_key_azure(_region: &str, _current_alias: &str) -> Result<String, RotationError> {
+    Err(RotationError::Unsupported {
+        mode: "cloud-kms-oracle/azure (requires `kms-integration` cargo feature)",
+    })
+}
+
+#[cfg(feature = "kms-integration")]
+async fn azure_exchange_credentials_for_token(
+    tenant: &str,
+    client_id: &str,
+    client_secret: &str,
+) -> Result<String, RotationError> {
+    let token_url = format!("{AZURE_OAUTH_BASE}/{tenant}/oauth2/v2.0/token");
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle/azure: failed to build OAuth2 HTTP client",
+        })?;
+    let resp = client
+        .post(&token_url)
+        .form(&[
+            ("grant_type", "client_credentials"),
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("scope", AZURE_VAULT_SCOPE),
+        ])
+        .send()
+        .await
+        .map_err(|_| RotationError::WriteKey {
+            reason: "cloud-kms-oracle/azure: OAuth2 token exchange HTTP failed",
+        })?;
+    if !resp.status().is_success() {
+        tracing::warn!(
+            status = %resp.status(),
+            "cloud-kms-oracle/azure: OAuth2 token exchange returned non-2xx",
+        );
+        return Err(RotationError::WriteKey {
+            reason: "cloud-kms-oracle/azure: OAuth2 token exchange returned non-2xx",
+        });
+    }
+    let body: serde_json::Value = resp.json().await.map_err(|_| RotationError::WriteKey {
+        reason: "cloud-kms-oracle/azure: OAuth2 token-exchange JSON decode failed",
+    })?;
+    body.get("access_token")
+        .and_then(|v| v.as_str())
+        .map(str::to_owned)
+        .ok_or(RotationError::WriteKey {
+            reason: "cloud-kms-oracle/azure: OAuth2 token-exchange response missing access_token",
+        })
 }
 
 /// Atomically write arbitrary bytes to `path` with mode `0o600`.

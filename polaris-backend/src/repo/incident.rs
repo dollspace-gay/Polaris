@@ -55,6 +55,25 @@ pub trait IncidentRepo: Send + Sync {
         limit: i64,
     ) -> impl std::future::Future<Output = Result<Vec<Incident>, RepoError>> + Send;
 
+    /// Paginated list of incidents filtered by `status` (optional).
+    ///
+    /// Returns `(page_of_incidents, total_count)` where:
+    ///   * `page_of_incidents` is the `limit`-bounded, `offset`-skipped
+    ///     page of incident rows ordered newest-`opened_at` first.
+    ///   * `total_count` is the count of rows matching the filter BEFORE
+    ///     limit/offset is applied — the wire `total` field on
+    ///     `IncidentList` so the frontend can render "page X of Y".
+    ///
+    /// Implemented with a single SQL pass using `COUNT(*) OVER ()` so
+    /// the planner does not need a second `SELECT COUNT` round-trip.
+    /// Empty result sets return `(Vec::new(), 0)`.
+    fn list_paginated_by_status(
+        &self,
+        status: Option<IncidentStatus>,
+        limit: i64,
+        offset: i64,
+    ) -> impl std::future::Future<Output = Result<(Vec<Incident>, i64), RepoError>> + Send;
+
     /// Narrow mutation: update only the incident's `status` column.
     ///
     /// This is the *only* mutator on incidents. The deliberate narrowness
@@ -179,6 +198,51 @@ impl IncidentRepo for PgIncidentRepo {
             ));
         }
         Ok(incidents)
+    }
+
+    async fn list_paginated_by_status(
+        &self,
+        status: Option<IncidentStatus>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<(Vec<Incident>, i64), RepoError> {
+        let status_str = status.map(IncidentStatus::as_str);
+        // `COUNT(*) OVER ()` materialises the unfiltered-by-page total
+        // in the same scan as the page select. Postgres' planner uses
+        // the same predicate evaluation for both the page rows and the
+        // window-aggregated count.
+        let rows = sqlx::query!(
+            r#"
+            SELECT id, primary_subject, severity, status, assigned_to, locked_by,
+                   opened_at, closed_at,
+                   COUNT(*) OVER ()                              AS "total!: i64"
+            FROM incidents
+            WHERE $1::text IS NULL OR status = $1
+            ORDER BY opened_at DESC
+            LIMIT $2 OFFSET $3
+            "#,
+            status_str,
+            limit,
+            offset,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let total = rows.first().map_or(0_i64, |r| r.total);
+        let mut incidents = Vec::with_capacity(rows.len());
+        for row in rows {
+            incidents.push(Incident::new_bare(
+                IncidentId(row.id),
+                SubjectId(row.primary_subject),
+                decode_severity(&row.severity)?,
+                decode_status(&row.status)?,
+                row.assigned_to.map(ModeratorId),
+                row.locked_by.map(ModeratorId),
+                row.opened_at,
+                row.closed_at,
+            ));
+        }
+        Ok((incidents, total))
     }
 
     async fn update_status(

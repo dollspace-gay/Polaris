@@ -37,6 +37,11 @@
 # Rust build artifacts
 /target/
 
+# xtask local caches (e.g. `cargo xtask lexicon-contract` fetched
+# upstream lexicons keyed by `UPSTREAM_LEXICON_COMMIT`). Cache key is
+# the SHA pin, so a bumped pin gets fresh fetches.
+/.xtask-cache/
+
 # Editor temporaries
 *.swp
 
@@ -49,3 +54,14 @@
 
 # Temporary files
 *.tmp
+
+# Agent worktree state (from /kickoff, /featree flows) — per-developer,
+# never project source. Crosslink's .claude managed-block above already
+# covers hooks/, commands/, mcp/; this catches the worktrees/ subdir
+# which is the bulk (~52 MB on a working repo).
+.claude/worktrees/
+
+# Per-crate sqlx cache. The canonical offline cache is the workspace-
+# root `.sqlx/`; the per-crate copy is a leftover from earlier dev
+# iterations. CI uses the workspace cache via SQLX_OFFLINE=true.
+polaris-backend/.sqlx/

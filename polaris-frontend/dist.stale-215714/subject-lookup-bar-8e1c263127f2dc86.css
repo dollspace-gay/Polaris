@@ -1,0 +1,112 @@
+/* Subject-lookup search bar.
+ *
+ * Visible affordance mounted at the top of `PatternDashboard`
+ * (dashboard.rs) that lets a moderator paste any subject identifier
+ * (handle, DID, AT-URI, bsky.app URL) and jump to that subject's
+ * case page. Mirrors the keyboard-only Command Palette (#92) so
+ * pointer-driven workflows don't require learning the chord.
+ *
+ * Tokens-only — every colour comes through `var(--…)` per Workstream
+ * B's `styles_tokens` test.
+ */
+
+.subject-lookup-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.subject-lookup-bar__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-fg-primary);
+  font-family: var(--font-sans);
+}
+
+.subject-lookup-bar__row {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-sm);
+  align-items: stretch;
+}
+
+.subject-lookup-bar__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-primary);
+  color: var(--color-fg-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+}
+
+.subject-lookup-bar__input:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.subject-lookup-bar__submit {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-accent);
+  color: var(--color-accent-fg);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.subject-lookup-bar__submit:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.subject-lookup-bar__submit:hover {
+  filter: brightness(1.1);
+}
+
+.subject-lookup-bar__hint {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  font-style: italic;
+  font-family: var(--font-sans);
+}
+
+.subject-lookup-bar__status {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-sans);
+}
+
+.subject-lookup-bar__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger-fg);
+  background-color: var(--color-danger);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+}
+
+/* Mobile collapse: stack input + button vertically on narrow viewports. */
+@media (max-width: 768px) {
+  .subject-lookup-bar__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .subject-lookup-bar__submit {
+    width: 100%;
+  }
+}

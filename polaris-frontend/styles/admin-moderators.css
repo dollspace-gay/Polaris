@@ -1,0 +1,375 @@
+/*
+ * Admin moderators page styles (issue #214 / #217).
+ *
+ * The admin-only moderator allow-list management page. Layout mirrors
+ * the queue / dashboard convention: a header band on top, an inline
+ * add-form below it, a fixed-layout table beneath the form. Token
+ * discipline: every colour value reaches through `var(--…)` — the
+ * workspace `styles_tokens` test forbids literal colour values
+ * outside `tokens.css`.
+ */
+
+.admin-moderators {
+  padding: var(--space-lg);
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-primary);
+  min-height: 100vh;
+}
+
+.admin-moderators__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.admin-moderators__header h1 {
+  font-size: var(--font-size-xl);
+  margin: 0;
+}
+
+.admin-moderators__tagline {
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-sm);
+  max-width: 56ch;
+  line-height: var(--line-height-normal);
+}
+
+.admin-moderators__back-link {
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.admin-moderators__back-link:hover,
+.admin-moderators__back-link:focus-visible {
+  text-decoration: underline;
+}
+
+.admin-moderators__loading,
+.admin-moderators__redirect {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+}
+
+.admin-moderators__error {
+  margin: var(--space-sm) 0;
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-danger);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-primary);
+  font-size: var(--font-size-sm);
+}
+
+/*
+ * Forbidden sub-component. Rendered when the backend returns 403 on
+ * the initial list fetch. A tall calm card so the non-admin operator
+ * sees an explanation rather than a blank page.
+ */
+.admin-moderators__forbidden {
+  margin-top: var(--space-lg);
+  padding: var(--space-lg);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-fg-primary);
+}
+
+.admin-moderators__forbidden h2 {
+  font-size: var(--font-size-lg);
+  margin: 0 0 var(--space-sm) 0;
+  color: var(--color-warning);
+}
+
+.admin-moderators__forbidden p {
+  margin: 0 0 var(--space-md) 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  line-height: var(--line-height-normal);
+}
+
+/* ── Add form ──────────────────────────────────────────────── */
+
+.admin-moderators__add-form {
+  display: grid;
+  grid-template-columns:
+    minmax(8rem, max-content)
+    minmax(16rem, 1fr)
+    minmax(6rem, max-content)
+    minmax(8rem, max-content)
+    max-content;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-md) 0;
+  padding: var(--space-md);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.admin-moderators__add-form label {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  font-weight: 500;
+}
+
+.admin-moderators__add-handle,
+.admin-moderators__add-role {
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-primary);
+  color: var(--color-fg-primary);
+  font-size: var(--font-size-base);
+}
+
+.admin-moderators__add-handle:focus-visible,
+.admin-moderators__add-role:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+  border-color: var(--color-border-focus);
+}
+
+.admin-moderators__add-submit {
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-accent);
+  color: var(--color-accent-fg);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-moderators__add-submit:hover {
+  filter: brightness(1.05);
+}
+
+.admin-moderators__add-submit:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.admin-moderators__add-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Table ─────────────────────────────────────────────────── */
+
+.admin-moderators__table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-md);
+  font-size: var(--font-size-sm);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.admin-moderators__th {
+  text-align: left;
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-moderators__th--handle {
+  width: 18%;
+}
+
+.admin-moderators__th--did {
+  width: 24%;
+}
+
+.admin-moderators__th--roles {
+  width: 24%;
+}
+
+.admin-moderators__th--pinned {
+  width: 8%;
+}
+
+.admin-moderators__th--last-login {
+  width: 14%;
+}
+
+.admin-moderators__th--actions {
+  width: 12%;
+  text-align: right;
+}
+
+.admin-moderators__row {
+  border-top: 1px solid var(--color-border);
+}
+
+.admin-moderators__row:hover {
+  background-color: var(--color-bg-secondary);
+}
+
+/*
+ * Pinned-row modifier — a faint accent rule on the left edge so the
+ * bootstrap admin stands out from the regular rows even before the
+ * "Pinned" badge in the column registers visually.
+ */
+.admin-moderators__row--pinned {
+  background-color: var(--color-bg-secondary);
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+.admin-moderators__cell {
+  padding: var(--space-sm) var(--space-md);
+  vertical-align: middle;
+  color: var(--color-fg-primary);
+}
+
+.admin-moderators__cell--handle {
+  font-weight: 500;
+}
+
+.admin-moderators__cell--did {
+  max-width: 20ch;
+  overflow: hidden;
+}
+
+.admin-moderators__did {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+}
+
+.admin-moderators__cell--actions {
+  text-align: right;
+}
+
+.admin-moderators__cell--last-login {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+}
+
+.admin-moderators__last-login {
+  white-space: nowrap;
+}
+
+/* ── Role chips ─────────────────────────────────────────────── */
+
+.admin-moderators__role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+}
+
+.admin-moderators__role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 2px var(--space-xs);
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+  cursor: pointer;
+}
+
+.admin-moderators__role-chip:hover {
+  border-color: var(--color-border-focus);
+}
+
+.admin-moderators__role-checkbox {
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.admin-moderators__role-checkbox:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-moderators__role-label {
+  font-weight: 500;
+  color: var(--color-fg-primary);
+}
+
+/* ── Pinned badge ───────────────────────────────────────────── */
+
+.admin-moderators__pinned-badge {
+  display: inline-block;
+  padding: 1px var(--space-xs);
+  background-color: var(--color-accent);
+  color: var(--color-accent-fg);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: var(--radius-sm);
+}
+
+/* ── Remove button ──────────────────────────────────────────── */
+
+.admin-moderators__remove-btn {
+  padding: var(--space-xs) var(--space-sm);
+  background-color: var(--color-bg-primary);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-moderators__remove-btn:hover {
+  background-color: var(--color-danger);
+  color: var(--color-danger-fg);
+}
+
+.admin-moderators__remove-btn:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.admin-moderators__remove-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-muted);
+  border-color: var(--color-border);
+}
+
+/* ── Dashboard admin-link nav affordance ───────────────────── */
+
+/*
+ * Lives on the dashboard header (issue #214 / #217). Rendered only
+ * when `whoami` carries `Role::Admin`. Visual treatment mirrors the
+ * existing `.triage-queue__open-cta` sibling so the two links read as
+ * peer nav, not a primary vs. secondary CTA.
+ */
+.pattern-dashboard__admin-link {
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.pattern-dashboard__admin-link:hover,
+.pattern-dashboard__admin-link:focus-visible {
+  text-decoration: underline;
+}

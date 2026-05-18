@@ -1,0 +1,294 @@
+/*
+ * Subject media carousel — issue #95 / case-view media panel.
+ *
+ * Single-image carousel over the subject's image-blob attachments.
+ * The moderator advances through every image with prev/next controls,
+ * dot indicators, and an "image N of M" counter; each image surfaces
+ * the author-provided alt text inline beneath the frame so an
+ * investigation can correlate the visual content with the author's
+ * own description.
+ *
+ * Tokens-only per tests/styles_tokens.rs — every color, spacing,
+ * border-radius, and font-size resolves to a `var(--…)` reference.
+ */
+
+.media-gallery {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  color: var(--color-fg-primary);
+}
+
+.media-gallery__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.media-gallery__title {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-fg-primary);
+}
+
+.media-gallery__counter {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Status surfaces — loading / error / empty / staleness banners.
+ * Each renders as a single-paragraph row beneath the title so the
+ * gallery's shell stays consistent whether or not images resolved.
+ */
+.media-gallery__loading {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+.media-gallery__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
+  background-color: var(--color-bg-secondary);
+  border-left: 3px solid var(--color-danger);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+}
+
+.media-gallery__empty {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-muted);
+}
+
+.media-gallery__staleness {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-warning);
+  background-color: var(--color-bg-secondary);
+  border-left: 3px solid var(--color-warning);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+}
+
+/*
+ * Stage — three-column row with the prev button, the active image
+ * frame, and the next button. The frame flex-grows to absorb the
+ * available width; the buttons are fixed-width pillars on either
+ * side so they keep their hit target consistent across image
+ * aspect ratios.
+ */
+.media-gallery__stage {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-sm);
+}
+
+.media-gallery__frame {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-secondary);
+  padding: var(--space-sm);
+}
+
+.media-gallery__image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/*
+ * Prev/next controls — real <button>s so they participate in tab
+ * order. The disabled state (single-image carousel) dims the
+ * button and removes the pointer; the visible glyph stays so the
+ * surface shape is recognisable even when nav is inert.
+ */
+.media-gallery__nav {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  min-width: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.media-gallery__nav:hover:not(:disabled) {
+  background-color: var(--color-bg-elevated);
+  border-color: var(--color-fg-muted);
+}
+
+.media-gallery__nav:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.media-gallery__nav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/*
+ * Directional modifiers — included so the styles_coverage test
+ * accepts the BEM modifier classes the Leptos view! references.
+ * No additional rules today (the prev / next buttons are visually
+ * symmetric), but the selectors are pinned here as the future hook
+ * for direction-specific tweaks (e.g. arrow asset swaps).
+ */
+.media-gallery__nav--prev {
+  /* Reserved for prev-button-specific styling. */
+}
+
+.media-gallery__nav--next {
+  /* Reserved for next-button-specific styling. */
+}
+
+/*
+ * Caption block — alt text + original-post URI. Sits beneath the
+ * image frame so the visual content and the author's description
+ * are read top-to-bottom without competing for attention.
+ */
+.media-gallery__caption {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.media-gallery__alt {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-primary);
+}
+
+.media-gallery__alt--present {
+  background-color: var(--color-bg-elevated);
+  border-left: 3px solid var(--color-accent);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.media-gallery__alt-label {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-fg-muted);
+}
+
+.media-gallery__alt-body {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.media-gallery__alt--missing {
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+/*
+ * Post timestamp — `Posted YYYY-MM-DD HH:MM UTC` rendered above
+ * the original-post URI so the moderator gets at-a-glance
+ * temporal context without leaving the carousel. Tabular-nums so
+ * the rendered string aligns vertically when the carousel advances.
+ */
+.media-gallery__posted-at {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.media-gallery__post {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  word-break: break-all;
+}
+
+.media-gallery__post-label {
+  font-weight: 600;
+}
+
+.media-gallery__post-link {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.media-gallery__post-link:hover {
+  color: var(--color-accent-fg);
+}
+
+.media-gallery__post-link:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.media-gallery__post-uri {
+  font-family: var(--font-mono);
+}
+
+/*
+ * Dot indicators — one per image, the active dot is filled. The
+ * dot row stays visible even on a single-image carousel so the
+ * surface shape does not jump when the gallery's image count
+ * changes between page loads.
+ */
+.media-gallery__dots {
+  display: flex;
+  gap: var(--space-xs);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.media-gallery__dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  border: 1px solid var(--color-fg-muted);
+  background-color: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.media-gallery__dot:hover {
+  background-color: var(--color-bg-elevated);
+}
+
+.media-gallery__dot:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.media-gallery__dot--active {
+  background-color: var(--color-accent);
+  border-color: var(--color-accent);
+}

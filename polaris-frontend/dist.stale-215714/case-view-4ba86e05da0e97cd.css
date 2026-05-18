@@ -1,0 +1,143 @@
+/*
+ * Case view styles — two-column layout (main case content + sidebar).
+ */
+
+.case-view {
+  padding: var(--space-lg);
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-primary);
+  min-height: 100vh;
+}
+
+.case-view__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-lg);
+}
+
+.case-view__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+}
+
+.case-view__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  min-width: 0;
+}
+
+.case-view__loading,
+.case-view__error,
+.case-view__route-error {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.case-view__loading {
+  color: var(--color-fg-muted);
+}
+
+.case-view__error,
+.case-view__route-error {
+  border-left: 4px solid var(--color-danger);
+  color: var(--color-danger);
+}
+
+@media (max-width: 768px) {
+  .case-view {
+    padding: var(--space-md);
+  }
+
+  .case-view__columns {
+    grid-template-columns: 1fr;
+    gap: var(--space-md);
+  }
+}
+
+/*
+ * Network panel — sidebar sub-component rendered inside the case view.
+ * Currently a placeholder surface; the styling reserves the panel chrome
+ * so the layout is stable when the implementation lands.
+ */
+.network-panel {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  color: var(--color-fg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.network-panel h2,
+.network-panel h3 {
+  font-size: var(--font-size-lg);
+  margin: 0;
+}
+
+.network-panel__placeholder {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+  text-align: center;
+  padding: var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  margin: 0;
+}
+
+/*
+ * Safe payload — gated reveal of potentially-distressing content. The
+ * `reveal` button is the gate; `revealed` is the wrapper around the
+ * unredacted text.
+ */
+.safe-payload {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  color: var(--color-fg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.safe-payload__reveal {
+  align-self: flex-start;
+  padding: var(--space-xs) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.safe-payload__reveal:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.safe-payload__revealed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.safe-payload__text {
+  margin: 0;
+  padding: var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-fg-primary);
+}

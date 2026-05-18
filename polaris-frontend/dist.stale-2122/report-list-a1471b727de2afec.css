@@ -1,0 +1,88 @@
+/*
+ * Report list — sidebar surface in the case view listing reports against a
+ * single subject.
+ */
+
+.report-list {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  color: var(--color-fg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.report-list__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.report-list__header h2,
+.report-list__header h3 {
+  font-size: var(--font-size-lg);
+  margin: 0;
+}
+
+.report-list__count {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+}
+
+.report-list__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.report-list__empty,
+.report-list__placeholder {
+  padding: var(--space-md);
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.report-list__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.report-list__item {
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  display: grid;
+  grid-template-columns: max-content 1fr max-content;
+  gap: var(--space-xs) var(--space-sm);
+  align-items: baseline;
+  font-size: var(--font-size-sm);
+}
+
+.report-list__category {
+  color: var(--color-fg-primary);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.04em;
+}
+
+.report-list__reporter {
+  color: var(--color-fg-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  word-break: break-all;
+}
+
+.report-list__when {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+}

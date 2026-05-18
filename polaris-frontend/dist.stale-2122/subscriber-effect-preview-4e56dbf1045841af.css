@@ -1,0 +1,127 @@
+/* Subscriber-effect preview — issue #96 / mod-workstation #6.
+ *
+ * Inline stacked-bar forecast rendered inside `ActionComposer` when
+ * the moderator is composing a Label action. Surfaces the published-
+ * default distribution of subscriber rendering modes
+ * (hide / warn / ignore) so the operator can see, at the decision
+ * point, how loud their decision will be downstream.
+ *
+ * Tokens-only — every colour comes through `var(--…)` per Workstream
+ * B's `styles_tokens` test. Component owns its own block class
+ * (`subscriber-effect-preview`); elements use the BEM `__elem` form
+ * and modifiers use `--mod`.
+ */
+
+.subscriber-effect-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.subscriber-effect-preview__heading {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  font-family: var(--font-sans);
+}
+
+.subscriber-effect-preview__heading code {
+  font-family: var(--font-mono);
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-secondary);
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-sm);
+}
+
+.subscriber-effect-preview__hint,
+.subscriber-effect-preview__loading {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+.subscriber-effect-preview__not-declared,
+.subscriber-effect-preview__error {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-warning-fg);
+  background-color: var(--color-warning);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+}
+
+.subscriber-effect-preview__not-declared code {
+  font-family: var(--font-mono);
+}
+
+/* Stacked horizontal bar. The three segments are flex items with
+ * widths set inline (computed as integer percentages summing to 100
+ * via the largest-remainder method in `renormalise_to_integers`).
+ * `min-width: 0` lets a 0% segment collapse cleanly. */
+.subscriber-effect-preview__bar {
+  display: flex;
+  width: 100%;
+  height: 1.75rem;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.subscriber-effect-preview__segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-tight);
+  transition: width 150ms ease-out;
+}
+
+.subscriber-effect-preview__segment--hide {
+  background-color: var(--color-danger);
+  color: var(--color-danger-fg);
+}
+
+.subscriber-effect-preview__segment--warn {
+  background-color: var(--color-warning);
+  color: var(--color-warning-fg);
+}
+
+.subscriber-effect-preview__segment--ignore {
+  background-color: var(--color-success);
+  color: var(--color-success-fg);
+}
+
+.subscriber-effect-preview__segment-label {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 0 var(--space-xs);
+}
+
+.subscriber-effect-preview__caveat {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  font-style: italic;
+  font-family: var(--font-sans);
+}
+
+/* Mobile collapse: stack heading + bar tighter. */
+@media (max-width: 768px) {
+  .subscriber-effect-preview {
+    padding: var(--space-sm);
+    gap: var(--space-xs);
+  }
+
+  .subscriber-effect-preview__bar {
+    height: 1.5rem;
+  }
+}

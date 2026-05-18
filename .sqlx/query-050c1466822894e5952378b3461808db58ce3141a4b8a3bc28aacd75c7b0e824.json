@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE scheduled_takedowns\n        SET cancelled_at = now(),\n            cancelled_by = $1\n        WHERE id = $2\n          AND executed_at IS NULL\n          AND cancelled_at IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "050c1466822894e5952378b3461808db58ce3141a4b8a3bc28aacd75c7b0e824"
+}

@@ -1,0 +1,419 @@
+/*
+ * Network panel — issue #97 / M2.
+ *
+ * Per-subject signal surface rendered in the case-view sidebar:
+ * profile signals, follow graph, reply graph, cohort membership,
+ * and shared-image clusters. Every visible class is BEM-shaped
+ * (`network-panel__<element>`, with `--<modifier>` for variants)
+ * so `tests/styles_coverage.rs` can verify every Rust-source
+ * `class="..."` literal has a matching selector here.
+ *
+ * Tokens only — no literal colour or spacing values (enforced by
+ * `tests/styles_tokens.rs`). Pairings clear WCAG AA (enforced by
+ * `tests/styles_contrast.rs`).
+ */
+
+/* ── Container ─────────────────────────────────────────────── */
+
+.network-panel {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  color: var(--color-fg-primary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+}
+
+.network-panel__title {
+  font-size: var(--font-size-lg);
+  margin: 0;
+  color: var(--color-fg-primary);
+}
+
+.network-panel__subtitle {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin: 0 0 var(--space-xs) 0;
+  color: var(--color-fg-secondary);
+}
+
+/* ── Status states ─────────────────────────────────────────── */
+
+.network-panel__loading {
+  color: var(--color-fg-muted);
+  font-style: italic;
+  margin: 0;
+}
+
+.network-panel__error {
+  color: var(--color-danger);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.network-panel__section-unavailable {
+  color: var(--color-fg-muted);
+  font-style: italic;
+  margin: 0;
+  font-size: var(--font-size-xs);
+}
+
+.network-panel__source {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+  margin: 0;
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-sm);
+  word-break: break-all;
+}
+
+/* ── Profile section ───────────────────────────────────────── */
+
+.network-panel__profile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.network-panel__profile-head {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+}
+
+.network-panel__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.network-panel__profile-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+  flex: 1;
+}
+
+.network-panel__display-name {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-fg-primary);
+  word-break: break-word;
+}
+
+.network-panel__handle {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  word-break: break-all;
+}
+
+.network-panel__did {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  word-break: break-all;
+}
+
+.network-panel__description {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.network-panel__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+}
+
+.network-panel__stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+/* ── Badges ────────────────────────────────────────────────── */
+
+.network-panel__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.network-panel__badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.network-panel__badge--new {
+  background-color: var(--color-warning);
+  color: var(--color-warning-fg);
+  border-color: var(--color-warning);
+}
+
+.network-panel__badge--labeler {
+  background-color: var(--color-accent);
+  color: var(--color-accent-fg);
+  border-color: var(--color-accent);
+}
+
+.network-panel__badge--pinned {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-secondary);
+}
+
+/* ── Labels (other labelers' annotations on this subject) ──── */
+
+.network-panel__labels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.network-panel__labels-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.network-panel__label-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  align-items: baseline;
+  font-size: var(--font-size-xs);
+}
+
+.network-panel__label-val {
+  font-family: var(--font-mono);
+  color: var(--color-fg-primary);
+  font-weight: 600;
+}
+
+.network-panel__label-src {
+  font-family: var(--font-mono);
+  color: var(--color-fg-muted);
+  word-break: break-all;
+}
+
+/* ── Follow / reply graph sections ─────────────────────────── */
+
+.network-panel__follow-graph,
+.network-panel__reply-graph {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.network-panel__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.network-panel__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.network-panel__column-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-fg-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.network-panel__mutual {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+  margin: 0;
+}
+
+/* ── Cohort signals section ────────────────────────────────── */
+
+.network-panel__cohort {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.network-panel__cohort-empty {
+  color: var(--color-fg-muted);
+  font-style: italic;
+  font-size: var(--font-size-xs);
+  margin: 0;
+}
+
+/* ── Shared-image clusters section ─────────────────────────── */
+
+.network-panel__shared-images {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.network-panel__shared-images-summary {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+  margin: 0;
+}
+
+.network-panel__shared-images-empty {
+  color: var(--color-fg-muted);
+  font-style: italic;
+  font-size: var(--font-size-xs);
+  margin: 0;
+}
+
+.network-panel__matched-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.network-panel__matched-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-xs);
+  align-items: baseline;
+}
+
+.network-panel__matched-link {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  word-break: break-all;
+  text-decoration: none;
+}
+
+.network-panel__matched-link:hover,
+.network-panel__matched-link:focus-visible {
+  text-decoration: underline;
+}
+
+.network-panel__matched-count {
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* ── Actor lists (follow / follower rows) ──────────────────── */
+
+.network-panel__actor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.network-panel__actor-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.network-panel__actor-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.network-panel__actor-link {
+  color: var(--color-accent);
+  text-decoration: none;
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.network-panel__actor-link:hover,
+.network-panel__actor-link:focus-visible {
+  text-decoration: underline;
+}
+
+.network-panel__actor-name {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.network-panel__actor-handle {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.network-panel__empty-actor-list {
+  color: var(--color-fg-muted);
+  font-style: italic;
+  font-size: var(--font-size-xs);
+  margin: 0;
+}
+
+/* ── Inline numeric & date helpers ─────────────────────────── */
+
+.network-panel__count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--color-fg-primary);
+}
+
+.network-panel__count--unknown {
+  font-weight: 400;
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+.network-panel__age {
+  color: var(--color-fg-secondary);
+}
+
+.network-panel__age--new {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+.network-panel__age--very-new {
+  color: var(--color-danger);
+  font-weight: 600;
+}

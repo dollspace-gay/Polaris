@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT reporter_did, muted_by, reason, muted_at, until\n        FROM muted_reporters\n        ORDER BY muted_at DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "reporter_did",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "muted_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "muted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "until",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "8b77d5357d2b63c84af56afd8b39a7264d811d4d3eccabc803620103e4c0f267"
+}

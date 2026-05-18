@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO upstream_labelers (did, hostname, enabled)\n        VALUES ($1, $2, TRUE)\n        ON CONFLICT (did) DO UPDATE\n        SET hostname = EXCLUDED.hostname,\n            updated_at = now()\n        WHERE upstream_labelers.hostname <> EXCLUDED.hostname\n        RETURNING (xmax = 0) AS inserted\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "inserted",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d2f5f85f1630aa00405aa63d683610c228a2f531eb0219f27e95e074e47da1a7"
+}

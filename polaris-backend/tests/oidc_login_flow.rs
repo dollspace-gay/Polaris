@@ -257,6 +257,18 @@ async fn oidc_login_flow_persists_session_row() {
     // The minimum size is 12-byte nonce + 16-byte tag = 28 bytes.
     assert!(session_row.0.len() >= 28);
 
-    // Roles are an empty set (we did not grant any) but the type is correct.
-    assert_eq!(result.ctx.roles, HashSet::<Role>::new());
+    // First-user-admin grant: Workstream A's first-run path applies
+    // uniformly across both auth backends — the OIDC sibling lives
+    // at `polaris-backend/src/auth/oidc.rs` and calls into the same
+    // `maybe_grant_first_user_admin` helper. The very first
+    // moderator to complete login on a fresh database is granted
+    // `Role::Admin` so the setup wizard is immediately reachable;
+    // this test seeds an empty `moderators` table via testcontainer,
+    // so the moderator we just logged in is the first user.
+    assert_eq!(
+        result.ctx.roles,
+        HashSet::from([Role::Admin]),
+        "first moderator on a fresh deployment must get Role::Admin via the \
+         first-user-admin grant (Workstream A)",
+    );
 }

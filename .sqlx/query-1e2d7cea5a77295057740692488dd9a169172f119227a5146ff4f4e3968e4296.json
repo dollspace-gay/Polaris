@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM muted_reporters WHERE reporter_did = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1e2d7cea5a77295057740692488dd9a169172f119227a5146ff4f4e3968e4296"
+}

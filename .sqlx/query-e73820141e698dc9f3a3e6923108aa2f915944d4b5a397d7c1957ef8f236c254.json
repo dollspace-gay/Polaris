@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                m.id                                  AS \"id!: uuid::Uuid\",\n                m.csam_trained                        AS \"csam_trained!: bool\",\n                m.calibration_complete                AS \"calibration_complete!: bool\",\n                COALESCE((\n                    SELECT COUNT(*)::bigint\n                    FROM incidents i\n                    WHERE i.assigned_to = m.id\n                      AND i.status IN ('open', 'in_review')\n                ), 0)                                 AS \"current_load!: i64\",\n                -- Senior-review agreement rate in [0.0, 1.0]. Aggregated\n                -- from the `calibration_events` table (migration 0010):\n                -- agreement / (agreement + disagreement). NULL on\n                -- moderators with no senior-review history yet; the\n                -- row handler below maps NULL → 0.0 (neutral / unknown).\n                (\n                    SELECT\n                        CASE\n                            WHEN agreement + disagreement = 0 THEN NULL\n                            ELSE agreement::float8 / (agreement + disagreement)::float8\n                        END\n                    FROM (\n                        SELECT\n                            COUNT(*) FILTER (WHERE kind = 'agreement_with_senior')    AS agreement,\n                            COUNT(*) FILTER (WHERE kind = 'disagreement_with_senior') AS disagreement\n                        FROM calibration_events\n                        WHERE moderator_id = m.id\n                    ) rates\n                )                                     AS \"agreement_with_senior_rate?: f64\"\n            FROM moderators m\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: uuid::Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "csam_trained!: bool",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 2,
+        "name": "calibration_complete!: bool",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "current_load!: i64",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "agreement_with_senior_rate?: f64",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "e73820141e698dc9f3a3e6923108aa2f915944d4b5a397d7c1957ef8f236c254"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE plc_export_cursor\n        SET last_after = $1,\n            last_run_at = now(),\n            total_labelers_discovered = total_labelers_discovered + $2\n        WHERE id = TRUE\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f67b04b5c7f83af92d69f787897159f6fa3944d30d142353a7b9b1ab5b9c41d4"
+}

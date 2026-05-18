@@ -449,6 +449,28 @@ async fn second_oauth_login_does_not_grant_admin() {
     let iss = "https://as.mock.example";
     let did = "did:plc:second-login-mod";
 
+    // Issue #214: the second login's DID must be allow-listed before
+    // the OAuth dance because the post-#214 callback path refuses to
+    // mint a session for an unrecognised DID once `moderators` is
+    // non-empty. Pre-seed a row + a `moderator` role so the
+    // complete_login path passes the ACL gate; the assertions below
+    // still check the (separate) "no admin grant on a non-first
+    // login" invariant.
+    let seeded_second: (uuid::Uuid,) = sqlx::query_as(
+        r"INSERT INTO moderators (external_id, auth_backend)
+          VALUES ($1, 'atproto')
+          RETURNING id",
+    )
+    .bind(did)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    sqlx::query("INSERT INTO moderator_roles (moderator_id, role) VALUES ($1, 'moderator')")
+        .bind(seeded_second.0)
+        .execute(&pool)
+        .await
+        .unwrap();
+
     let fetcher = Arc::new(MockFetcher::new());
     wire_routes(&fetcher, pds_url, iss, did);
 
@@ -458,24 +480,32 @@ async fn second_oauth_login_does_not_grant_admin() {
 
     let result = drive_login(&verifier, pds_url).await;
 
-    // The freshly-logged-in moderator (a different UUID from the
-    // seeded one) must carry zero roles — the helper's count-then-
-    // insert guard skipped the grant because `moderator_roles` was
-    // already non-empty.
+    // The OAuth login resolved against the pre-seeded `(atproto,
+    // did:plc:second-login-mod)` row — the upsert in
+    // `upsert_atproto_moderator_in_tx` hits ON CONFLICT and returns
+    // that row's id rather than minting a new one.
+    assert_eq!(
+        result.ctx.moderator_id.0, seeded_second.0,
+        "the OAuth login must reuse the pre-seeded allow-list row, not mint a new moderator",
+    );
     assert_ne!(
         result.ctx.moderator_id.0, seeded_mod.0,
-        "the OAuth login must mint a distinct moderator id from the seeded admin",
+        "the OAuth login must NOT collapse onto the seeded OIDC admin's id",
     );
-    let post_roles: (i64,) =
-        sqlx::query_as("SELECT count(*) FROM moderator_roles WHERE moderator_id = $1")
+    // The allow-list row carried `moderator` only; the no-admin-grant
+    // invariant requires that the login did NOT escalate that to
+    // include `admin`.
+    let roles: Vec<(String,)> =
+        sqlx::query_as("SELECT role FROM moderator_roles WHERE moderator_id = $1")
             .bind(result.ctx.moderator_id.0)
-            .fetch_one(&pool)
+            .fetch_all(&pool)
             .await
             .unwrap();
+    let role_strs: Vec<&str> = roles.iter().map(|(r,)| r.as_str()).collect();
     assert_eq!(
-        post_roles.0, 0,
-        "second moderator must NOT be granted any role on login; got {}",
-        post_roles.0,
+        role_strs,
+        vec!["moderator"],
+        "second moderator's role set must remain the seeded ['moderator']; got {role_strs:?}",
     );
 
     // audit_log first_user_admin_grant count is still 0 — neither the

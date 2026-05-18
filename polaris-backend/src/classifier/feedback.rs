@@ -83,6 +83,13 @@ pub const fn action_kind_wire_string(kind: ActionKind) -> &'static str {
         // is a second-order event on a prior action). Map to the same
         // wire token as NoAction.
         ActionKind::Reverse => "no_action",
+        // `Comment` is a moderator note with no classifier signal —
+        // the classifier never proposed an action, so there's no
+        // alignment-vs-moderator delta to feed back. Same fallback
+        // shape as Reverse: collapse to the most-conservative wire
+        // token rather than skip emission (skipping would
+        // partition the classifier's view of the case).
+        ActionKind::Comment => "no_action",
     }
 }
 

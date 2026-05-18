@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO subject_tags (subject_id, tag, applied_by)\n        VALUES ($1, $2, $3)\n        ON CONFLICT (subject_id, tag) DO UPDATE\n        SET applied_by = EXCLUDED.applied_by,\n            applied_at = now()\n        RETURNING tag, applied_by, applied_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tag",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "applied_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "applied_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "88db077c3a92d3f26672d10b2c7ae2443f6224926e6e776ac04ff2072e54b999"
+}

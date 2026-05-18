@@ -6,16 +6,15 @@
 -- subscribeLabels broadcaster (issue #26) doesn't stream unsigned labels
 -- to downstream AppViews.
 --
--- This migration adds two columns to the existing `labels` table
--- (migration 0012):
+-- This migration adds the `signature_status` discriminator column to
+-- the existing `labels` table (migration 0012). The `signed_at`
+-- TIMESTAMPTZ column already exists (added by migration 0013); the
+-- hardware-token modes reuse it.
 --
 --   `signature_status` TEXT — discriminator. Default 'signed' so
 --     existing rows are unaffected; v1 modes (file_plain,
 --     passphrase_sealed, os_keychain, cloud_kms) sign inline at emit
 --     time and never insert a row with any other value.
---
---   `signed_at` TIMESTAMPTZ — when the row transitioned to 'signed'.
---     NULL for pending rows.
 --
 -- Plus a `pending_label_queue` view so the `polaris labeler-sign-pending`
 -- CLI (#167 PR 4) and the realtime daemon's promoter (#169 PR 6) can
@@ -29,13 +28,10 @@ ALTER TABLE labels
     ADD COLUMN signature_status TEXT NOT NULL DEFAULT 'signed'
         CHECK (signature_status IN ('signed', 'pending_signature', 'signing_failed'));
 
-ALTER TABLE labels
-    ADD COLUMN signed_at TIMESTAMPTZ;
-
 -- Existing rows are 'signed' by definition (v1 emit path is synchronous).
--- The signed_at column stays NULL for those; production code that needs
--- a timestamp falls back to labels.cts (creation timestamp from the v1
--- emit path).
+-- The `signed_at` column from migration 0013 carries emit-time semantics
+-- for legacy rows and sign-completion semantics for hardware-token-mode
+-- rows once #167 PR 4 lands the actual sign-pending CLI.
 
 -- ── view ─────────────────────────────────────────────────────────────────
 

@@ -1,3 +1,11 @@
 [toolchain]
 channel = "1.88"
 components = ["rustfmt", "clippy"]
+# CI's `dtolnay/rust-toolchain@1.88` action installs the wasm32 target,
+# but rustup re-reads this file on the first `cargo` invocation. Without
+# `targets` listed here, the wasm32 sysroot is silently dropped and
+# `cargo build -p polaris-frontend --target wasm32-unknown-unknown`
+# fails with `E0463: can't find crate for 'core'`. Listing the target
+# here costs a one-time sysroot download for backend-only local devs
+# (acceptable: ~25 MB).
+targets = ["wasm32-unknown-unknown"]

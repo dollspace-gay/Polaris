@@ -59,7 +59,7 @@ pub mod explain;
 pub mod templates;
 
 pub use error::TrustPolicyError;
-pub use explain::{explain, Decomposition, ExplanationInputs};
+pub use explain::{Decomposition, ExplanationInputs, explain};
 
 /// Discriminated-union representation of a trust policy. Serialises
 /// via serde's tagged-enum form to the `upstream_labelers.weights`
@@ -487,7 +487,9 @@ mod tests {
                 assert_eq!(field, "flat");
                 assert!((value - 1.5).abs() < f32::EPSILON);
             }
-            TrustPolicyError::InvalidHalfLife(_) => panic!("expected WeightOutOfRange, got InvalidHalfLife"),
+            TrustPolicyError::InvalidHalfLife(_) => {
+                panic!("expected WeightOutOfRange, got InvalidHalfLife")
+            }
         }
     }
 
@@ -539,7 +541,12 @@ mod tests {
     /// the clamp.
     #[test]
     fn weight_floors_nan_input_to_zero() {
-        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::NAN), per_category: std::collections::HashMap::new(), time_decay: None, per_subject_class: std::collections::HashMap::new() });
+        let policy = TrustPolicy::V2(V2Body {
+            flat: Some(f32::NAN),
+            per_category: std::collections::HashMap::new(),
+            time_decay: None,
+            per_subject_class: std::collections::HashMap::new(),
+        });
         let w = weight(&obs(), &policy, Utc::now());
         assert!(w.is_finite());
         assert_eq!(w, 0.0);
@@ -548,7 +555,12 @@ mod tests {
     /// AC-1 hardening: positive infinity floors via clamp to 1.0.
     #[test]
     fn weight_clamps_positive_infinity_to_one() {
-        let policy = TrustPolicy::V2(V2Body { flat: Some(f32::INFINITY), per_category: std::collections::HashMap::new(), time_decay: None, per_subject_class: std::collections::HashMap::new() });
+        let policy = TrustPolicy::V2(V2Body {
+            flat: Some(f32::INFINITY),
+            per_category: std::collections::HashMap::new(),
+            time_decay: None,
+            per_subject_class: std::collections::HashMap::new(),
+        });
         let w = weight(&obs(), &policy, Utc::now());
         assert!(w.is_finite());
         assert_eq!(w, 1.0);
@@ -559,7 +571,8 @@ mod tests {
     fn weight_clamps_negative_infinity_to_zero() {
         let policy = TrustPolicy::V2(V2Body {
             flat: Some(f32::NEG_INFINITY),
-            per_category: std::collections::HashMap::new(), time_decay: None,
+            per_category: std::collections::HashMap::new(),
+            time_decay: None,
             per_subject_class: std::collections::HashMap::new(),
         });
         let w = weight(&obs(), &policy, Utc::now());
@@ -648,7 +661,9 @@ mod tests {
                 assert_eq!(field, "per_category");
                 assert!((value - 1.5).abs() < f32::EPSILON);
             }
-            TrustPolicyError::InvalidHalfLife(_) => panic!("expected WeightOutOfRange, got InvalidHalfLife"),
+            TrustPolicyError::InvalidHalfLife(_) => {
+                panic!("expected WeightOutOfRange, got InvalidHalfLife")
+            }
         }
     }
 
@@ -711,12 +726,18 @@ mod tests {
         // At t0 + 30 days: factor = 0.5.
         let t30 = t0 + Duration::days(30);
         let w30 = weight(&obs, &policy, t30);
-        assert!((w30 - 0.5).abs() < 1e-3, "expected ~0.5 at half-life, got {w30}");
+        assert!(
+            (w30 - 0.5).abs() < 1e-3,
+            "expected ~0.5 at half-life, got {w30}"
+        );
 
         // At t0 + 60 days (two half-lives): factor = 0.25.
         let t60 = t0 + Duration::days(60);
         let w60 = weight(&obs, &policy, t60);
-        assert!((w60 - 0.25).abs() < 1e-3, "expected ~0.25 at 2x half-life, got {w60}");
+        assert!(
+            (w60 - 0.25).abs() < 1e-3,
+            "expected ~0.25 at 2x half-life, got {w60}"
+        );
     }
 
     /// Future-dated observation doesn't get boosted past 1.0.
@@ -738,7 +759,10 @@ mod tests {
             subject_kind: "account".to_owned(),
         };
         let w = weight(&future_obs, &policy, now);
-        assert!((w - 1.0).abs() < f32::EPSILON, "future obs should not boost: got {w}");
+        assert!(
+            (w - 1.0).abs() < f32::EPSILON,
+            "future obs should not boost: got {w}"
+        );
     }
 
     /// Per-subject-class weight applies on match; misses default to
@@ -795,7 +819,9 @@ mod tests {
                 assert_eq!(field, "per_subject_class");
                 assert!((value - 1.7).abs() < f32::EPSILON);
             }
-            TrustPolicyError::InvalidHalfLife(_) => panic!("expected WeightOutOfRange, got InvalidHalfLife"),
+            TrustPolicyError::InvalidHalfLife(_) => {
+                panic!("expected WeightOutOfRange, got InvalidHalfLife")
+            }
         }
     }
 
@@ -807,7 +833,9 @@ mod tests {
                 flat: None,
                 per_category: std::collections::HashMap::new(),
                 per_subject_class: std::collections::HashMap::new(),
-            time_decay: Some(TimeDecay { half_life_days: bad }),
+                time_decay: Some(TimeDecay {
+                    half_life_days: bad,
+                }),
             });
             let err = validate(&policy).unwrap_err();
             match err {
@@ -819,7 +847,9 @@ mod tests {
                         "expected matching half-life value, got {v} for bad={bad}"
                     );
                 }
-                TrustPolicyError::WeightOutOfRange { .. } => panic!("expected InvalidHalfLife for {bad}, got WeightOutOfRange"),
+                TrustPolicyError::WeightOutOfRange { .. } => {
+                    panic!("expected InvalidHalfLife for {bad}, got WeightOutOfRange")
+                }
             }
         }
     }

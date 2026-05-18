@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.id            AS id,\n                 m.external_id   AS external_id,\n                 m.auth_backend  AS auth_backend,\n                 m.display_name  AS display_name,\n                 m.pinned_admin  AS pinned_admin,\n                 m.last_login_at AS last_login_at\n          FROM moderators m\n          ORDER BY m.external_id ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "external_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "auth_backend",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "pinned_admin",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "last_login_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "ace5458e1f45c9d407a99269756c46c07da45df2d0228324ff918168709f1a6a"
+}

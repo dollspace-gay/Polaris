@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE upstream_labelers\n        SET consecutive_failures = 0,\n            last_success_at = now(),\n            dormant_until = NULL,\n            updated_at = now()\n        WHERE did = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "b8f9e7623623ec863db6e4f045eebbacf73d77448b35c9e797bf95686c302d20"
+}

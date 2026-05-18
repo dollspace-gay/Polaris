@@ -1,0 +1,152 @@
+/*
+ * Case drawer overlay (issue #93, mod-workstation feature #3).
+ *
+ * A right-side sliding panel that hosts a `CaseViewBody` for the
+ * subject the moderator focused in the triage queue. Mounted by
+ * `pages::queue::TriageQueue`; the queue keeps its scroll position
+ * and keyboard focus underneath while the drawer is open.
+ *
+ * Token discipline: every colour value reaches through `var(--…)` —
+ * the `styles_tokens` test forbids literal colour values outside
+ * `tokens.css`. The semi-transparent backdrop uses
+ * `--color-overlay` (declared in tokens.css alongside the other
+ * modal-overlay surfaces).
+ *
+ * Animation: the panel slides in via `transform: translateX(...)`
+ * with a `transition` — never via `display: none → block` (which
+ * would skip the animation). The drawer markup is gated by Leptos
+ * `<Show when=…>`; when closed, the overlay element is not mounted
+ * at all. When open, the panel renders with the `--open` modifier
+ * class which un-translates it from off-screen to in-position. A
+ * future enhancement could keep the panel mounted across closes for
+ * a true slide-out animation; for now the slide-IN is the pattern
+ * shipped, matching Ozone's user-facing behaviour.
+ */
+
+.case-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.case-drawer--open {
+  pointer-events: auto;
+}
+
+.case-drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  background-color: var(--color-overlay);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.case-drawer__panel {
+  position: relative;
+  width: min(48rem, calc(100vw - 4rem));
+  height: 100vh;
+  background-color: var(--color-bg-primary);
+  color: var(--color-fg-primary);
+  border-left: 1px solid var(--color-border);
+  box-shadow: var(--shadow-elevated);
+  display: flex;
+  flex-direction: column;
+  /*
+   * Start off-screen, slide in. `--open` flips the translate to 0.
+   * The CSS transition gives the user feedback that the panel slid
+   * in from the right rather than appearing in place. Pure CSS — no
+   * JS-driven animation, satisfies the "transform + transition only"
+   * contract from the spec.
+   */
+  transform: translateX(100%);
+  transition: transform 180ms ease-out;
+}
+
+.case-drawer--open .case-drawer__panel {
+  transform: translateX(0);
+}
+
+.case-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-bg-elevated);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.case-drawer__title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-family: var(--font-mono);
+  color: var(--color-fg-primary);
+  /* Truncate long subject ids so the title bar height is stable. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.case-drawer__close {
+  padding: var(--space-xs) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+
+.case-drawer__close:hover {
+  background-color: var(--color-bg-elevated);
+}
+
+.case-drawer__close:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.case-drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg);
+  background-color: var(--color-bg-primary);
+}
+
+/*
+ * Mobile: full-screen takeover so the panel does not waste space on
+ * phone-sized viewports. Matches the dashboard / case-view ≤ 768px
+ * pattern (REQ-B4 parity).
+ */
+@media (max-width: 768px) {
+  .case-drawer__panel {
+    width: 100vw;
+    border-left: none;
+  }
+
+  .case-drawer__header {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .case-drawer__body {
+    padding: var(--space-md);
+  }
+}
+
+/* Unreachable-branch placeholder rendered by `case_drawer.rs::body_view`
+   when its `<Show when=is_some>` gate hasn't filtered out a transient
+   `None` between mount and signal-read. `hidden=true` on the element
+   already removes it from layout; the rule exists so the styles-
+   coverage test recognises the class name. */
+.case-drawer__body-empty {
+  display: none;
+}

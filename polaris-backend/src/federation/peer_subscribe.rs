@@ -118,11 +118,7 @@ pub async fn run_peer_worker(
 /// The pump reconnects with exponential backoff on transport errors and
 /// forwards every decoded commit event (or per-reconnect error) over `tx`.
 /// It exits when `cancel` fires or `tx.send` returns an error (consumer gone).
-async fn run_pump(
-    subscribe_url: String,
-    tx: mpsc::Sender<PumpItem>,
-    cancel: CancellationToken,
-) {
+async fn run_pump(subscribe_url: String, tx: mpsc::Sender<PumpItem>, cancel: CancellationToken) {
     let mut backoff_secs = BACKOFF_INITIAL;
     let mut firehose = proto_blue::repo::Firehose::new(subscribe_url.clone());
 
@@ -256,9 +252,18 @@ async fn handle_commit(
 
     let (_, block_map) = parse_commit_car(peer, &commit.blocks)?;
     let commit_cid_str = commit.commit.to_string();
-    let sig_status = verify_and_classify(peer, resolver, &commit, &block_map, &commit_cid_str).await;
+    let sig_status =
+        verify_and_classify(peer, resolver, &commit, &block_map, &commit_cid_str).await;
 
-    quarantine_ops(peer, pool, &polaris_ops, &block_map, &commit_cid_str, sig_status).await
+    quarantine_ops(
+        peer,
+        pool,
+        &polaris_ops,
+        &block_map,
+        &commit_cid_str,
+        sig_status,
+    )
+    .await
 }
 
 /// Filter a commit's ops to creates/updates of Polaris-namespaced records.
@@ -348,7 +353,12 @@ async fn quarantine_ops(
             continue;
         };
         let record_cid_str = record_cid.to_string();
-        let nsid = op.path.split('/').next().unwrap_or(op.path.as_str()).to_owned();
+        let nsid = op
+            .path
+            .split('/')
+            .next()
+            .unwrap_or(op.path.as_str())
+            .to_owned();
 
         let Some(raw_cbor_ref) = block_map.get(record_cid) else {
             warn!(
@@ -359,8 +369,15 @@ async fn quarantine_ops(
             continue;
         };
 
-        insert_quarantine(pool, &record_cid_str, &peer.did, &nsid, raw_cbor_ref, sig_status)
-            .await?;
+        insert_quarantine(
+            pool,
+            &record_cid_str,
+            &peer.did,
+            &nsid,
+            raw_cbor_ref,
+            sig_status,
+        )
+        .await?;
 
         debug!(
             peer_did = %peer.did,
@@ -385,12 +402,13 @@ async fn resolve_and_verify_commit_sig(
     commit_cid_str: &str,
 ) -> Result<String, FederationError> {
     // Extract the raw commit block bytes.
-    let commit_bytes = block_map
-        .get(&commit.commit)
-        .ok_or_else(|| FederationError::RepoFetchFailed {
-            did: peer.did.clone(),
-            message: "commit CID not found in CAR block map".to_owned(),
-        })?;
+    let commit_bytes =
+        block_map
+            .get(&commit.commit)
+            .ok_or_else(|| FederationError::RepoFetchFailed {
+                did: peer.did.clone(),
+                message: "commit CID not found in CAR block map".to_owned(),
+            })?;
 
     // Decode into a SignedCommit.
     let lex_value = proto_blue::lex_cbor::decode(commit_bytes).map_err(|e| {
@@ -399,12 +417,13 @@ async fn resolve_and_verify_commit_sig(
             message: format!("commit block CBOR decode failed: {e}"),
         }
     })?;
-    let signed_commit = proto_blue::repo::SignedCommit::from_lex_value(&lex_value).map_err(|e| {
-        FederationError::RepoFetchFailed {
-            did: peer.did.clone(),
-            message: format!("commit block is not a valid SignedCommit: {e}"),
-        }
-    })?;
+    let signed_commit =
+        proto_blue::repo::SignedCommit::from_lex_value(&lex_value).map_err(|e| {
+            FederationError::RepoFetchFailed {
+                did: peer.did.clone(),
+                message: format!("commit block is not a valid SignedCommit: {e}"),
+            }
+        })?;
 
     // Resolve the peer's signing key (cache → live fetch).
     let did_key = resolver.resolve(&peer.did).await?;
@@ -560,8 +579,8 @@ mod tests {
     /// token fires before any pump item arrives, the consume loop returns Ok.
     #[tokio::test]
     async fn consume_loop_exits_on_cancel() {
-        use std::sync::Arc;
         use crate::federation::verify::{LabelerServiceFetcher, PeerKeyResolver};
+        use std::sync::Arc;
 
         #[derive(Debug)]
         struct PanicFetcher;
@@ -572,9 +591,7 @@ mod tests {
             ) -> std::pin::Pin<
                 Box<dyn std::future::Future<Output = Result<String, FederationError>> + Send + 'a>,
             > {
-                Box::pin(async move {
-                    panic!("PanicFetcher should never be called in this test")
-                })
+                Box::pin(async move { panic!("PanicFetcher should never be called in this test") })
             }
         }
 

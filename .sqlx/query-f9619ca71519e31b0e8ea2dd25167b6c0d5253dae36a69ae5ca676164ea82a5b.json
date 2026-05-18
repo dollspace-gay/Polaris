@@ -1,0 +1,57 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            i.id                AS \"id!: uuid::Uuid\",\n            i.primary_subject   AS \"primary_subject!: uuid::Uuid\",\n            i.severity          AS \"severity!: String\",\n            i.status            AS \"status!: String\",\n            i.opened_at         AS \"opened_at!: DateTime<Utc>\",\n            COALESCE(\n                (SELECT COUNT(*)::bigint\n                 FROM incident_related_subjects irs\n                 WHERE irs.incident_id = i.id),\n                0\n            )                   AS \"related_subject_count!: i64\"\n        FROM incidents i\n        WHERE\n            -- Status filter (issue #94 facet). When omitted, fall\n            -- back to the pre-#94 default (open / in_review /\n            -- escalated) so the unfiltered shape is preserved.\n            (\n                ($3::text IS NULL AND i.status IN ('open', 'in_review', 'escalated'))\n                OR i.status = $3\n            )\n            -- Date-range facets (inclusive bounds).\n            AND ($4::timestamptz IS NULL OR i.opened_at >= $4)\n            AND ($5::timestamptz IS NULL OR i.opened_at <= $5)\n            -- Reporter-DID facet: keep the incident iff at least one\n            -- report under it was filed by this reporter.\n            AND (\n                $1::text IS NULL\n                OR EXISTS (\n                    SELECT 1 FROM reports r\n                    WHERE r.incident_id = i.id AND r.reporter_did = $1\n                )\n            )\n            -- Category facet: keep the incident iff at least one\n            -- report under it is in this category.\n            AND (\n                $2::text IS NULL\n                OR EXISTS (\n                    SELECT 1 FROM reports r\n                    WHERE r.incident_id = i.id AND r.category = $2\n                )\n            )\n        ORDER BY i.opened_at DESC\n        LIMIT $6\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id!: uuid::Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "primary_subject!: uuid::Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "severity!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "status!: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "opened_at!: DateTime<Utc>",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "related_subject_count!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "f9619ca71519e31b0e8ea2dd25167b6c0d5253dae36a69ae5ca676164ea82a5b"
+}

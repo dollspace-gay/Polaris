@@ -226,11 +226,19 @@ impl ReportRepo for PgReportRepo {
         subject_id: SubjectId,
         limit: i64,
     ) -> Result<Vec<Report>, RepoError> {
+        // Issue #202: skip reports that have already been actioned —
+        // the moderator UI's report card is the only call site, and a
+        // card whose Ack/Dismiss/Escalate action has been committed
+        // must stop appearing in the panel. `actioned_at IS NULL`
+        // matches the partial-index predicate from migration 45 so
+        // Postgres can serve the read from the small "open reports"
+        // index.
         let rows = sqlx::query!(
             r#"
             SELECT id, subject_id, incident_id, reporter_did, category, body, created_at
             FROM reports
             WHERE subject_id = $1
+              AND actioned_at IS NULL
             ORDER BY created_at DESC
             LIMIT $2
             "#,

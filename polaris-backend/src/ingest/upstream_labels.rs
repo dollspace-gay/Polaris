@@ -52,9 +52,14 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use polaris_types::{Did, LabelValue, NewObservation, ObservationKind, SubjectId, SubjectKind};
 use proto_blue::api::generated::com::atproto::label::defs::Label as ProtoLabel;
+use proto_blue::api::generated::com::atproto::label::subscribe_labels::Labels as ProtoLabels;
+use proto_blue::lex_data::LexValue;
+use proto_blue::ws::{Frame, MessageFrame, WebSocketKeepAlive, WebSocketKeepAliveOpts};
 use rand::Rng;
 use sqlx::PgPool;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
+use url::form_urlencoded;
 
 use crate::repo::{ObservationRepo, RepoError};
 
@@ -169,6 +174,19 @@ pub enum HandleError {
     #[error("failed to canonical-CBOR-encode label payload")]
     CanonicalEncode,
 
+    /// The label carried a `cts` or `exp` field that did not parse as
+    /// RFC 3339. The proto-blue lex stack accepts a permissive subset
+    /// for backwards-compatibility with older labelers; if the column
+    /// store rejects the value we drop the frame rather than persisting
+    /// a row whose `cts` does not round-trip.
+    #[error("label timestamp did not parse as RFC 3339: field={field}, value={value}")]
+    TimestampParse {
+        /// `"cts"` or `"exp"`.
+        field: &'static str,
+        /// The offending value, verbatim from the wire.
+        value: String,
+    },
+
     /// Could not look up or refresh the upstream's signing key.
     #[error("key-cache lookup failed for did={did}")]
     KeyLookup {
@@ -194,6 +212,33 @@ impl From<sqlx::Error> for HandleError {
     fn from(err: sqlx::Error) -> Self {
         Self::Database(err)
     }
+}
+
+/// Fatal errors that terminate the per-upstream run-loop.
+///
+/// Frame-level errors ([`HandleError`]) are caught and logged inside the
+/// loop; only the conditions enumerated here are reasons to exit the
+/// task. The supervising binary logs the exit and keeps the process
+/// running (a fault on one upstream cannot wedge the rest of Polaris).
+#[derive(Debug, thiserror::Error)]
+pub enum ConsumerError {
+    /// The keep-alive client gave up reconnecting. The supervisor logs
+    /// and leaves the task exited; an operator can restart it via the
+    /// admin surface (or by toggling the row's `enabled` flag).
+    #[error("WebSocket reconnect attempts exhausted")]
+    ReconnectExhausted,
+
+    /// A non-recoverable transport error surfaced by the keep-alive
+    /// client (e.g. TLS handshake failure that won't be cured by
+    /// retrying). The underlying `WsError` is preserved for diagnostics.
+    #[error("WebSocket transport error: {0}")]
+    Transport(String),
+
+    /// The consumer task was cancelled via its `CancellationToken`.
+    /// This is the clean-shutdown path; the supervisor treats it as a
+    /// successful exit.
+    #[error("consumer cancelled")]
+    Cancelled,
 }
 
 /// Errors raised by [`UpstreamKeyCache`].
@@ -444,15 +489,37 @@ impl<O: ObservationRepo + 'static> UpstreamLabelerConsumer<O> {
     /// Handle one inbound label frame.
     ///
     /// Total at the verify-or-drop boundary: any error path returns an
-    /// [`HandleError`] *without* persisting an observation. The caller (the
+    /// [`HandleError`] *without* persisting any row. The caller (the
     /// run-loop) maps [`HandleError::Unsigned`] and
     /// [`HandleError::BadSignature`] to a structured `tracing::warn!` and
     /// drops the frame; other errors propagate as fatal.
+    ///
+    /// `seq` is the wrapping `Labels` envelope's sequence number — the
+    /// same value covers every `Label` inside one envelope. The run-loop
+    /// supplies it from the decoded envelope; unit/integration tests
+    /// supply a synthetic value via [`Self::handle_frame_with_seq`] or
+    /// pass `0` here (the latter is a back-compat shim around
+    /// [`Self::handle_frame_with_seq`] with a fixed seq=0).
     ///
     /// # Errors
     ///
     /// See [`HandleError`].
     pub async fn handle_frame(&self, frame: &ProtoLabel) -> Result<i64, HandleError> {
+        self.handle_frame_with_seq(frame, 0).await
+    }
+
+    /// Like [`Self::handle_frame`] but with an explicit envelope sequence
+    /// number. The run-loop uses this; tests that want to assert
+    /// cursor-progress behaviour use it too.
+    ///
+    /// # Errors
+    ///
+    /// See [`HandleError`].
+    pub async fn handle_frame_with_seq(
+        &self,
+        frame: &ProtoLabel,
+        seq: i64,
+    ) -> Result<i64, HandleError> {
         let sig = frame.sig.as_deref().ok_or(HandleError::Unsigned)?;
 
         // Look up the upstream's signing key (cache → DB → fetcher).
@@ -479,10 +546,31 @@ impl<O: ObservationRepo + 'static> UpstreamLabelerConsumer<O> {
             return Err(HandleError::BadSignature { did: signing_did });
         }
 
-        // The signature verified. Resolve the subject (DID-keyed) and
-        // persist an ExternalLabel observation. The Postgres trigger on
-        // `observations` fires automatically and refreshes the subject's
-        // risk_signals JSONB.
+        // Signature verified. Persist into the local label index FIRST —
+        // this is the bunnynabbit `atp-label-indexer` pattern: the
+        // case-view reads this table, never the AppView. The persist is
+        // unconditional on subject-existence (a label targeting any URI
+        // is recorded, even if Polaris has never observed the subject),
+        // so post-level labels from labelers we subscribe to surface in
+        // the panel for any account a moderator opens.
+        persist_to_indexed_labels(&self.pool, frame, sig, seq).await?;
+
+        // Health bookkeeping: a verified + persisted frame is the
+        // signal of a healthy labeler. Clear any accumulated
+        // dormancy so the supervisor stops avoiding this row. The
+        // write is idempotent — running it on every frame is cheap
+        // and gives operators a near-real-time `last_success_at`.
+        if let Err(err) = record_consumer_success(&self.pool, &self.config.did).await {
+            tracing::warn!(
+                upstream = %self.config.did,
+                error = %err,
+                "failed to record consumer health success; continuing",
+            );
+        }
+
+        // Then persist the pattern-engine observation (subject-bound).
+        // The Postgres trigger on `observations` refreshes the subject's
+        // risk_signals JSONB automatically.
         let resolved_did = extract_did_from_uri(&frame.uri);
         let subject_id = find_or_create_account_subject(&self.pool, resolved_did).await?;
         let weight = self.config.weight_for(&frame.val);
@@ -506,15 +594,6 @@ impl<O: ObservationRepo + 'static> UpstreamLabelerConsumer<O> {
         };
         self.observations.insert(new_obs).await?;
 
-        // Advance the cursor. The Labels message frame carries one `seq`
-        // covering a Vec<Label>; the per-frame handler is called once per
-        // Label inside it, so the caller passes the same `seq` repeatedly.
-        // We accept the per-Label seq here for unit-testability — in
-        // practice the run-loop computes it from the wrapping `Labels`.
-        // We treat it as i64; the protocol's `seq` is i64. The frame's own
-        // `ver` field is unrelated.
-        // Callers without a wire-level seq pass 0 and ignore the return.
-        let seq = 0_i64;
         Ok(seq)
     }
 
@@ -530,6 +609,447 @@ impl<O: ObservationRepo + 'static> UpstreamLabelerConsumer<O> {
     /// caller wraps it as fatal (cursor loss → duplicate work on restart).
     pub async fn flush_cursor(&self, seq: i64) -> Result<(), sqlx::Error> {
         flush_cursor(&self.pool, &self.config.did, seq).await
+    }
+
+    /// Drive the per-upstream subscribeLabels consumer loop.
+    ///
+    /// Connects via [`WebSocketKeepAlive`] to
+    /// `wss://{hostname}/xrpc/com.atproto.label.subscribeLabels?cursor={seq}`
+    /// and processes inbound `#labels` and `#info` envelopes until either
+    /// the WebSocket exhausts its reconnect budget or `cancel` is fired.
+    ///
+    /// On every reconnect the URL function reads the latest persisted
+    /// cursor from `upstream_labeler_cursors.last_seq`, so a resumed
+    /// connection never re-delivers a label whose effects were already
+    /// recorded.
+    ///
+    /// # Errors
+    ///
+    /// See [`ConsumerError`]. Frame-level errors do NOT terminate the
+    /// loop — they are logged at WARN and the loop continues.
+    pub async fn run(self, cancel: CancellationToken) -> Result<(), ConsumerError> {
+        let initial_seq = load_cursor(&self.pool, &self.config.did)
+            .await
+            .unwrap_or_else(|err| {
+                tracing::warn!(
+                    upstream = %self.config.did,
+                    error = %err,
+                    "failed to load cursor at startup; resuming from 0",
+                );
+                0
+            });
+        let initial_url = build_subscribe_url(&self.config.hostname, initial_seq);
+
+        // URL function: every reconnect reads the latest persisted cursor.
+        let url_pool = self.pool.clone();
+        let url_did = self.config.did.clone();
+        let url_host = self.config.hostname.clone();
+        let url_fn: proto_blue::ws::keepalive::UrlFn = Arc::new(move || {
+            let pool = url_pool.clone();
+            let did = url_did.clone();
+            let host = url_host.clone();
+            Box::pin(async move {
+                let seq = load_cursor(&pool, &did).await.unwrap_or(0);
+                build_subscribe_url(&host, seq)
+            })
+        });
+
+        let opts = WebSocketKeepAliveOpts {
+            // Cap at a reasonable upper bound so a permanently-broken
+            // upstream eventually surfaces as ReconnectExhausted; the
+            // supervisor will log + exit the task. Operators can re-
+            // enable by toggling `upstream_labelers.enabled`.
+            max_reconnect_attempts: Some(20),
+            ..WebSocketKeepAliveOpts::default()
+        };
+
+        // `WebSocketKeepAlive::new` is gated by proto-blue-ws's own
+        // `tungstenite`/`gloo-ws` features (picked per target by proto-
+        // blue's umbrella `ws` feature). Polaris does not need to gate
+        // here — the constructor is present iff the right transport is
+        // compiled in.
+        let mut ws = WebSocketKeepAlive::new(initial_url, opts).with_url_fn(url_fn);
+
+        tracing::info!(
+            upstream = %self.config.did,
+            hostname = %self.config.hostname,
+            cursor = initial_seq,
+            "upstream label consumer starting",
+        );
+
+        loop {
+            // Two-arm cancellation race: a cancel signal short-circuits
+            // the recv. The recv arm yields a `RecvOutcome` (instead of
+            // raw `Result<Option<Vec<u8>>, _>`) so both branches resolve
+            // to the same sized type, satisfying tokio::select!'s
+            // unification.
+            let outcome: RecvOutcome = tokio::select! {
+                biased;
+                () = cancel.cancelled() => RecvOutcome::Cancelled,
+                recv = ws.recv() => match recv {
+                    Ok(Some(b)) => RecvOutcome::Frame(b),
+                    Ok(None) => RecvOutcome::CleanClose,
+                    Err(proto_blue::ws::WsError::ReconnectExhausted { attempts }) =>
+                        RecvOutcome::Exhausted(attempts),
+                    Err(err) => RecvOutcome::Transport(err.to_string()),
+                },
+            };
+
+            let bytes = match outcome {
+                RecvOutcome::Frame(b) => b,
+                RecvOutcome::Cancelled => {
+                    tracing::info!(upstream = %self.config.did, "consumer cancelled");
+                    return Err(ConsumerError::Cancelled);
+                }
+                RecvOutcome::CleanClose => {
+                    tracing::info!(
+                        upstream = %self.config.did,
+                        "upstream closed the WebSocket; reconnecting on next recv",
+                    );
+                    continue;
+                }
+                RecvOutcome::Exhausted(attempts) => {
+                    apply_consumer_dormancy(
+                        &self.pool,
+                        &self.config.did,
+                        "reconnect budget exhausted; consumer exiting",
+                        Some(attempts),
+                        None,
+                    )
+                    .await;
+                    return Err(ConsumerError::ReconnectExhausted);
+                }
+                RecvOutcome::Transport(err) => {
+                    apply_consumer_dormancy(
+                        &self.pool,
+                        &self.config.did,
+                        "non-recoverable WebSocket error; consumer exiting",
+                        None,
+                        Some(err.as_str()),
+                    )
+                    .await;
+                    return Err(ConsumerError::Transport(err));
+                }
+            };
+
+            if let Err(err) = self.handle_envelope(&bytes).await {
+                tracing::warn!(
+                    upstream = %self.config.did,
+                    error = %err,
+                    "frame-level handling error; dropping frame and continuing",
+                );
+            }
+        }
+    }
+
+    /// Decode one wire envelope and dispatch it.
+    ///
+    /// Returns `Ok(())` for any outcome that does NOT warrant exiting
+    /// the run-loop (decoded successfully and labels handled, or
+    /// decoded but unrecognised type — logged at WARN). Returns an
+    /// `Err(EnvelopeError)` only when the envelope itself fails to
+    /// decode, which the caller logs and skips.
+    async fn handle_envelope(&self, bytes: &[u8]) -> Result<(), EnvelopeError> {
+        let frame = Frame::decode(bytes).map_err(|e| EnvelopeError::FrameDecode(e.to_string()))?;
+        let MessageFrame { r#type, body } = match frame {
+            Frame::Message(m) => m,
+            Frame::Error(e) => {
+                // An error frame is the labeler telling us something
+                // went wrong on its side (e.g. `FutureCursor` if we
+                // resumed past its tail). Log + continue; the keep-
+                // alive will reconnect on the next failure.
+                tracing::warn!(
+                    upstream = %self.config.did,
+                    error = %e.error,
+                    message = e.message.as_deref().unwrap_or(""),
+                    "upstream sent error frame",
+                );
+                return Ok(());
+            }
+        };
+
+        match r#type.as_deref() {
+            Some("#labels") => {
+                // Decode straight from the `LexValue::Map` body rather than
+                // round-tripping through `lex_to_json` + `serde_json`. The
+                // round-trip path corrupts the `sig` field: CBOR
+                // major-type-2 bytes become `LexValue::Bytes`, which
+                // `lex_to_json` serialises as the AT-Proto wrapper
+                // `{"$bytes": "<base64>"}`. The typed `Label` struct's
+                // `sig: Option<Vec<u8>>` field would then refuse to
+                // deserialise from that wrapper ("invalid type: map,
+                // expected a sequence"). Every received label-frame
+                // was being dropped before this fix.
+                let labels_msg = decode_labels_body(&body).map_err(EnvelopeError::BodyDecode)?;
+                let seq = labels_msg.seq;
+                for label in &labels_msg.labels {
+                    if let Err(err) = self.handle_frame_with_seq(label, seq).await {
+                        tracing::warn!(
+                            upstream = %self.config.did,
+                            seq,
+                            error = ?err,
+                            "label rejected at verify-or-drop boundary",
+                        );
+                    }
+                }
+                // Advance the persisted cursor once per envelope; the
+                // monotonicity guard inside `flush_cursor` prevents a
+                // stale envelope from rewinding the persisted value.
+                if let Err(err) = flush_cursor(&self.pool, &self.config.did, seq).await {
+                    tracing::warn!(
+                        upstream = %self.config.did,
+                        seq,
+                        error = %err,
+                        "failed to flush cursor; will replay on reconnect",
+                    );
+                }
+                Ok(())
+            }
+            Some("#info") => {
+                // The subscription lexicon allows `#info` frames for
+                // out-of-band notices like backfill warnings. Log
+                // verbatim; they don't advance the cursor.
+                tracing::info!(
+                    upstream = %self.config.did,
+                    info = ?body,
+                    "upstream sent info frame",
+                );
+                Ok(())
+            }
+            other => {
+                tracing::warn!(
+                    upstream = %self.config.did,
+                    r#type = ?other,
+                    "ignoring unrecognised subscription frame type",
+                );
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Outcome of a single `recv` race in the run-loop.
+///
+/// All variants are sized; the enum lets `tokio::select!` unify the
+/// two branch types into one. The dispatching `match` then turns each
+/// variant into the appropriate control-flow (continue, return, or
+/// process the frame bytes).
+enum RecvOutcome {
+    /// A binary subscription envelope arrived; the caller dispatches it.
+    Frame(Vec<u8>),
+    /// The cancellation token fired before recv produced a frame.
+    Cancelled,
+    /// The peer closed the WebSocket cleanly; the caller continues the
+    /// loop so the keep-alive reconnects on the next call.
+    CleanClose,
+    /// The keep-alive exhausted its reconnect budget; the caller exits.
+    Exhausted(u32),
+    /// A non-recoverable transport error surfaced; the caller exits.
+    Transport(String),
+}
+
+/// Decode a `com.atproto.label.subscribeLabels#labels` envelope body
+/// from its [`LexValue::Map`] form into a typed [`ProtoLabels`].
+#[allow(
+    clippy::too_many_lines,
+    reason = "linear field-by-field walker over the Label wire shape — \
+              splitting per-field type checks across helpers would \
+              push the error-context construction across function \
+              boundaries and lose the per-index position in each \
+              error message."
+)]
+///
+/// This bypasses `serde_json` to handle AT-Proto's CBOR bytes
+/// correctly: `sig` is encoded as DAG-CBOR major-type-2 bytes, which
+/// becomes [`LexValue::Bytes`] in the decoder. Going through
+/// `lex_to_json` would wrap that as `{"$bytes": "<base64>"}`, which
+/// the typed `Label::sig: Option<Vec<u8>>` field cannot deserialise.
+/// Walking the map directly avoids the round-trip.
+fn decode_labels_body(body: &LexValue) -> Result<ProtoLabels, String> {
+    use proto_blue::syntax::{Datetime as ProtoDatetime, Did as ProtoDid};
+
+    let LexValue::Map(root) = body else {
+        return Err(format!("body is {} not map", lex_kind(body)));
+    };
+    let labels_lex = root
+        .get("labels")
+        .ok_or_else(|| "body missing `labels` field".to_owned())?;
+    let LexValue::Array(labels_arr) = labels_lex else {
+        return Err(format!("body.labels is {} not array", lex_kind(labels_lex)));
+    };
+    let seq_lex = root
+        .get("seq")
+        .ok_or_else(|| "body missing `seq` field".to_owned())?;
+    let LexValue::Integer(seq) = seq_lex else {
+        return Err(format!("body.seq is {} not integer", lex_kind(seq_lex)));
+    };
+
+    let mut labels = Vec::with_capacity(labels_arr.len());
+    for (idx, entry) in labels_arr.iter().enumerate() {
+        let LexValue::Map(m) = entry else {
+            return Err(format!("body.labels[{idx}] is {} not map", lex_kind(entry)));
+        };
+        let cid = match m.get("cid") {
+            Some(LexValue::String(s)) => Some(s.clone()),
+            Some(LexValue::Null) | None => None,
+            Some(other) => {
+                return Err(format!(
+                    "body.labels[{idx}].cid is {} not string|null",
+                    lex_kind(other)
+                ));
+            }
+        };
+        let cts_str = match m.get("cts") {
+            Some(LexValue::String(s)) => s.clone(),
+            other => {
+                return Err(format!(
+                    "body.labels[{idx}].cts is {} not string",
+                    other.map_or("missing", lex_kind)
+                ));
+            }
+        };
+        let cts = ProtoDatetime::new(&cts_str)
+            .map_err(|e| format!("body.labels[{idx}].cts invalid: {e}"))?;
+        let exp = match m.get("exp") {
+            Some(LexValue::String(s)) => Some(
+                ProtoDatetime::new(s)
+                    .map_err(|e| format!("body.labels[{idx}].exp invalid: {e}"))?,
+            ),
+            Some(LexValue::Null) | None => None,
+            Some(other) => {
+                return Err(format!(
+                    "body.labels[{idx}].exp is {} not string|null",
+                    lex_kind(other)
+                ));
+            }
+        };
+        let neg = match m.get("neg") {
+            Some(LexValue::Bool(b)) => Some(*b),
+            Some(LexValue::Null) | None => None,
+            Some(other) => {
+                return Err(format!(
+                    "body.labels[{idx}].neg is {} not bool|null",
+                    lex_kind(other)
+                ));
+            }
+        };
+        let sig = match m.get("sig") {
+            Some(LexValue::Bytes(b)) => Some(b.clone()),
+            Some(LexValue::Null) | None => None,
+            Some(other) => {
+                return Err(format!(
+                    "body.labels[{idx}].sig is {} not bytes|null",
+                    lex_kind(other)
+                ));
+            }
+        };
+        let src_str = match m.get("src") {
+            Some(LexValue::String(s)) => s.clone(),
+            other => {
+                return Err(format!(
+                    "body.labels[{idx}].src is {} not string",
+                    other.map_or("missing", lex_kind)
+                ));
+            }
+        };
+        let src =
+            ProtoDid::new(&src_str).map_err(|e| format!("body.labels[{idx}].src invalid: {e}"))?;
+        let uri = match m.get("uri") {
+            Some(LexValue::String(s)) => s.clone(),
+            other => {
+                return Err(format!(
+                    "body.labels[{idx}].uri is {} not string",
+                    other.map_or("missing", lex_kind)
+                ));
+            }
+        };
+        let val = match m.get("val") {
+            Some(LexValue::String(s)) => s.clone(),
+            other => {
+                return Err(format!(
+                    "body.labels[{idx}].val is {} not string",
+                    other.map_or("missing", lex_kind)
+                ));
+            }
+        };
+        let ver = match m.get("ver") {
+            Some(LexValue::Integer(n)) => Some(*n),
+            Some(LexValue::Null) | None => None,
+            Some(other) => {
+                return Err(format!(
+                    "body.labels[{idx}].ver is {} not integer|null",
+                    lex_kind(other)
+                ));
+            }
+        };
+        labels.push(ProtoLabel {
+            cid,
+            cts,
+            exp,
+            neg,
+            sig,
+            src,
+            uri,
+            val,
+            ver,
+        });
+    }
+
+    Ok(ProtoLabels { labels, seq: *seq })
+}
+
+/// Operator-readable label for a [`LexValue`] variant — used in
+/// error messages from [`decode_labels_body`] so a malformed frame
+/// surfaces the type that was found, not just "not a string".
+fn lex_kind(v: &LexValue) -> &'static str {
+    match v {
+        LexValue::Null => "null",
+        LexValue::Bool(_) => "bool",
+        LexValue::Integer(_) => "integer",
+        LexValue::String(_) => "string",
+        LexValue::Bytes(_) => "bytes",
+        LexValue::Cid(_) => "cid",
+        LexValue::Array(_) => "array",
+        LexValue::Map(_) => "map",
+    }
+}
+
+/// Envelope-level errors that the run-loop swallows.
+///
+/// These describe a single mis-shaped wire envelope. The loop logs and
+/// continues; persistent decode failures are an upstream-protocol bug,
+/// not a Polaris-side fault.
+#[derive(Debug, thiserror::Error)]
+enum EnvelopeError {
+    #[error("frame decode failed: {0}")]
+    FrameDecode(String),
+    #[error("body decode failed: {0}")]
+    BodyDecode(String),
+}
+
+/// Build the subscription URL for a given upstream hostname + cursor.
+///
+/// The cursor is omitted entirely when `seq == 0` (rather than emitted
+/// as `?cursor=0`) so the labeler interprets the first connection as
+/// "start at the live edge" rather than "replay from the beginning of
+/// time." Once a cursor has been persisted, every subsequent reconnect
+/// resumes from `seq + 1` (the labeler's `seq` field is the cursor for
+/// the NEXT message).
+fn build_subscribe_url(hostname: &str, seq: i64) -> String {
+    // Defensive: strip any leading `wss://` / `ws://` if the operator
+    // entered it as a URL in the upstream_labelers row. The schema
+    // expects bare hostname; this normalisation is forgiving.
+    let host = hostname
+        .trim_start_matches("wss://")
+        .trim_start_matches("ws://")
+        .trim_end_matches('/');
+    if seq <= 0 {
+        format!("wss://{host}/xrpc/com.atproto.label.subscribeLabels")
+    } else {
+        let cursor = form_urlencoded::Serializer::new(String::new())
+            .append_pair("cursor", &seq.to_string())
+            .finish();
+        format!("wss://{host}/xrpc/com.atproto.label.subscribeLabels?{cursor}")
     }
 }
 
@@ -581,11 +1101,18 @@ pub async fn flush_cursor(pool: &PgPool, upstream_did: &str, seq: i64) -> Result
 
 // ── startup wiring ──────────────────────────────────────────────────────
 
-/// Load every `upstream_labelers WHERE enabled = TRUE` row.
+/// Load every `upstream_labelers WHERE enabled = TRUE` row that is
+/// NOT currently in its dormancy window.
 ///
-/// Called once at process startup; the binary entrypoint feeds the results
-/// to [`spawn_consumers`] which constructs one detached [`tokio::spawn`]
-/// per row.
+/// A row's `dormant_until` column is populated by [`record_consumer_failure`]
+/// after a consumer task exits with a non-recoverable error (DNS
+/// NXDOMAIN, TLS handshake failure, reconnect-budget exhausted, …).
+/// The supervisor's reconcile pass calls this function and only
+/// spawns consumers for the rows it returns — labelers whose host is
+/// dead are not pounded on every 60s tick. The dormancy is cleared
+/// (set NULL) by [`record_consumer_success`] on the first verified +
+/// persisted frame, at which point the next reconcile pass will pick
+/// up the row again.
 ///
 /// # Errors
 ///
@@ -598,6 +1125,7 @@ pub async fn load_enabled_upstreams(
         SELECT did, hostname, weights
         FROM upstream_labelers
         WHERE enabled = TRUE
+          AND (dormant_until IS NULL OR dormant_until <= now())
         ORDER BY did
         "#,
     )
@@ -607,6 +1135,156 @@ pub async fn load_enabled_upstreams(
         .into_iter()
         .map(|r| UpstreamLabelerConfig::from_row(r.did, r.hostname, &r.weights))
         .collect())
+}
+
+/// Reset the per-labeler health bookkeeping on a successful frame.
+///
+/// Called from the run-loop after a label has been verified AND
+/// persisted into `indexed_labels`. The DB write is idempotent and
+/// cheap enough to fire on every frame — the operator-perceptible
+/// signal is `last_success_at` updating in near-real-time as labels
+/// flow in.
+///
+/// # Errors
+///
+/// Returns the underlying [`sqlx::Error`] on write failure.
+pub async fn record_consumer_success(pool: &PgPool, upstream_did: &str) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        r#"
+        UPDATE upstream_labelers
+        SET consecutive_failures = 0,
+            last_success_at = now(),
+            dormant_until = NULL,
+            updated_at = now()
+        WHERE did = $1
+        "#,
+        upstream_did,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Record a consumer-task failure and compute the next dormancy
+/// window for the labeler.
+///
+/// The dormancy schedule is keyed off `consecutive_failures` AFTER
+/// the increment:
+///
+///   1 →   1min
+///   2 →   5min
+///   3 →  30min
+///   4 →   6h
+///   ≥5 →  24h (cap)
+///
+/// Returns the just-written `(consecutive_failures, dormant_until)`
+/// pair so the caller can log it in the same envelope as the failure
+/// itself.
+///
+/// # Errors
+///
+/// Returns the underlying [`sqlx::Error`] on write failure.
+pub async fn record_consumer_failure(
+    pool: &PgPool,
+    upstream_did: &str,
+) -> Result<(i32, DateTime<Utc>), sqlx::Error> {
+    // Two-step (read-increment-write) inside one transaction so the
+    // computed dormancy window is consistent with the observed
+    // `consecutive_failures`. A pure SQL `UPDATE ... RETURNING` would
+    // be a single round-trip but the `make_interval` schedule below
+    // is easier to read in Rust than as a `CASE WHEN` ladder, and the
+    // transaction overhead is negligible at the per-task-exit
+    // frequency this is called.
+    let mut tx = pool.begin().await?;
+    let row = sqlx::query!(
+        r#"
+        UPDATE upstream_labelers
+        SET consecutive_failures = consecutive_failures + 1,
+            updated_at = now()
+        WHERE did = $1
+        RETURNING consecutive_failures
+        "#,
+        upstream_did,
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+    // No such labeler row (e.g. the operator deleted the row
+    // mid-flight). Treat as a no-op so the consumer task exits
+    // cleanly without dragging the rest of the supervisor down.
+    let Some(r) = row else {
+        tx.rollback().await?;
+        return Ok((0, Utc::now()));
+    };
+    let failures = r.consecutive_failures;
+
+    let dormancy = dormancy_for(failures);
+    let dormant_until = Utc::now()
+        + chrono::Duration::from_std(dormancy).unwrap_or_else(|_| chrono::Duration::hours(24));
+
+    sqlx::query!(
+        r#"
+        UPDATE upstream_labelers
+        SET dormant_until = $2
+        WHERE did = $1
+        "#,
+        upstream_did,
+        dormant_until,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok((failures, dormant_until))
+}
+
+/// Helper for the consumer's run-loop: record a failure, log the
+/// dormancy that was applied, and swallow any health-write errors
+/// (the consumer is on its way out either way, so a failed health
+/// write is not worth panicking over).
+///
+/// `attempts` / `error` are optional — at most one is set per call
+/// site (`Exhausted` carries the reconnect attempt count;
+/// `Transport` carries the transport error string).
+async fn apply_consumer_dormancy(
+    pool: &PgPool,
+    upstream_did: &str,
+    message: &'static str,
+    attempts: Option<u32>,
+    transport_error: Option<&str>,
+) {
+    match record_consumer_failure(pool, upstream_did).await {
+        Ok((failures, dormant_until)) => tracing::warn!(
+            upstream = %upstream_did,
+            attempts = ?attempts,
+            transport_error = ?transport_error,
+            consecutive_failures = failures,
+            %dormant_until,
+            "{message} (dormancy applied)",
+        ),
+        Err(err) => tracing::warn!(
+            upstream = %upstream_did,
+            attempts = ?attempts,
+            transport_error = ?transport_error,
+            health_error = %err,
+            "{message} (health write failed)",
+        ),
+    }
+}
+
+/// Dormancy duration to apply at a given `consecutive_failures` count
+/// (post-increment).
+///
+/// Separated out so the schedule is testable without a database.
+#[must_use]
+fn dormancy_for(consecutive_failures: i32) -> Duration {
+    match consecutive_failures {
+        ..=1 => Duration::from_secs(60),
+        2 => Duration::from_secs(5 * 60),
+        3 => Duration::from_secs(30 * 60),
+        4 => Duration::from_secs(6 * 60 * 60),
+        _ => Duration::from_secs(24 * 60 * 60),
+    }
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────
@@ -710,9 +1388,103 @@ pub fn reconnect_delay(attempt: u32) -> Duration {
 /// implementation in [`crate::labeler::canonicalize::encode_canonical_label`]
 /// so the produce-side (`labeler/emitter.rs`) and the consume-side (here)
 /// canonicalisation rule stay byte-identical (#78).
-fn encode_label_canonical(label: &ProtoLabel) -> Result<Vec<u8>, HandleError> {
+pub(crate) fn encode_label_canonical(label: &ProtoLabel) -> Result<Vec<u8>, HandleError> {
     crate::labeler::canonicalize::encode_canonical_label(label)
         .map_err(|_| HandleError::CanonicalEncode)
+}
+
+/// Parse an RFC 3339 atproto-syntax `Datetime` into a `chrono::DateTime<Utc>`,
+/// mapping a parse failure to a structured [`HandleError`].
+fn parse_proto_datetime(
+    dt: &proto_blue::syntax::Datetime,
+    field: &'static str,
+) -> Result<DateTime<Utc>, HandleError> {
+    DateTime::parse_from_rfc3339(dt.as_str())
+        .map(|d| d.with_timezone(&Utc))
+        .map_err(|_| HandleError::TimestampParse {
+            field,
+            value: dt.as_str().to_owned(),
+        })
+}
+
+/// Persist one verified label into the local `indexed_labels` store.
+///
+/// This is the bunnynabbit `atp-label-indexer` pattern's "write" half:
+/// every verified label received over the firehose lands in a local
+/// table keyed by `(src, uri, val, neg)`. The case-view's "third-party
+/// labels" panel reads exclusively from this table — no AppView
+/// round-trip, no hardcoded labeler list at query time.
+///
+/// # Upsert semantics
+///
+/// The `UNIQUE (src, uri, val, neg)` constraint from migration 34 makes
+/// repeated emission of the same `(src, uri, val)` triple by a labeler
+/// (typical when a labeler updates a label's expiry or re-signs after
+/// rotation) an upsert: we keep the latest `cts`/`seq`/`sig`. A
+/// negation arrives as a separate row (`neg=true`), preserving the
+/// assert → retract history.
+///
+/// # Cursor monotonicity
+///
+/// The `WHERE indexed_labels.seq <= EXCLUDED.seq` guard on the
+/// `DO UPDATE` arm makes the upsert idempotent under at-least-once
+/// re-delivery (a duplicate frame with the same seq is a no-op; a
+/// genuinely-newer frame wins). A label whose seq has regressed
+/// (labeler-side bug) does not rewrite the row.
+///
+/// # Errors
+///
+/// Returns [`HandleError::Database`] on a Postgres I/O failure or
+/// [`HandleError::TimestampParse`] if `cts`/`exp` is malformed.
+pub(crate) async fn persist_to_indexed_labels(
+    pool: &PgPool,
+    frame: &ProtoLabel,
+    sig: &[u8],
+    seq: i64,
+) -> Result<(), HandleError> {
+    let cts = parse_proto_datetime(&frame.cts, "cts")?;
+    let exp = frame
+        .exp
+        .as_ref()
+        .map(|dt| parse_proto_datetime(dt, "exp"))
+        .transpose()?;
+    // The on-the-wire `neg` is `Option<bool>` but the column is NOT NULL
+    // with default FALSE; treat absence as the assert direction.
+    let neg = frame.neg.unwrap_or(false);
+    // The on-the-wire `ver` is `Option<i64>` but the column is
+    // `INTEGER NOT NULL DEFAULT 1`. The protocol's `ver` field is `1`
+    // today and bounded; downcast via `try_from` rather than the
+    // accident-prone `as i32`, falling back to the lexicon default
+    // for any value that doesn't fit.
+    let ver: i32 = frame.ver.unwrap_or(1).try_into().unwrap_or(1);
+    sqlx::query!(
+        r#"
+        INSERT INTO indexed_labels (src, uri, cid, val, neg, cts, exp, ver, seq, sig)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        ON CONFLICT (src, uri, val, neg) DO UPDATE
+        SET cts = EXCLUDED.cts,
+            cid = EXCLUDED.cid,
+            exp = EXCLUDED.exp,
+            ver = EXCLUDED.ver,
+            seq = EXCLUDED.seq,
+            sig = EXCLUDED.sig
+        WHERE indexed_labels.seq <= EXCLUDED.seq
+        "#,
+        frame.src.as_str(),
+        frame.uri,
+        frame.cid.as_deref(),
+        frame.val,
+        neg,
+        cts,
+        exp,
+        ver,
+        seq,
+        sig,
+    )
+    .execute(pool)
+    .await
+    .map_err(HandleError::Database)?;
+    Ok(())
 }
 
 // ── unit tests (no DB) ──────────────────────────────────────────────────
@@ -848,6 +1620,146 @@ mod tests {
         }
         // Err(CryptoError) is also an acceptable rejection — the inputs
         // were well-formed but the math didn't add up.
+    }
+
+    /// First connect (seq=0) emits the URL WITHOUT a cursor query
+    /// param — the labeler interprets cursor-absent as "start at the
+    /// live edge" per the AT-Proto subscription contract.
+    #[test]
+    fn build_subscribe_url_omits_cursor_at_seq_zero() {
+        let url = super::build_subscribe_url("mod.bsky.app", 0);
+        assert_eq!(
+            url,
+            "wss://mod.bsky.app/xrpc/com.atproto.label.subscribeLabels",
+        );
+        // And negative values (defensive — should never happen in
+        // practice, but the persisted cursor column is BIGINT signed).
+        let url_neg = super::build_subscribe_url("mod.bsky.app", -1);
+        assert_eq!(
+            url_neg,
+            "wss://mod.bsky.app/xrpc/com.atproto.label.subscribeLabels",
+        );
+    }
+
+    /// Subsequent connects (seq>0) emit `?cursor=<seq>` so the labeler
+    /// resumes from after the last-acked seq.
+    #[test]
+    fn build_subscribe_url_appends_cursor_when_seq_positive() {
+        let url = super::build_subscribe_url("mod.bsky.app", 42);
+        assert_eq!(
+            url,
+            "wss://mod.bsky.app/xrpc/com.atproto.label.subscribeLabels?cursor=42",
+        );
+    }
+
+    /// Operator forgiveness: a hostname containing a `wss://` prefix or
+    /// a trailing slash is normalised away so the resulting URL is
+    /// canonical.
+    #[test]
+    fn build_subscribe_url_strips_scheme_and_trailing_slash() {
+        let with_scheme = super::build_subscribe_url("wss://mod.bsky.app/", 7);
+        assert_eq!(
+            with_scheme,
+            "wss://mod.bsky.app/xrpc/com.atproto.label.subscribeLabels?cursor=7",
+        );
+        let with_ws = super::build_subscribe_url("ws://mod.bsky.app", 0);
+        assert_eq!(
+            with_ws,
+            "wss://mod.bsky.app/xrpc/com.atproto.label.subscribeLabels",
+        );
+    }
+
+    /// Regression: the body decoder MUST accept the AT-Proto wire
+    /// shape where `sig` arrives as DAG-CBOR major-type-2 bytes (i.e.
+    /// `LexValue::Bytes`). The prior implementation went through
+    /// `lex_to_json` + `serde_json::from_value`, which surfaced sig
+    /// as `{"$bytes": "<base64>"}` and made the typed
+    /// `sig: Option<Vec<u8>>` field fail with
+    /// "invalid type: map, expected a sequence" — dropping every
+    /// inbound label frame. This test pins the decoder to round-trip
+    /// the bytes field correctly so the regression never returns.
+    #[test]
+    fn decode_labels_body_accepts_bytes_for_sig() {
+        use proto_blue::lex_data::LexValue;
+        use std::collections::BTreeMap;
+        let sig_bytes: Vec<u8> = vec![0xde, 0xad, 0xbe, 0xef];
+        let mut label_map = BTreeMap::new();
+        label_map.insert(
+            "cts".to_owned(),
+            LexValue::String("2026-01-01T00:00:00.000Z".to_owned()),
+        );
+        label_map.insert("neg".to_owned(), LexValue::Bool(false));
+        label_map.insert("sig".to_owned(), LexValue::Bytes(sig_bytes.clone()));
+        label_map.insert(
+            "src".to_owned(),
+            LexValue::String("did:plc:test-labeler".to_owned()),
+        );
+        label_map.insert(
+            "uri".to_owned(),
+            LexValue::String("did:plc:test-subject".to_owned()),
+        );
+        label_map.insert("val".to_owned(), LexValue::String("spam".to_owned()));
+        label_map.insert("ver".to_owned(), LexValue::Integer(1));
+        let mut body_map = BTreeMap::new();
+        body_map.insert("seq".to_owned(), LexValue::Integer(42));
+        body_map.insert(
+            "labels".to_owned(),
+            LexValue::Array(vec![LexValue::Map(label_map)]),
+        );
+        let body = LexValue::Map(body_map);
+
+        let decoded = super::decode_labels_body(&body).expect("decode must succeed");
+        assert_eq!(decoded.seq, 42);
+        assert_eq!(decoded.labels.len(), 1);
+        let label = &decoded.labels[0];
+        assert_eq!(label.val, "spam");
+        assert_eq!(label.uri, "did:plc:test-subject");
+        assert_eq!(
+            label.sig.as_ref().expect("sig present"),
+            &sig_bytes,
+            "sig must round-trip bytes verbatim",
+        );
+    }
+
+    /// Reject a body whose `sig` arrives as a JSON-style array of
+    /// integers (the legacy wrong shape) — the decoder should
+    /// surface a typed error rather than silently dropping the
+    /// frame, so a misbehaving labeler is loud, not silent.
+    #[test]
+    fn decode_labels_body_rejects_array_sig() {
+        use proto_blue::lex_data::LexValue;
+        use std::collections::BTreeMap;
+        let mut label_map = BTreeMap::new();
+        label_map.insert(
+            "cts".to_owned(),
+            LexValue::String("2026-01-01T00:00:00.000Z".to_owned()),
+        );
+        label_map.insert(
+            "sig".to_owned(),
+            LexValue::Array(vec![LexValue::Integer(222), LexValue::Integer(173)]),
+        );
+        label_map.insert(
+            "src".to_owned(),
+            LexValue::String("did:plc:test-labeler".to_owned()),
+        );
+        label_map.insert(
+            "uri".to_owned(),
+            LexValue::String("did:plc:test-subject".to_owned()),
+        );
+        label_map.insert("val".to_owned(), LexValue::String("spam".to_owned()));
+        let mut body_map = BTreeMap::new();
+        body_map.insert("seq".to_owned(), LexValue::Integer(42));
+        body_map.insert(
+            "labels".to_owned(),
+            LexValue::Array(vec![LexValue::Map(label_map)]),
+        );
+        let body = LexValue::Map(body_map);
+
+        let err = super::decode_labels_body(&body).expect_err("array sig must reject");
+        assert!(
+            err.contains("sig"),
+            "error must name the offending field: {err}"
+        );
     }
 
     /// Sanity: `reconnect_delay` returns a strictly positive duration and

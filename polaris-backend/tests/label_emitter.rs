@@ -399,6 +399,22 @@ async fn submit_action_emits_label_via_http_route() -> Result<(), Box<dyn std::e
         .layer(axum::extract::Extension(ctx))
         .with_state(api_state);
 
+    // REQ-A3: `submit_action` now enforces
+    // `polaris_setup_state.signing_pubkey_did IS NOT NULL` for
+    // Label / Takedown kinds before letting the action through to
+    // the emitter. The labeler subsystem in this test already holds
+    // a real K-256 key (built by `build_signer` above); the wizard's
+    // DB-side `UPDATE polaris_setup_state` step is the part the test
+    // would otherwise have skipped, so we seed the column inline.
+    sqlx::query(
+        r"UPDATE polaris_setup_state
+          SET signing_pubkey_did = $1, updated_at = now()
+          WHERE id = TRUE",
+    )
+    .bind("did:key:zQ3shokFTS3brHcDQrn82RUDfCZESWL1ZdCEJwekUDPQiYBme")
+    .execute(&pool)
+    .await?;
+
     use tower::ServiceExt as _;
     let body_json = serde_json::json!({
         "incident_id": incident.id,

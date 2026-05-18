@@ -1,0 +1,221 @@
+/*
+ * Action composer styles (BEM block: `composer`).
+ *
+ * REQ-B3 contract:
+ *   - The submit button is keyboard-focusable with a visible 2px focus
+ *     ring (`:focus-visible`).
+ *   - The disabled state (reasoning < 10 chars OR lexicon invalid) is
+ *     visually distinct: lowered opacity + `cursor: not-allowed`.
+ *   - The lexicon error message uses a colour that meets WCAG AA contrast
+ *     against the panel background (the contrast test in
+ *     `tests/styles_contrast.rs` checks the `--color-danger` ↔ panel
+ *     pair in both light and dark mode).
+ *
+ * The `app__validation-init-error` rule lives here because the global
+ * validation-init-error banner is conceptually a composer-prereq failure
+ * (lexicon validator failed to load → composer cannot validate inputs).
+ */
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-fg-primary);
+  box-shadow: var(--shadow-elevated);
+}
+
+.composer h2 {
+  font-size: var(--font-size-lg);
+  margin: 0 0 var(--space-xs);
+}
+
+.composer__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.composer__row label {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  font-weight: 500;
+}
+
+.composer__row--policy {
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.composer__row--actions {
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.composer__kind,
+.composer__label-input,
+.composer__label-select,
+.composer__reasoning {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-primary);
+  color: var(--color-fg-primary);
+  font-size: var(--font-size-base);
+  font-family: var(--font-sans);
+}
+
+.composer__kind:focus-visible,
+.composer__label-input:focus-visible,
+.composer__label-select:focus-visible,
+.composer__reasoning:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+  border-color: var(--color-border-focus);
+}
+
+.composer__reasoning {
+  min-height: 6rem;
+  resize: vertical;
+  line-height: var(--line-height-normal);
+}
+
+.composer__label-input {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+}
+
+/*
+ * Lexicon-validation error (REQ-B3).
+ *
+ * `--color-danger` is selected in `tokens.css` for ≥ 4.5:1 contrast
+ * against `--color-bg-elevated` (panel background) in both light and
+ * dark mode. The `tests/styles_contrast.rs` suite verifies that pairing
+ * mechanically.
+ */
+.composer__lex-error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  min-height: 1.25em;
+}
+
+.composer__lex-error:empty {
+  display: none;
+}
+
+.composer__counter {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+}
+
+.composer__counter--valid {
+  color: var(--color-success);
+}
+
+.composer__counter--invalid {
+  color: var(--color-fg-muted);
+}
+
+.composer__policy-note {
+  margin: 0;
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.composer__policy-note code {
+  background-color: var(--color-bg-primary);
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-primary);
+}
+
+/*
+ * Submit button — REQ-B3 anchor.
+ *
+ * Enabled state: filled accent button.
+ * Disabled state: lowered opacity + `cursor: not-allowed` so the user
+ *   can see the gating without inspecting the form. Both `[disabled]`
+ *   and `[aria-disabled="true"]` are honoured so a logical-disable on
+ *   the wasm side doesn't bypass the styling.
+ * Focused state: 2px outline in `--color-border-focus` with 2px offset
+ *   so the ring sits outside the button border.
+ */
+.composer__submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-sm) var(--space-lg);
+  background-color: var(--color-accent);
+  color: var(--color-accent-fg);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+.composer__submit:hover:not(:disabled) {
+  background-color: var(--color-border-focus);
+}
+
+.composer__submit:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.composer__submit:disabled,
+.composer__submit[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.composer__status {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-secondary);
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+  min-height: 1.5em;
+}
+
+.composer__status:empty {
+  display: none;
+}
+
+.composer__status--success {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-success);
+  border-left: 4px solid var(--color-success);
+}
+
+.composer__status--error {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-danger);
+  border-left: 4px solid var(--color-danger);
+}
+
+/*
+ * Top-level validation init error — surfaces when the lexicon validator
+ * fails to load. Rendered at the app root, so styling matches the
+ * composer's error treatment for visual consistency.
+ */
+.app__validation-init-error {
+  margin: var(--space-md);
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  border-left: 4px solid var(--color-danger);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+}

@@ -50,7 +50,7 @@ use tracing::info;
 #[derive(Parser, Debug)]
 #[command(
     name = "polaris-sample-classifier",
-    about = "Rule-based fixture classifier service for end-to-end testing.",
+    about = "Rule-based fixture classifier service for end-to-end testing."
 )]
 struct Args {
     /// Bind address for the gRPC server.
@@ -135,11 +135,8 @@ impl Classifier for SampleClassifier {
         }))
     }
 
-    type ClassifyStreamStream = std::pin::Pin<
-        Box<
-            dyn futures::Stream<Item = Result<ClassifyResponse, Status>> + Send,
-        >,
-    >;
+    type ClassifyStreamStream =
+        std::pin::Pin<Box<dyn futures::Stream<Item = Result<ClassifyResponse, Status>> + Send>>;
 
     async fn classify_stream(
         &self,
@@ -180,7 +177,10 @@ impl Classifier for SampleClassifier {
         Ok(Response::new(FeedbackResponse {}))
     }
 
-    async fn health_check(&self, _request: Request<()>) -> Result<Response<HealthResponse>, Status> {
+    async fn health_check(
+        &self,
+        _request: Request<()>,
+    ) -> Result<Response<HealthResponse>, Status> {
         Ok(Response::new(HealthResponse {
             status: "ok".to_owned(),
             message: None,
