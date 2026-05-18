@@ -1,0 +1,10 @@
+{
+  "uuid": "0eaa5444-f27f-4e84-99b1-aacdc6a1bfca",
+  "issue_uuid": "b25404d5-8f9a-45d2-aa20-0ce4e9e8fb07",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/llm-moderation-assist.md\n**Implements**: REQ-S7 (kill switch), REQ-I (metrics), REQ-K (docs), AC-11\n\n**Files to add**:\n- polaris-backend/src/api/llm/admin_pause.rs — POST/DELETE /api/admin/llm/pause (global toggle)\n- polaris-backend/src/api/metrics.rs (extension) — all REQ-I1 metric registrations\n- examples/llm-fixture-adapter/Cargo.toml — Rust gRPC server that returns canned recommendations\n- examples/llm-fixture-adapter/src/main.rs\n- docs/ops/llm-moderation.md — operator guide (wire-up tutorial + autonomy enablement walk-through + safety floors plain-English + kill-switch usage + reading audit)\n\n**Rust quality**:\n- Metrics use the existing metrics! macro\n- Fixture adapter mirrors the classifier fixture pattern (tests/fixtures/classifier-fixture/...)\n- Docs match docs/ops/quick-start.md tone\n\n**Tests**:\n- tests/llm_kill_switch.rs — pause flips effective mode to manual for every Recommend call\n- tests/llm_fixture_adapter.rs — boots the fixture adapter and a polaris-backend pointed at it, verifies the end-to-end recommend round-trip\n\n**Blocked by**: #LLM-5",
+  "created_at": "2026-05-18T08:04:28.638925282Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAF3Q5J6tM37E19QwWLSJHs+qN9Z6/sU3IULt1gfPyjaM5xHTlV6TXs/WSIGyZ4lVsE0Mc8yEzGUHX5bN8QsOTDw=="
+}
