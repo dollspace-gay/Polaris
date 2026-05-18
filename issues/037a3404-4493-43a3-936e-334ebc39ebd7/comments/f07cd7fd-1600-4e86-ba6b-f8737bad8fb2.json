@@ -1,0 +1,10 @@
+{
+  "uuid": "f07cd7fd-1600-4e86-ba6b-f8737bad8fb2",
+  "issue_uuid": "037a3404-4493-43a3-936e-334ebc39ebd7",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/mod-policy-workbook.md\n**Implements**: doc surface implied by REQ-D, REQ-E, REQ-G3\n\n**Files to add**:\n- docs/ops/policy-management.md — operator guide (add/amend via /admin/policies; YAML seed shape; polaris-setup seed-policies; version history + diff; citing policies in actions; /policies browse view)\n- docs/ops/policy-autonomy.md — safety rationale (human_required_always meaning; three-layer enforcement; when to mark a policy human-only; pause/resume during incidents)\n\n**Style**: match docs/ops/quick-start.md tone (operator-facing, terse, command-driven); real YAML + curl examples; link to .design/mod-policy-workbook.md at top.\n\n**Blocked by**: #226",
+  "created_at": "2026-05-18T07:47:20.495680410Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAFsZEppHfT7hqI3t49s2v8sWGPIl+88KtQ8kq9YYT82O2jvwVm7Jjc0784XsF6b1JRIV/OIELPPMc6NzseerRDA=="
+}
