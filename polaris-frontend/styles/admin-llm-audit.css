@@ -202,6 +202,13 @@
   color: var(--color-fg-primary);
 }
 
+.admin-llm-audit__cell--kind {
+  /* Hosts the row-expand button + action chip. Sized so the chip
+     never wraps and the column stays tight on wide tables. */
+  width: 1%;
+  white-space: nowrap;
+}
+
 .admin-llm-audit__cell--subject {
   display: flex;
   flex-direction: column;
@@ -311,6 +318,17 @@
   font-variant-numeric: tabular-nums;
 }
 
+.admin-llm-audit__cell--model {
+  /* Stacks the model name above the version label. Constrains width
+     so the monospaced model id (e.g. `qwen2.5-32b-instruct-q3_k_m`)
+     does not push the policies / reversal / created columns off the
+     right edge on narrower viewports. */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  max-width: 24ch;
+}
+
 .admin-llm-audit__model {
   display: block;
   font-family: var(--font-mono);
@@ -329,6 +347,14 @@
   font-size: var(--font-size-xs);
   color: var(--color-fg-secondary);
   word-break: break-word;
+}
+
+.admin-llm-audit__cell--reversal {
+  /* Hosts the standing/reversed chip. Compact column — the chip is
+     the only content, so let it determine intrinsic width and avoid
+     wrapping. */
+  width: 1%;
+  white-space: nowrap;
 }
 
 .admin-llm-audit__reversal-chip {
@@ -350,6 +376,14 @@
   background-color: var(--color-warning);
   color: var(--color-warning-fg);
   border-color: var(--color-warning);
+}
+
+.admin-llm-audit__cell--created {
+  /* Right-most column. Right-aligned tabular text so successive rows
+     line up regardless of timezone length. */
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
 }
 
 .admin-llm-audit__created {
