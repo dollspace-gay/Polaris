@@ -55,6 +55,9 @@ pub mod evidence;
 pub mod federation;
 pub mod ingest;
 pub mod labeler;
+/// LLM moderation-assist subsystem (issue #231 /
+/// `.design/llm-moderation-assist.md`).
+pub mod llm;
 pub mod middleware;
 /// Mobile push-notification subsystem (issue #116 / M5 #44 PR 2).
 ///

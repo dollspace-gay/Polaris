@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT alt_text\n                FROM subject_image_blobs\n                WHERE subject_id = $1 AND alt_text IS NOT NULL\n                ORDER BY first_seen_at ASC\n                LIMIT 16\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "alt_text",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "6fec26bb0e7835672c08a8558d1a3f6c7d51cca27d45e345e59829592f503ddc"
+}

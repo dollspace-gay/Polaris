@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT DISTINCT post_uri\n                FROM subject_image_blobs\n                WHERE owner_did = $1\n                ORDER BY post_uri ASC\n                LIMIT 8\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "post_uri",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c3c75585e1791437a6ea5eb56ca53dbebe6ca1d767dbc3114a7818ce73c15194"
+}
