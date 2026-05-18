@@ -1,0 +1,10 @@
+{
+  "uuid": "e172f7ed-b3e0-44a0-9de4-1f58867827fc",
+  "issue_uuid": "73bc497a-1e3d-4421-93ee-f6c370047152",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/llm-moderation-assist.md\n**Implements**: REQ-A1..A3; AC-1\n\n**Files to modify**:\n- proto/polaris-classifier-v1.proto — add `rpc Recommend(RecommendRequest) returns (RecommendResponse);` to the Classifier service. Add RecommendRequest, RecommendResponse, RecommendedAction, Report, PriorAction, PolicyClause messages per REQ-A2 + REQ-A3.\n\n**Files regenerated**:\n- polaris-classifier-proto/src/lib.rs (via build.rs codegen — no manual edits)\n\n**Rust quality**:\n- Proto fields use lowercase snake_case\n- Bidirectional compatibility: extending an existing service is safe; existing clients keep working\n- Match tonic codegen idioms already used in the .proto\n\n**Tests**:\n- `cargo build -p polaris-classifier-proto` succeeds\n- Generated `RecommendRequest::default()` round-trips via prost",
+  "created_at": "2026-05-18T07:52:12.756865185Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAMr6rz6zRksDOiw/mLRiqgIY3S/iH1KK8POBL7/ricuSdGROHuBVdHU7YewR8xGOLUV0RFHVBD0ca1N+L+OnyBA=="
+}
