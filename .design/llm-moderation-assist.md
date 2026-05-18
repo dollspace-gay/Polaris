@@ -693,103 +693,42 @@ docs/
   classifier substrate already partly addresses it via
   `report_volume_anomaly` observations.
 
-## Open questions
+## Resolved decisions
 
-<!-- OPEN: A4-timeout -->
-### Q1: `Recommend` default timeout
+Five forks that were open in the first draft, all resolved before
+this design moves to implementation:
 
-15 s vs. 30 s vs. 60 s. The slower the timeout, the more LLM calls
-that succeed (good); the slower a case sits with no answer (bad
-for moderator UX); the longer the circuit-breaker takes to detect
-a wedged adapter.
+- **Q1 — `Recommend` default timeout: 15 s** (REQ-A5). Most LLM
+  responses on this structured task land in 5–10 s; 15 s gives
+  headroom without making the case view feel sluggish. Per-
+  classifier override via the existing config block; timeouts
+  count toward the circuit breaker.
 
-Lean: 15 s as default, operator-configurable per-classifier in the
-existing classifier config block. Most LLM responses on this kind
-of structured task land in 5–10 s; 15 s gives headroom without
-making the case view feel sluggish.
+- **Q2 — Subject cooldown window: 30 days** (REQ-S4). Long enough
+  that a human's `no_action`/`reverse` carries weight; short
+  enough that the agent re-engages if behaviour shifts.
+  Configurable via `POLARIS_AUTONOMOUS_SUBJECT_COOLDOWN_DAYS`.
 
-**To resolve**: Edit this section with your decision.
-<!-- /OPEN -->
+- **Q3 — Reversal-rate circuit breaker: 15% over 7 days**
+  (REQ-S6). One reversal in seven is the "the LLM is
+  miscalibrated for this policy; stop" signal. Tripping writes
+  `autonomous_paused_until = now() + 24h` and emits a structured
+  alert. Per-policy override.
 
-<!-- OPEN: S4-cooldown-window -->
-### Q2: Subject cooldown window (REQ-S4)
+- **Q4 — Push-trigger rate-limiting: per-subject debounce +
+  queue-depth ceiling** (REQ-C2). 15-minute per-subject debounce
+  stops obvious duplication during brigading; if
+  `pending_auto_actions` queue depth exceeds K rows (default 500,
+  configurable) push-triggers pause until depth recovers. Two
+  independent limits — either one alone is sufficient for the
+  common case, both together cover catastrophe.
 
-How long after a human moderator rules `no_action` or `reverse` on
-a subject should the autonomous agent be locked out of acting on
-that subject? Options:
-
-- **(a)** 30 days (proposed default). Long enough that a human's
-  "this is fine" carries real weight; short enough that the agent
-  re-engages when behaviour might have changed.
-- **(b)** 7 days. Faster re-engagement; relies more on the agent
-  catching up.
-- **(c)** Forever, until another human action. Strictest. Agent
-  only ever acts on subjects no human has already considered or
-  on subjects where the human action was `label`/`takedown`/`warn`
-  (an affirmative action that doesn't bind the agent).
-
-Lean: (a). Configurable via
-`POLARIS_AUTONOMOUS_SUBJECT_COOLDOWN_DAYS`.
-
-**To resolve**: Edit this section with your decision.
-<!-- /OPEN -->
-
-<!-- OPEN: S6-reversal-rate -->
-### Q3: Reversal-rate circuit breaker threshold (REQ-S6)
-
-What reversal rate within a 7-day window auto-pauses a policy?
-
-- **(a)** 15% (proposed default). One reversal in seven; the
-  agent is wrong often enough that we should stop trusting it for
-  this policy until a human re-tunes.
-- **(b)** 10%. Tighter; more sensitive to bad calibration.
-- **(c)** 25%. Looser; tolerates more noise.
-
-These should be operator-configurable per policy regardless.
-
-Lean: (a).
-
-**To resolve**: Edit this section with your decision.
-<!-- /OPEN -->
-
-<!-- OPEN: C2-push-rate -->
-### Q4: Push-trigger rate-limiting
-
-REQ-C2 push-trigger fires on new reports against subjects with
-covering autonomous policies. Without rate-limiting, a brigading
-event could trigger thousands of `Recommend` calls. Options:
-
-- **(a)** Per-subject debounce: if a `Recommend` ran on this
-  subject in the last N minutes, skip. N default 15 min.
-- **(b)** Per-incident debounce: same idea but at the incident
-  level (related-subjects share a debounce timer).
-- **(c)** Hard queue depth ceiling: if `pending_auto_actions`
-  exceeds K rows, push-triggers stop until depth recovers.
-
-Lean: (a) + (c) together. Per-subject debounce stops obvious
-duplication; queue-depth ceiling stops catastrophic ingest
-backups.
-
-**To resolve**: Edit this section with your decision.
-<!-- /OPEN -->
-
-<!-- OPEN: J1-confidence-display -->
-### Q5: Confidence visualisation in the case-view panel
-
-REQ-J1 shows confidence as "a bar". Three options:
-
-- **(a)** Single horizontal bar with a colour gradient (red at
-  0%, yellow at threshold, green at 100%).
-- **(b)** Two bars: one for the confidence value, one ghost-bar
-  showing the policy's `autonomous_confidence_threshold` so the
-  moderator can see "this almost auto-fired" at a glance.
-- **(c)** Numerical only — `0.83 (autonomous threshold: 0.95)`.
-
-Lean: (b). The threshold context is the operator's most
-common question.
-
-**To resolve**: Edit this section with your decision.
-<!-- /OPEN -->
+- **Q5 — Confidence visualisation: two-bar with ghost threshold**
+  (REQ-J1). The recommendation's confidence renders as a filled
+  bar; a translucent ghost-bar overlays the policy's
+  `autonomous_confidence_threshold` so the moderator instantly
+  sees "this just missed the autonomous floor" or "this would
+  have auto-fired at the threshold the operator configured".
 
 ## Dependencies
 
