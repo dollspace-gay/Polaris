@@ -1,0 +1,10 @@
+{
+  "uuid": "c44e7b7f-a9be-484c-bdb7-078e5498a64e",
+  "issue_uuid": "f7948046-1ca4-46b3-a2b3-fc8aec56f213",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/mod-policy-workbook.md\n**Implements**: REQ-C1..C4, REQ-D4 (browse); AC-4\n\n**Files to add**:\n- polaris-backend/src/api/admin_policies/{mod,dto,handlers}.rs\n- polaris-backend/src/api/policies/{mod,handlers}.rs (read-only)\n\n**Endpoints**:\nAdmin (Role::Admin):\n- GET    /api/policies                          list (scope, autonomy_mode, q filters)\n- GET    /api/policies/:identifier              current version\n- GET    /api/policies/:identifier/history      version chain\n- GET    /api/policies/:identifier/:version     specific historical version\n- GET    /api/admin/policies/:identifier/diff?from=N&to=M\n- POST   /api/admin/policies                    create\n- PATCH  /api/admin/policies/:identifier        amend (change_summary required)\n- POST   /api/admin/policies/:identifier/pause  set autonomous_paused_until\n- DELETE /api/admin/policies/:identifier/pause  clear pause\n\nModerator (Role::Moderator):\n- GET    /api/policies, GET /api/policies/:identifier (shared route, RBAC layer gates fields)\n\n**Rust quality**:\n- Mirror polaris-backend/src/api/admin_moderators.rs (RBAC extractor pattern, ApiError shape)\n- serde validation at the API boundary; reject invalid autonomy_mode etc before reaching the repo\n- Errors map to polaris-backend/src/api/error.rs::ApiError\n\n**Tests**:\n- tests/admin_policies_endpoint.rs — full CRUD round-trip; non-admin 403; history order; pause/resume cycle\n\n**Blocked by**: #223",
+  "created_at": "2026-05-18T07:45:32.892800941Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAR3uxRc0LZn5/BZB3XOKMSn076HsKnrkZWYyrWC7d5o7JcVvPjTPTeu4I/8hdVSFzROqOnfiAa2TMpgaC9hgBDg=="
+}
