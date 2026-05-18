@@ -1,0 +1,10 @@
+{
+  "uuid": "2baa1c66-d7f4-4388-8905-b9ec59438696",
+  "issue_uuid": "e5d1bd36-0b94-458b-9586-3b2154caae09",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/llm-moderation-assist.md\n**Implements**: REQ-C1..C4; AC-7\n\n**Files to add**:\n- polaris-backend/src/llm/recommend_dispatcher.rs\n\n**Triggers**: pull (POST /api/cases/:id/llm-recommendation), push (new report on covered subject), manual replay (calibration).\n\n**Per-case flow**:\n1. Hydrate via case_context::hydrate (#234)\n2. Call ClassifierClient::recommend (#232)\n3. Persist LlmRecommendation observation (#233)\n4. Per RecommendedAction: resolve effective mode via safety_floors (#235) → manual / assisted (#236) / autonomous\n\n**Rust quality**: OTel span per case (REQ-C4); per-subject debounce 15 min; queue-depth ceiling 500; LLM-said-no_action ≠ LLM-call-failed.\n\n**Tests**: tests/llm_dispatcher_e2e.rs — FixtureClassifierClient + canned response; per-mode outcomes.\n\n**Blocked by**: #232, #234",
+  "created_at": "2026-05-18T08:20:24.647963787Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAqAgWdkY46YJ0bEGzFO4GyQW+KqfwrMF40mjTWdOP2tmBMMCHQYM5jKTtkJq+/P/0nNN92ChQFFtF6zM/gIqBAA=="
+}
