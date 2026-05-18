@@ -1,6 +1,7 @@
 # Agent / tracker state — never project source, never on GitHub
 .claude/
 .crosslink/
+**/.crosslink/
 
 # Rust build artifacts
 /target/
