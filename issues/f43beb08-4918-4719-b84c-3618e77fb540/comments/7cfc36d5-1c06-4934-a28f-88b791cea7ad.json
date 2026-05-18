@@ -1,0 +1,10 @@
+{
+  "uuid": "7cfc36d5-1c06-4934-a28f-88b791cea7ad",
+  "issue_uuid": "f43beb08-4918-4719-b84c-3618e77fb540",
+  "author": "TeIq",
+  "content": "Backend half of #214. Plan: (1) migration #46 adds pinned_admin column + monotone trigger; (2) extend maybe_grant_first_user_admin to set pinned_admin=TRUE atomically; (3) gate complete_login against moderator allow-list except when moderators table empty (bootstrap carve-out); (4) new ApiError::NotAllowed variant + AuthError::NotAllowed mapping to /login?error=unauthorized redirect; (5) new admin module + endpoints at /api/admin/moderators (GET/POST/PATCH/DELETE) admin-only with audit-log entries; (6) integration test in tests/moderator_acl.rs covering reject-non-allowlist, first-user-pinned, can't-delete-pinned, can't-demote-last-admin, trigger-blocks-direct-update.",
+  "created_at": "2026-05-18T02:56:48.516697235Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAhBpxc2lddA5GbQREsTJnT3/LRUvxMeaPfY0ytTt0NmBWKnl/amtLRz6JF4W7k6Lp7w5GQ72K6dD8Mz1e7YZYAA=="
+}
