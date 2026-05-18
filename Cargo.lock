@@ -1266,6 +1266,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 
 [[package]]
+name = "combine"
+version = "4.6.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd"
+dependencies = [
+ "bytes",
+ "memchr",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1918,18 +1928,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "enum-as-inner"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1e6a265c649f3f5979b601d26f1d05ada116434c87741c9493cb56218f76cbc"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2468,23 +2466,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
-name = "hickory-proto"
-version = "0.25.2"
+name = "hickory-net"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8a6fe56c0038198998a6f217ca4e7ef3a5e51f46163bd6dd60b5c71ca6c6502"
+checksum = "e2295ed2f9c31e471e1428a8f88a3f0e1f4b27c15049592138d1eebe9c35b183"
 dependencies = [
  "async-trait",
  "cfg-if",
  "data-encoding",
- "enum-as-inner",
  "futures-channel",
  "futures-io",
  "futures-util",
+ "hickory-proto",
  "idna",
  "ipnet",
- "once_cell",
- "rand 0.9.4",
- "ring",
+ "jni",
+ "rand 0.10.1",
  "thiserror 2.0.18",
  "tinyvec",
  "tokio",
@@ -2493,21 +2490,46 @@ dependencies = [
 ]
 
 [[package]]
-name = "hickory-resolver"
-version = "0.25.2"
+name = "hickory-proto"
+version = "0.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc62a9a99b0bfb44d2ab95a7208ac952d31060efc16241c87eaf36406fecf87a"
+checksum = "0bab31817bfb44672a252e97fe81cd0c18d1b2cf892108922f6818820df8c643"
+dependencies = [
+ "data-encoding",
+ "idna",
+ "ipnet",
+ "jni",
+ "once_cell",
+ "prefix-trie",
+ "rand 0.10.1",
+ "ring",
+ "thiserror 2.0.18",
+ "tinyvec",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "hickory-resolver"
+version = "0.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0d58d28879ceecde6607729660c2667a081ccdc082e082675042793960f178c"
 dependencies = [
  "cfg-if",
  "futures-util",
+ "hickory-net",
  "hickory-proto",
  "ipconfig",
+ "ipnet",
+ "jni",
  "moka",
+ "ndk-context",
  "once_cell",
  "parking_lot",
- "rand 0.9.4",
+ "rand 0.10.1",
  "resolv-conf",
  "smallvec",
+ "system-configuration",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -2796,7 +2818,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -3022,6 +3044,9 @@ name = "ipnet"
 version = "2.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d98f6fed1fde3f8c21bc40a1abb88dd75e67924f9cffc3ef95607bad8017f8e2"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "is_terminal_polyfill"
@@ -3052,6 +3077,55 @@ name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+
+[[package]]
+name = "jni"
+version = "0.22.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5efd9a482cf3a427f00d6b35f14332adc7902ce91efb778580e180ff90fa3498"
+dependencies = [
+ "cfg-if",
+ "combine",
+ "jni-macros",
+ "jni-sys",
+ "log",
+ "simd_cesu8",
+ "thiserror 2.0.18",
+ "walkdir",
+ "windows-link",
+]
+
+[[package]]
+name = "jni-macros"
+version = "0.22.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a00109accc170f0bdb141fed3e393c565b6f5e072365c3bd58f5b062591560a3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "rustc_version",
+ "simd_cesu8",
+ "syn",
+]
+
+[[package]]
+name = "jni-sys"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c6377a88cb3910bee9b0fa88d4f42e1d2da8e79915598f65fb0c7ee14c878af2"
+dependencies = [
+ "jni-sys-macros",
+]
+
+[[package]]
+name = "jni-sys-macros"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38c0b942f458fe50cdac086d2f946512305e5631e720728f2a61aabcd47a6264"
+dependencies = [
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "jobserver"
@@ -3670,6 +3744,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "ndk-context"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27b02d87554356db9e9a873add8782d4ea6e3e58ea071a9adb9a2e8ddb884a8b"
+
+[[package]]
 name = "next_tuple"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3872,7 +3952,7 @@ version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.21.7",
  "chrono",
  "getrandom 0.2.17",
  "http 1.4.0",
@@ -4476,6 +4556,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "prefix-trie"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cf6e3177f0684016a5c209b00882e15f8bdd3f3bb48f0491df10cd102d0c6e7"
+dependencies = [
+ "either",
+ "ipnet",
+ "num-traits",
+]
+
+[[package]]
 name = "prettyplease"
 version = "0.2.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4632,9 +4723,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b708c657f3c067faf982cdea4a005c669d5d30a31ab04a0a88d25f0f1b4d19a"
+checksum = "f0496f1e47a65960577f967268e709b2149d8348753f316450c1ce8104463a93"
 dependencies = [
  "proto-blue-api",
  "proto-blue-common",
@@ -4653,9 +4744,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-api"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23a98fb92dd58dc471a8d242de1320639b582eba6911a62b3837ecd55c34e119"
+checksum = "d2d4678f5669058609c2ac0386d5036ccc1b0bc6cd71fb1634ca057b700852ab"
 dependencies = [
  "chrono",
  "once_cell",
@@ -4674,9 +4765,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-common"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9fd60de4395c3d095f87665e034332986e1c984674e771fba0181b58681bd86b"
+checksum = "0a097408ed41aeefb44f1a25e8b43d7072ddd1dcb6d58304dc7bff02eea3b1e7"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -4703,9 +4794,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-crypto"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06b6008801558dee3dd08e3e049ba9576c61d8395364e38b39bffaa33a67515a"
+checksum = "2f30d359b27dc973a16c849ad9fa62fef1e4da271a3d33b91cf9a1acd37ce3dc"
 dependencies = [
  "base64 0.22.1",
  "bs58",
@@ -4721,9 +4812,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-identity"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e938e6601adb0487442e9a0659810296341bb22b0b66c7535e102773919bb9e2"
+checksum = "f343ad4e5a0fc271a91173350f39aefe23dcc449aa8081da0088a2da0772aac0"
 dependencies = [
  "futures",
  "hickory-resolver",
@@ -4738,9 +4829,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-lex-cbor"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9a9b5487d7031dba1b07dde8490fb1b3173e3a322aa9bd1bc44965077bdd199"
+checksum = "c3401aceb571e86b15ed0b67f8acb3a34353f27bcda6ea4be1bc07f5f3930821"
 dependencies = [
  "ciborium",
  "proto-blue-lex-data",
@@ -4750,9 +4841,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-lex-data"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed864ff6ddd3feff731e118190fcf05a7d5b521512911db8de51b7d5f2f05e5c"
+checksum = "2d1cbe6b58f9f8fcd303478f482d41472e92ae2c4f72249d537f9acfe9e13bd6"
 dependencies = [
  "multibase",
  "serde",
@@ -4763,9 +4854,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-lex-json"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cafadb2fadd986d4da7ed3266a212cf3374692fdd296b922a476265e0a6aa4a1"
+checksum = "d979414e5232ce0e934ed05775a5c119e1d51a221df1f90932b18216d290c3b4"
 dependencies = [
  "base64 0.22.1",
  "proto-blue-lex-data",
@@ -4775,9 +4866,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-lexicon"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99ce2af9a938c24009ddca8e5b26e1665224f87a45ad502cac9845dd29b9e411"
+checksum = "cf281ccbf0fc30f1d075ececdc85c5ec793a41c989e4b346e04f98ecedf2a07b"
 dependencies = [
  "proto-blue-common",
  "proto-blue-lex-data",
@@ -4789,9 +4880,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-oauth"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72e8b30a8dd1c187ba69aa456bb34172255f880096be959bdcea6dffe07a2ecf"
+checksum = "d68f63e577caeebcc9bd517dc8a273c5caf11142cb6644514749f3a863682ae0"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
@@ -4814,9 +4905,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-repo"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e1442c0edb3da5dca81b798933455ecd86be0b1e887d07c75df717c2902f6c2"
+checksum = "3a854867c28fbf24ed09402dcb9f2b8745917639120f596b449b0e81b0ea6802"
 dependencies = [
  "futures",
  "proto-blue-common",
@@ -4836,9 +4927,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-syntax"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbca4e91264c34c5068b3e3da279ba73451623b37f20be1d531a71a75fdb3dab"
+checksum = "7a90d01d1c84072229bfed56be3062fe605ace06bebb5b9ca011f069c374048f"
 dependencies = [
  "chrono",
  "once_cell",
@@ -4849,9 +4940,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-ws"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e80f15bf98a876c80643135fc462bebead4c01ea896f8c5449ed61f6351f6e70"
+checksum = "5fda321b044859f23d9ca2726549b7faacaeb13dfb154f8e012ead4cb0c7345f"
 dependencies = [
  "async-trait",
  "futures",
@@ -4868,9 +4959,9 @@ dependencies = [
 
 [[package]]
 name = "proto-blue-xrpc"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68a82786622e725c5e1319892b59d5dbd0878e6b4321b33fdb35e55aa806860b"
+checksum = "5d4b312395ef65853d2577517814b13015a438962f344e88ba6f3fbf682cd548"
 dependencies = [
  "axum",
  "chrono",
@@ -5022,7 +5113,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls 0.23.40",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -5059,7 +5150,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.52.0",
 ]
@@ -6124,6 +6215,22 @@ dependencies = [
  "digest",
  "rand_core 0.6.4",
 ]
+
+[[package]]
+name = "simd_cesu8"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94f90157bb87cddf702797c5dadfa0be7d266cdf49e22da2fcaa32eff75b2c33"
+dependencies = [
+ "rustc_version",
+ "simdutf8",
+]
+
+[[package]]
+name = "simdutf8"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
 name = "simple_asn1"
@@ -7791,7 +7898,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
