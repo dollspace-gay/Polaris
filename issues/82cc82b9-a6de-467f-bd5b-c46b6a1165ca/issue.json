@@ -2,11 +2,12 @@
   "uuid": "82cc82b9-a6de-467f-bd5b-c46b6a1165ca",
   "display_id": 218,
   "title": "CI green + dependabot triage + gitignore agent-worktree cleanup + #216 test expectations",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-18T04:01:38.074700805Z",
-  "updated_at": "2026-05-18T04:01:40.568608159Z",
+  "updated_at": "2026-05-18T04:17:36.663081707Z",
+  "closed_at": "2026-05-18T04:17:36.663081707Z",
   "labels": [
     "bug"
   ]
