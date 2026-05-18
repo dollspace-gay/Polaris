@@ -1,0 +1,10 @@
+{
+  "uuid": "cdc55cd4-1d7f-44c2-91b7-91575d6203c4",
+  "issue_uuid": "022ad6dc-5a27-4ff1-81ef-40348713c39d",
+  "author": "TeIq",
+  "content": "Delivered: backend handler now routes through submit_action_with_report when report_id is Some — SELECT FOR UPDATE on reports row, returns existing action if actioned_at populated (200), else insert via new PgActionRepo::insert_in_tx + UPDATE reports.actioned_at/actioned_by_action_id atomically (201). PgReportRepo::list_by_subject filters actioned_at IS NULL. New tests/report_action_idempotency.rs proves all four assertions. sqlx cache refreshed against live DB. Live verification: 2 POSTs of same body+report_id returned same action_id (201 then 200), exactly 1 actions row, reports.actioned_at populated, case-view reports[] now empty.",
+  "created_at": "2026-05-18T01:35:32.416278788Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAzgXdxKUSzaXVScDHaOmfhzoeozD28F2/aGfb4ppv24EM9NhA7eZhE2ArCX7wnHssekoZas8llQSNF6g5JSBvBg=="
+}
