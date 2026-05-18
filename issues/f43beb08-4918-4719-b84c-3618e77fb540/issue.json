@@ -2,11 +2,12 @@
   "uuid": "f43beb08-4918-4719-b84c-3618e77fb540",
   "display_id": 215,
   "title": "Add Ozone-style login allow-list + moderator management API (#214)",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-18T02:56:28.707920705Z",
-  "updated_at": "2026-05-18T02:56:30.968209851Z",
+  "updated_at": "2026-05-18T03:46:36.025361187Z",
+  "closed_at": "2026-05-18T03:46:36.025361187Z",
   "labels": [
     "feature"
   ]
