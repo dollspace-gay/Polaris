@@ -7,8 +7,11 @@
   "parent_uuid": "38a78c72-404f-483c-807a-8f5a08f37e83",
   "created_by": "TeIq",
   "created_at": "2026-05-18T08:00:51.618339054Z",
-  "updated_at": "2026-05-18T08:00:54.051490064Z",
+  "updated_at": "2026-05-18T08:21:02.912228250Z",
   "labels": [
     "rust"
+  ],
+  "blockers": [
+    "e5d1bd36-0b94-458b-9586-3b2154caae09"
   ]
 }
