@@ -1,0 +1,11 @@
+{
+  "uuid": "b25404d5-8f9a-45d2-aa20-0ce4e9e8fb07",
+  "display_id": 241,
+  "title": "Kill switch + observability metrics + fixture adapter + operator docs",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "38a78c72-404f-483c-807a-8f5a08f37e83",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T08:04:20.423910290Z",
+  "updated_at": "2026-05-18T08:04:20.423910290Z"
+}
