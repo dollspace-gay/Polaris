@@ -1,0 +1,10 @@
+{
+  "uuid": "781bb7f1-a242-476e-8161-65fada4b666b",
+  "issue_uuid": "b0d47a24-1974-4b67-b7d3-cdcc2ca6b221",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/mod-policy-workbook.md\n**Implements**: REQ-E1, REQ-E2; AC-6\n\n**Files to add**:\n- deploy/seeds/mod-policies.yml (5 placeholders incl. polaris.csam with human_required_always=TRUE)\n- polaris-backend/src/seed/mod_policies.rs\n\n**Files to modify**:\n- polaris-backend/src/main.rs — after migrations + setup, invoke the seed loader if mod_policies is empty AND a bootstrap admin exists\n\n**Rust quality**:\n- serde_yaml deserialise into strongly-typed SeedPolicy (no JSON-Value smuggling)\n- Idempotency: SELECT EXISTS(SELECT 1 FROM mod_policies) before any insert; loaded rows attribute created_by_moderator_id = bootstrap admin (same query polaris-setup uses)\n- POLARIS_POLICY_SEED_PATH env var overrides /etc/polaris/seeds/mod-policies.yml\n\n**Tests**:\n- tests/policy_seed_idempotent.rs — first boot loads 5 rows; second boot no-op; corrupted seed file never clobbers existing rows\n\n**Blocked by**: #223",
+  "created_at": "2026-05-18T07:46:44.658601629Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAkIvsivLmc7yKg5+Vv8b24c1UaeNnJdb2lSmofVeTKD4HLMnNNaIKOAOBPlkgI/GK7Q3yQSTVRj2bM5G7s8U9Dg=="
+}
