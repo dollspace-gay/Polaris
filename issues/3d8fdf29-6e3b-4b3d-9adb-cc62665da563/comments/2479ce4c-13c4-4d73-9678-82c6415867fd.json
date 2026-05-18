@@ -1,0 +1,10 @@
+{
+  "uuid": "2479ce4c-13c4-4d73-9678-82c6415867fd",
+  "issue_uuid": "3d8fdf29-6e3b-4b3d-9adb-cc62665da563",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/llm-moderation-assist.md\n**Implements**: REQ-G1..G4\n\n**Files to add**:\n- polaris-backend/src/llm/feedback.rs\n\n**Files to modify**:\n- polaris-backend/src/classifier/feedback.rs — extend the FeedbackRequest envelope with `was_recommendation_taken: bool` + `reversal_reasoning: Option<String>` (privacy floor: still no moderator_id)\n- polaris-backend/src/api/cases.rs — reversal of an autonomous action enqueues feedback\n- polaris-backend/src/api/queue/pending_auto_actions.rs — rejection enqueues feedback\n- new daily batch job: actions where actor_kind='autonomous_agent' AND reversible_until < now() AND no reversal → fire positive feedback\n\n**Rust quality**:\n- Feedback is fire-and-forget (existing spawn_feedback pattern); failure does not block the user's action\n- Privacy: assert NO moderator_id field in any feedback path (regression test)\n\n**Tests**: tests/llm_feedback_loop.rs — three feedback paths fire correctly; payload omits moderator_id\n\n**Blocked by**: #LLM-5",
+  "created_at": "2026-05-18T08:03:27.576490503Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAtK51iZwTq08ECTJALiZ/XWF0mITkCugmYhXnnjg3wFFuxEEhNI90JzpQIMy6cVIIawu0nPkmuyH2OUNFXbGXAg=="
+}
