@@ -1,0 +1,138 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            a.id                          AS \"action_id!\",\n            a.kind                        AS \"action_kind!\",\n            a.label_value,\n            a.subject_id                  AS \"subject_id!\",\n            s.kind                        AS \"subject_kind!\",\n            s.did                         AS \"subject_did?\",\n            s.uri                         AS \"subject_uri?\",\n            a.model                       AS \"model!\",\n            a.model_version               AS \"model_version!\",\n            a.prompt_template_id          AS \"prompt_template_id!\",\n            a.recommendation_confidence   AS \"recommendation_confidence!\",\n            a.input_hash                  AS \"input_hash!\",\n            a.created_at                  AS \"created_at!\",\n            a.reversible_until            AS \"reversible_until!\",\n            a.llm_observation_id          AS \"llm_observation_id!\",\n            o.evidence                    AS \"evidence!\",\n            r.id                          AS \"reversal_id?\",\n            r.created_at                  AS \"reversal_created_at?\",\n            r.moderator_id                AS \"reversal_moderator_id?\"\n        FROM actions a\n        LEFT JOIN actions r          ON r.reverses_action_id = a.id\n        LEFT JOIN subjects s         ON s.id = a.subject_id\n        LEFT JOIN observations o     ON o.id = a.llm_observation_id\n        WHERE a.actor_kind = 'autonomous_agent'\n          -- model filter\n          AND ($1::TEXT IS NULL OR a.model = $1)\n          -- policy filter (any cited policy on the action)\n          AND ($2::TEXT IS NULL OR EXISTS (\n                SELECT 1 FROM action_policy_citations apc\n                WHERE apc.action_id = a.id AND apc.policy_identifier = $2\n          ))\n          -- reversed-flag filter\n          AND ((NOT $3::BOOL) OR r.id IS NOT NULL)\n          AND ((NOT $4::BOOL) OR r.id IS NULL)\n          -- date-range filter\n          AND ($5::TIMESTAMPTZ IS NULL OR a.created_at >= $5)\n          AND ($6::TIMESTAMPTZ IS NULL OR a.created_at <= $6)\n          -- keyset cursor: strictly less than (ts, id) in DESC order\n          AND ($7::TIMESTAMPTZ IS NULL OR (a.created_at, a.id) < ($7, $8::UUID))\n        ORDER BY a.created_at DESC, a.id DESC\n        LIMIT $9\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "action_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "action_kind!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "label_value",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "subject_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "subject_kind!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "subject_did?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "subject_uri?",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "model!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "model_version!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "prompt_template_id!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "recommendation_confidence!",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 11,
+        "name": "input_hash!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "reversible_until!",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 14,
+        "name": "llm_observation_id!",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 15,
+        "name": "evidence!",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 16,
+        "name": "reversal_id?",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 17,
+        "name": "reversal_created_at?",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 18,
+        "name": "reversal_moderator_id?",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bool",
+        "Bool",
+        "Timestamptz",
+        "Timestamptz",
+        "Timestamptz",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "30f305b658c46a6795e8286ebb35d339f4a895c5dec725261b852f57d9a3cda3"
+}

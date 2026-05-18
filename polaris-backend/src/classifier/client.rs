@@ -715,6 +715,16 @@ mod tests {
             classifier_label: "spam".to_owned(),
             classifier_confidence: 0.85,
             moderator_action_kind: "takedown".to_owned(),
+            // LLM-10 (#239) extended the envelope with these two fields
+            // so the autonomous-action feedback loop can distinguish
+            // "moderator took the recommendation" from "moderator
+            // reversed it". For this classifier-fixture unit test we
+            // simulate a human-emitted action where neither field is
+            // semantically meaningful — default empty + false satisfies
+            // the wire shape without skewing any feedback-loop test
+            // that consumes the captured log.
+            was_recommendation_taken: false,
+            reversal_reasoning: String::new(),
         };
         fixture.feedback(req.clone()).await.unwrap();
 

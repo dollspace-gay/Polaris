@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT action_id, policy_identifier, policy_version\n            FROM action_policy_citations\n            WHERE action_id = ANY($1)\n            ORDER BY action_id, policy_identifier ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "action_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "policy_identifier",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "policy_version",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8c92c935c22f4fc606af92fc5117c456dcad916b4797c047f39e1e9f2aa1cef9"
+}
