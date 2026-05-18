@@ -1,0 +1,10 @@
+{
+  "uuid": "c6e43a5b-6779-4d67-896b-b5d64c50409b",
+  "issue_uuid": "1590a547-2826-4dfb-8cc0-4a7ee5fd6b8a",
+  "author": "TeIq",
+  "content": "Shipped WB-6 (REQ-E3) in 43aa5d42. Adds polaris-setup seed-policies --file <path> [--replace] subcommand. Reuses WB-5 SeedPolicy deserializer (no parser duplication). Hard-block scan refuses imports when human_required_always=TRUE collides with autonomy_mode!=manual. Exit codes: 0 success, 1 validation, 2 IO. 6 integration tests pass against testcontainers PG, 20 unit tests pass, clippy clean, fmt clean.",
+  "created_at": "2026-05-18T11:31:28.304031036Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABARU7c5EeQtu3K86iZENlH5rgwNY8JY3mgoA8ZSmFvyzP/oZ7b8pvYX7Pos2+oM901ofZQaJXQNzUWAefjMnQRBg=="
+}
