@@ -8,8 +8,10 @@
 //! boundary.
 
 pub mod admin_moderators;
+pub mod admin_policies;
 pub mod case_view;
 pub mod dashboard;
 pub mod login;
+pub mod policies;
 pub mod queue;
 pub mod setup;

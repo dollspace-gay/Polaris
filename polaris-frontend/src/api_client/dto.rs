@@ -1093,6 +1093,299 @@ pub struct PatchModeratorRoleRequest {
     pub grant: bool,
 }
 
+// ── Mod policy workbook (issue #225 backend / #226 frontend) ────────────
+
+/// Full wire shape for one `mod_policies` row.
+///
+/// Mirrors the backend's
+/// [`polaris_backend::api::admin_policies::dto::ModPolicyDto`]
+/// field-for-field. Field naming and serde defaults match the wire shape
+/// produced by the backend's `#[derive(Serialize)]`. The frontend treats
+/// `examples_positive` / `examples_negative` as `serde_json::Value`
+/// because the wire shape IS the array-of-records lexicon shape — the
+/// backend validates on persist (REQ-A2).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ModPolicyDto {
+    /// Row identity (primary key).
+    pub id: uuid::Uuid,
+    /// Human-stable identifier (`polaris.harassment` etc.).
+    pub identifier: String,
+    /// Monotonic edit counter; 1 on initial insert.
+    pub version: i32,
+    /// Short human-readable title.
+    pub name: String,
+    /// One-paragraph description.
+    pub description: String,
+    /// `account` | `post` | `both`.
+    pub scope: String,
+    /// `inform` | `alert` | `hide` | `remove`.
+    pub severity: String,
+    /// Markdown-formatted decision criteria (≥ 64 chars).
+    pub decision_criteria: String,
+    /// Positive worked-example array.
+    pub examples_positive: serde_json::Value,
+    /// Negative worked-example array.
+    pub examples_negative: serde_json::Value,
+    /// Suggested action kinds for cases that violate this policy.
+    pub suggested_action_kinds: Vec<String>,
+    /// Optional default label value when the action is `label`.
+    #[serde(default)]
+    pub linked_label_value: Option<String>,
+    /// Free-text "when this policy does not apply".
+    #[serde(default)]
+    pub exceptions: Option<String>,
+    /// REQ-A2 hard-floor marker; `true` means autonomy cannot be set to
+    /// `autonomous` (REQ-G3).
+    pub human_required_always: bool,
+    /// `manual` | `assisted` | `autonomous`.
+    pub autonomy_mode: String,
+    /// Subset of `actions.kind` allowed for auto-fire. Subset of
+    /// `{label, warn, takedown}` (REQ-G1).
+    pub autonomous_action_kinds: Vec<String>,
+    /// Confidence floor for autonomous emission. `0.0..=1.0`.
+    pub autonomous_confidence_threshold: f32,
+    /// Confidence floor for assisted draft creation. `0.0..=1.0`.
+    pub assisted_confidence_threshold: f32,
+    /// When `Some(t)` and `t > now()`, autonomy is suspended.
+    #[serde(default)]
+    pub autonomous_paused_until: Option<DateTime<Utc>>,
+    /// Tombstone marker — `true` means this version retires the policy
+    /// (REQ-F1).
+    pub is_retired: bool,
+    /// When this row was inserted.
+    pub created_at: DateTime<Utc>,
+    /// Moderator who wrote this version.
+    pub created_by_moderator_id: uuid::Uuid,
+    /// When this version started binding decisions.
+    pub effective_from: DateTime<Utc>,
+    /// When this version stopped being current. `None` while current.
+    #[serde(default)]
+    pub effective_until: Option<DateTime<Utc>>,
+    /// `Some(id)` of the prior version row, `None` for v1.
+    #[serde(default)]
+    pub supersedes_id: Option<uuid::Uuid>,
+    /// "Why this version was written" — surfaced in history view.
+    #[serde(default)]
+    pub change_summary: Option<String>,
+}
+
+/// Slim list-projection of a policy, for the index endpoint.
+///
+/// Mirrors the backend's
+/// [`polaris_backend::api::admin_policies::dto::ModPolicySummaryDto`].
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ModPolicySummaryDto {
+    /// Row identity.
+    pub id: uuid::Uuid,
+    /// Human-stable identifier.
+    pub identifier: String,
+    /// Current version number.
+    pub version: i32,
+    /// Short title.
+    pub name: String,
+    /// One-paragraph description.
+    pub description: String,
+    /// Scope vocabulary value.
+    pub scope: String,
+    /// Severity vocabulary value.
+    pub severity: String,
+    /// Autonomy mode (`manual` / `assisted` / `autonomous`).
+    pub autonomy_mode: String,
+    /// Tombstone marker.
+    pub is_retired: bool,
+    /// When this version started binding.
+    pub effective_from: DateTime<Utc>,
+}
+
+/// Filters for `GET /api/policies` and `GET /api/admin/policies`.
+///
+/// All fields optional. Empty / `None` fields are omitted from the URL
+/// entirely.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicyListFilters {
+    /// Filter to policies whose `scope` matches (`account` | `post` | `both`).
+    pub scope: Option<String>,
+    /// Filter to policies whose `autonomy_mode` matches.
+    pub autonomy_mode: Option<String>,
+    /// Free-text query over `name` + `description` + `decision_criteria`.
+    pub q: Option<String>,
+}
+
+/// Serialise [`PolicyListFilters`] into a percent-encoded URL query
+/// string (without the leading `?`). Empty / `None` fields are omitted.
+#[must_use]
+pub fn policy_filters_to_query_string(filters: &PolicyListFilters) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(value) = filters.scope.as_deref().filter(|v| !v.is_empty()) {
+        parts.push(format!("scope={}", percent_encode(value)));
+    }
+    if let Some(value) = filters.autonomy_mode.as_deref().filter(|v| !v.is_empty()) {
+        parts.push(format!("autonomy_mode={}", percent_encode(value)));
+    }
+    if let Some(value) = filters.q.as_deref().filter(|v| !v.is_empty()) {
+        parts.push(format!("q={}", percent_encode(value)));
+    }
+    parts.join("&")
+}
+
+/// One entry in the version-history response for a policy.
+///
+/// Mirrors the backend's
+/// [`polaris_backend::api::admin_policies::dto::ModPolicyHistoryEntryDto`].
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ModPolicyHistoryEntryDto {
+    /// Row identity for this version.
+    pub id: uuid::Uuid,
+    /// Version number.
+    pub version: i32,
+    /// "Why this version was written".
+    #[serde(default)]
+    pub change_summary: Option<String>,
+    /// Moderator who wrote this version.
+    pub created_by_moderator_id: uuid::Uuid,
+    /// When this version was inserted.
+    pub created_at: DateTime<Utc>,
+    /// When this version started binding decisions.
+    pub effective_from: DateTime<Utc>,
+    /// When this version stopped being current.
+    #[serde(default)]
+    pub effective_until: Option<DateTime<Utc>>,
+    /// Tombstone marker.
+    pub is_retired: bool,
+    /// URL pointing at the per-version diff. `None` for v1.
+    #[serde(default)]
+    pub diff_url: Option<String>,
+}
+
+/// Request body for `POST /api/admin/policies` — create v1 of a new
+/// policy.
+///
+/// Mirrors the backend's `CreatePolicyDto`. Optional fields omitted
+/// here are filled with the backend's documented defaults (REQ-A3).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatePolicyDto {
+    /// Human-stable identifier; must be unique at v1.
+    pub identifier: String,
+    /// Short title.
+    pub name: String,
+    /// One-paragraph description.
+    pub description: String,
+    /// `account` | `post` | `both`.
+    pub scope: String,
+    /// `inform` | `alert` | `hide` | `remove`.
+    pub severity: String,
+    /// Decision criteria (≥ 64 chars).
+    pub decision_criteria: String,
+    /// Optional positive worked examples.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub examples_positive: Option<serde_json::Value>,
+    /// Optional negative worked examples.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub examples_negative: Option<serde_json::Value>,
+    /// Suggested action kinds.
+    pub suggested_action_kinds: Vec<String>,
+    /// Optional default label value for `kind = label`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_label_value: Option<String>,
+    /// Optional free-text exceptions block.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exceptions: Option<String>,
+    /// REQ-A2 floor.
+    #[serde(default)]
+    pub human_required_always: bool,
+    /// `manual` / `assisted` / `autonomous`. Defaults to `manual` on
+    /// the backend when omitted.
+    pub autonomy_mode: String,
+    /// Subset of `{label, warn, takedown}` (REQ-G1).
+    #[serde(default)]
+    pub autonomous_action_kinds: Vec<String>,
+    /// Confidence floor for autonomous emission.
+    pub autonomous_confidence_threshold: f32,
+    /// Confidence floor for assisted drafts.
+    pub assisted_confidence_threshold: f32,
+    /// Optional "why v1" note.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub change_summary: Option<String>,
+}
+
+/// Request body for `PATCH /api/admin/policies/:identifier`.
+///
+/// Every field optional — omission means "carry forward from the prior
+/// version" (REQ-C2). `change_summary` is the only required field.
+/// Mirrors the backend's
+/// [`polaris_backend::api::admin_policies::dto::ModPolicyEditDto`].
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModPolicyEditDto {
+    /// New short title.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// New description paragraph.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// New scope.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+    /// New severity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub severity: Option<String>,
+    /// New decision criteria text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision_criteria: Option<String>,
+    /// Replace positive-example array.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub examples_positive: Option<serde_json::Value>,
+    /// Replace negative-example array.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub examples_negative: Option<serde_json::Value>,
+    /// Replace suggested-action-kinds list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggested_action_kinds: Option<Vec<String>>,
+    /// Replace linked label value. Frontend currently always carries
+    /// forward (uses `None`); a future affordance can switch to
+    /// `Some(None)` to clear.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linked_label_value: Option<String>,
+    /// Replace exceptions text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exceptions: Option<String>,
+    /// Flip the human-required-always floor.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub human_required_always: Option<bool>,
+    /// New autonomy mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub autonomy_mode: Option<String>,
+    /// Replace autonomous-action-kinds list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub autonomous_action_kinds: Option<Vec<String>>,
+    /// New autonomous confidence threshold.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub autonomous_confidence_threshold: Option<f32>,
+    /// New assisted confidence threshold.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub assisted_confidence_threshold: Option<f32>,
+    /// Retire the policy (writes a tombstone successor row).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_retired: Option<bool>,
+    /// REQUIRED — operator's note on why this version was written.
+    pub change_summary: String,
+}
+
+/// Request body for `POST /api/admin/policies/:identifier/pause`.
+///
+/// Two shapes accepted by the backend:
+/// - `{ "until": "<rfc3339>" }` — pause until a specific timestamp.
+/// - `{ "forever": true }` or `{}` — pause until the `9999-12-31`
+///   sentinel per the design's "forever" affordance.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PausePolicyDto {
+    /// Optional explicit timestamp.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub until: Option<DateTime<Utc>>,
+    /// Optional "forever" toggle.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forever: Option<bool>,
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,

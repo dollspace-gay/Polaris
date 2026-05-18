@@ -54,7 +54,9 @@ use crate::components::dashboard::moderator_load::ModeratorLoadPanel;
 use crate::components::dashboard::report_volume_chart::ReportVolumeChart;
 use crate::components::filter_bar::{FilterBar, FilterState};
 use crate::pages::admin_moderators::ADMIN_MODERATORS_PATH;
+use crate::pages::admin_policies::ADMIN_POLICIES_PATH;
 use crate::pages::login::{is_unauthorized, redirect_to_login};
+use crate::pages::policies::POLICIES_PATH;
 
 /// Role identifier the backend's `whoami` response uses for the
 /// admin tier (snake-case matching `Role::as_db_str`).
@@ -99,11 +101,23 @@ fn AdminLink() -> impl IntoView {
             {move || Suspend::new(async move {
                 match whoami.await {
                     Some(response) if whoami_is_admin(&response) => view! {
-                        <a class="pattern-dashboard__admin-link" href=ADMIN_MODERATORS_PATH>
-                            "Moderators →"
+                        <>
+                            <a class="pattern-dashboard__admin-link" href=ADMIN_MODERATORS_PATH>
+                                "Moderators →"
+                            </a>
+                            <a class="pattern-dashboard__admin-link" href=ADMIN_POLICIES_PATH>
+                                "Policies →"
+                            </a>
+                        </>
+                    }.into_any(),
+                    Some(_) => view! {
+                        // Non-admin moderators still get the read-only
+                        // browse view of the policy workbook (REQ-D4).
+                        <a class="pattern-dashboard__admin-link" href=POLICIES_PATH>
+                            "Policies →"
                         </a>
                     }.into_any(),
-                    _ => ().into_any(),
+                    None => ().into_any(),
                 }
             })}
         </Suspense>

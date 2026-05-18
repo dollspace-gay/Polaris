@@ -20,6 +20,12 @@
 //!   [`AdminModeratorsPage`](crate::pages::admin_moderators::AdminModeratorsPage)
 //!   (issue #214 / #217, admin-only moderator allow-list
 //!   management).
+//! - `/admin/policies` —
+//!   [`AdminPoliciesPage`](crate::pages::admin_policies::AdminPoliciesPage)
+//!   (issue #226 / WB-4, admin-only policy workbook editor).
+//! - `/policies` —
+//!   [`PoliciesPage`](crate::pages::policies::PoliciesPage)
+//!   (issue #226 / WB-4, moderator-readable policy browse view).
 //!
 //! # Session-less landing
 //!
@@ -60,9 +66,11 @@ use crate::api_client::{ApiError, PolarisApiClient, default_client};
 use crate::components::command_palette::CommandPalette;
 use crate::components::exposure_counter::ExposureCounter;
 use crate::pages::admin_moderators::AdminModeratorsPage;
+use crate::pages::admin_policies::AdminPoliciesPage;
 use crate::pages::case_view::CaseView;
 use crate::pages::dashboard::PatternDashboard;
 use crate::pages::login::{LoginPage, is_unauthorized, redirect_to_login};
+use crate::pages::policies::PoliciesPage;
 use crate::pages::queue::TriageQueue;
 use crate::pages::setup::{SETUP_PATH, SetupWizard};
 use crate::validation::build_shared_registry;
@@ -168,6 +176,15 @@ pub fn App() -> impl IntoView {
                             // for non-admins — the route is reachable
                             // by anyone, but the contents are gated.
                             <Route path=path!("/admin/moderators") view=AdminModeratorsPage/>
+                            // Issue #226 / WB-4: admin-only policy
+                            // workbook editor and the moderator-readable
+                            // browse view. Backend gates both surfaces
+                            // independently — non-admins on
+                            // `/admin/policies` see the inline Forbidden
+                            // banner; non-moderators on `/policies` see
+                            // a 401 → /login redirect.
+                            <Route path=path!("/admin/policies") view=AdminPoliciesPage/>
+                            <Route path=path!("/policies") view=PoliciesPage/>
                         </Routes>
                     </main>
                 </Router>

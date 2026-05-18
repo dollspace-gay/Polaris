@@ -33,10 +33,12 @@ use serde::{Deserialize, Serialize};
 pub mod dto;
 
 use dto::{
-    AddModeratorRequest, AdminModerator, CaseView, DashboardFilters, DashboardSnapshot, Escalate,
-    GenerateKeyResponse, IncidentList, PatchModeratorRoleRequest, PublishLabelerRecordRequest,
-    PublishLabelerRecordResponse, RequestPlcSignatureResponse, ReverseBody, SubjectLookupResponse,
-    SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
+    AddModeratorRequest, AdminModerator, CaseView, CreatePolicyDto, DashboardFilters,
+    DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList, ModPolicyDto, ModPolicyEditDto,
+    ModPolicyHistoryEntryDto, ModPolicySummaryDto, PatchModeratorRoleRequest, PausePolicyDto,
+    PolicyListFilters, PublishLabelerRecordRequest, PublishLabelerRecordResponse,
+    RequestPlcSignatureResponse, ReverseBody, SubjectLookupResponse, SubmitAction,
+    SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
 };
 
 // The `#![cfg(...)]` inner attribute at the top of each impl file is the
@@ -348,6 +350,62 @@ pub trait PolarisApiClient {
     /// row's "Remove" button (`disabled` + tooltip) so the click
     /// fails up-front rather than waiting on the round-trip.
     async fn delete_admin_moderator(&self, did: &str) -> Result<(), ApiError>;
+
+    // ── Mod policy workbook (issue #226 / WB-4) ─────────────────────
+
+    /// `GET /api/policies` — list current versions (moderator-readable).
+    ///
+    /// Returns the slim [`ModPolicySummaryDto`] projection (no examples,
+    /// no `decision_criteria` body) — used by both the admin two-pane
+    /// page and the read-only browse view. Backend gates this on
+    /// `Role::Moderator` or higher.
+    async fn list_policies(
+        &self,
+        filters: &PolicyListFilters,
+    ) -> Result<Vec<ModPolicySummaryDto>, ApiError>;
+
+    /// `GET /api/policies/:identifier` — fetch the current version of a
+    /// policy, full payload including examples. Moderator-readable.
+    async fn get_policy(&self, identifier: &str) -> Result<ModPolicyDto, ApiError>;
+
+    /// `GET /api/admin/policies/:identifier/history` — admin-only.
+    /// Returns the full version chain (oldest first).
+    async fn get_policy_history(
+        &self,
+        identifier: &str,
+    ) -> Result<Vec<ModPolicyHistoryEntryDto>, ApiError>;
+
+    /// `GET /api/admin/policies/:identifier/:version` — admin-only.
+    /// Specific historical version, full payload.
+    async fn get_policy_at_version(
+        &self,
+        identifier: &str,
+        version: i32,
+    ) -> Result<ModPolicyDto, ApiError>;
+
+    /// `POST /api/admin/policies` — admin-only. Create v1 of a new
+    /// policy.
+    async fn create_policy(&self, body: CreatePolicyDto) -> Result<ModPolicyDto, ApiError>;
+
+    /// `PATCH /api/admin/policies/:identifier` — admin-only. Amend the
+    /// policy, bumping the version. `body.change_summary` is required.
+    async fn amend_policy(
+        &self,
+        identifier: &str,
+        body: ModPolicyEditDto,
+    ) -> Result<ModPolicyDto, ApiError>;
+
+    /// `POST /api/admin/policies/:identifier/pause` — admin-only. Set
+    /// `autonomous_paused_until`.
+    async fn pause_policy(
+        &self,
+        identifier: &str,
+        body: PausePolicyDto,
+    ) -> Result<ModPolicyDto, ApiError>;
+
+    /// `DELETE /api/admin/policies/:identifier/pause` — admin-only.
+    /// Clear `autonomous_paused_until` (resume autonomy).
+    async fn resume_policy(&self, identifier: &str) -> Result<ModPolicyDto, ApiError>;
 }
 
 /// Typed wire shape of `GET /healthz`.

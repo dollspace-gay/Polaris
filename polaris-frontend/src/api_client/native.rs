@@ -12,11 +12,13 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 use super::dto::{
-    AddModeratorRequest, AdminModerator, CaseView, DashboardFilters, DashboardSnapshot, Escalate,
-    GenerateKeyResponse, IncidentList, PatchModeratorRoleRequest, PublishLabelerRecordRequest,
-    PublishLabelerRecordResponse, RequestPlcSignatureResponse, ReverseBody, SubjectLookupRequest,
-    SubjectLookupResponse, SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse,
-    WhoamiResponse, dashboard_filters_to_query_string,
+    AddModeratorRequest, AdminModerator, CaseView, CreatePolicyDto, DashboardFilters,
+    DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList, ModPolicyDto, ModPolicyEditDto,
+    ModPolicyHistoryEntryDto, ModPolicySummaryDto, PatchModeratorRoleRequest, PausePolicyDto,
+    PolicyListFilters, PublishLabelerRecordRequest, PublishLabelerRecordResponse,
+    RequestPlcSignatureResponse, ReverseBody, SubjectLookupRequest, SubjectLookupResponse,
+    SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
+    dashboard_filters_to_query_string, policy_filters_to_query_string,
 };
 use super::{ApiError, HealthStatus, PolarisApiClient};
 
@@ -306,5 +308,77 @@ impl PolarisApiClient for NativePolarisApiClient {
     async fn delete_admin_moderator(&self, did: &str) -> Result<(), ApiError> {
         let path = format!("/api/admin/moderators/{did}");
         self.delete_no_content(&path).await
+    }
+
+    async fn list_policies(
+        &self,
+        filters: &PolicyListFilters,
+    ) -> Result<Vec<ModPolicySummaryDto>, ApiError> {
+        let query = policy_filters_to_query_string(filters);
+        let path = if query.is_empty() {
+            "/api/policies".to_owned()
+        } else {
+            format!("/api/policies?{query}")
+        };
+        self.get_json(&path).await
+    }
+
+    async fn get_policy(&self, identifier: &str) -> Result<ModPolicyDto, ApiError> {
+        let path = format!("/api/policies/{identifier}");
+        self.get_json(&path).await
+    }
+
+    async fn get_policy_history(
+        &self,
+        identifier: &str,
+    ) -> Result<Vec<ModPolicyHistoryEntryDto>, ApiError> {
+        let path = format!("/api/admin/policies/{identifier}/history");
+        self.get_json(&path).await
+    }
+
+    async fn get_policy_at_version(
+        &self,
+        identifier: &str,
+        version: i32,
+    ) -> Result<ModPolicyDto, ApiError> {
+        let path = format!("/api/admin/policies/{identifier}/{version}");
+        self.get_json(&path).await
+    }
+
+    async fn create_policy(&self, body: CreatePolicyDto) -> Result<ModPolicyDto, ApiError> {
+        self.post_json("/api/admin/policies", &body).await
+    }
+
+    async fn amend_policy(
+        &self,
+        identifier: &str,
+        body: ModPolicyEditDto,
+    ) -> Result<ModPolicyDto, ApiError> {
+        let path = format!("/api/admin/policies/{identifier}");
+        self.patch_json(&path, &body).await
+    }
+
+    async fn pause_policy(
+        &self,
+        identifier: &str,
+        body: PausePolicyDto,
+    ) -> Result<ModPolicyDto, ApiError> {
+        let path = format!("/api/admin/policies/{identifier}/pause");
+        self.post_json(&path, &body).await
+    }
+
+    async fn resume_policy(&self, identifier: &str) -> Result<ModPolicyDto, ApiError> {
+        // `DELETE /api/admin/policies/:identifier/pause` returns the
+        // updated policy as JSON (REQ-C2), so the response shape is
+        // not the no-content path. Use a direct `delete` with the
+        // JSON decoder.
+        let path = format!("/api/admin/policies/{identifier}/pause");
+        let resp = self
+            .client
+            .delete(self.url(&path))
+            .send()
+            .await
+            .map_err(|e| ApiError::Transport(e.to_string()))?;
+        decode_response(resp).await
     }
 }
