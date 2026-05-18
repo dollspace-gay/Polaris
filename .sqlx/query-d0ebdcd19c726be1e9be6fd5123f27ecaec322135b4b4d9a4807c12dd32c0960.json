@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT seq, COUNT(*) OVER () AS row_count\n        FROM indexed_labels\n        WHERE src = $1 AND uri = $2 AND val = $3 AND neg = FALSE\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "row_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "d0ebdcd19c726be1e9be6fd5123f27ecaec322135b4b4d9a4807c12dd32c0960"
+}

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE moderator_exposure_settings SET force_break_at_pct = 50 WHERE moderator_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a0b48821af8435abb3c7ff061d9603c46056e69daffa2618820ebbc436796ec1"
+}

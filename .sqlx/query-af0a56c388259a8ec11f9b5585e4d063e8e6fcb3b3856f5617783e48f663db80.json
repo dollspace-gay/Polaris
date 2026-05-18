@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT policy_identifier, policy_version FROM action_policy_citations\n           WHERE action_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "policy_identifier",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "policy_version",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "af0a56c388259a8ec11f9b5585e4d063e8e6fcb3b3856f5617783e48f663db80"
+}

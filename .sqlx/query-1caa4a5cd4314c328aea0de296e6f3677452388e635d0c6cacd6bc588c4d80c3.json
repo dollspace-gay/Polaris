@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT src, uri, val, neg, seq, sig, cts, exp\n        FROM indexed_labels\n        WHERE src = $1 AND uri = $2 AND val = $3\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "src",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "uri",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "val",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "neg",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "seq",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "sig",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 6,
+        "name": "cts",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "exp",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "1caa4a5cd4314c328aea0de296e6f3677452388e635d0c6cacd6bc588c4d80c3"
+}
