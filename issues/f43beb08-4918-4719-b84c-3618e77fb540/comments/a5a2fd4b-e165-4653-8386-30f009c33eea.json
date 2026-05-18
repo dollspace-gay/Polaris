@@ -1,0 +1,10 @@
+{
+  "uuid": "a5a2fd4b-e165-4653-8386-30f009c33eea",
+  "issue_uuid": "f43beb08-4918-4719-b84c-3618e77fb540",
+  "author": "TeIq",
+  "content": "Delivered: backend allow-list + ACL endpoints. Migration 46 adds pinned_admin column + monotone trigger + partial index. maybe_grant_first_user_admin now also sets pinned_admin=TRUE in the same tx. complete_login_impl gates non-bootstrap logins via a SELECT COUNT(*) FROM moderators carve-out then a SELECT 1 FROM moderator_roles JOIN moderators ON external_id allow-list probe; non-allowlisted → AuthError::NotAllowed → ApiError::LoginNotAllowed (403) → 303 redirect to /login?error=unauthorized&handle=<echoed>. New module src/api/admin_moderators.rs with GET/POST/PATCH/DELETE at /api/admin/moderators[/:did[/roles]]; every mutation appends an audit_log entry (moderator_added / moderator_role_changed / moderator_removed). PATCH refuses last-admin demote OR pinned-admin demote; DELETE refuses pinned-admin removal. New integration test tests/moderator_acl.rs (5 tests, all pass). Live verified against polaris-pg-live: POST adds triage user 201, DELETE pinned 409, direct UPDATE pinned=FALSE → trigger error, GET lists seeded admin + new user. Build green, clippy -D warnings green, lib tests 570 passed (baseline 565 + 5 new admin_moderators unit tests + existing additions).",
+  "created_at": "2026-05-18T03:20:04.270688357Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA7kWDVyXB7hH7DcGpKVXVq223Mx7D7Bs3jkp+D8kfoEusJSfOcjKHU8ViYK0MUQlvKSm+phPW26fqIgLCpIbCCw=="
+}
