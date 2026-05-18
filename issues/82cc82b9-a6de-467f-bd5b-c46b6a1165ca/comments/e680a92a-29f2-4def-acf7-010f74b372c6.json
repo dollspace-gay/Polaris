@@ -1,0 +1,10 @@
+{
+  "uuid": "e680a92a-29f2-4def-acf7-010f74b372c6",
+  "issue_uuid": "82cc82b9-a6de-467f-bd5b-c46b6a1165ca",
+  "author": "TeIq",
+  "content": "Delivered (do NOT push — leaving working tree dirty per task rules): Task 1 .gitignore + git rm --cached (149 polaris-backend/.sqlx files now untracked, .claude/worktrees/ already untracked). Task 2 auth_atproto_http.rs tests renamed + assert 303 redirect to /login?error= (4/4 pass). Task 3 rust-toolchain.toml gets targets = ['wasm32-unknown-unknown'] (wasm-build verified locally). Task 3 CI wellness root-cause: NOT a code bug — GitHub runner ran out of disk: 'FATAL: could not write to file pg_wal/xlogtemp.33: No space left on device' — added free-runner-disk-space step to ci.yml. Task 4 dependabot: dismissed alerts 1 (lru not in lockfile), 3/4/5 (rustls-webpki 0.103.13 satisfies all 3 fixes); alert 2 (aws-sdk-s3) will green via PR after Task 3 lands; alerts 6+7 (hickory-proto) blocked upstream — follow-up filed as #219. Pre-existing workspace-root .sqlx/ deletions in working tree were NOT introduced by me and must NOT be committed — workspace cache MUST stay tracked.",
+  "created_at": "2026-05-18T04:14:59.193126792Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAvMmVM7ppV2fde0RxCIf29ON2UB4KqiCnbZZJ0loJVDhuP3MhJRVHYQIf7L8g4ssK1clKIAQP/wzCVLhFf7P7Cg=="
+}
