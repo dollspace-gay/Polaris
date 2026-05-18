@@ -2,12 +2,13 @@
   "uuid": "ba484be1-c7f3-47c8-9112-110ad2c7504f",
   "display_id": 232,
   "title": "Extend ClassifierClient trait with recommend(); Tonic + Fixture impls",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "parent_uuid": "38a78c72-404f-483c-807a-8f5a08f37e83",
   "created_by": "TeIq",
   "created_at": "2026-05-18T07:52:18.756906444Z",
-  "updated_at": "2026-05-18T08:04:32.770628941Z",
+  "updated_at": "2026-05-18T10:36:45.913156307Z",
+  "closed_at": "2026-05-18T10:36:45.913156307Z",
   "labels": [
     "rust"
   ],
