@@ -61,6 +61,59 @@ image (multi-arch: linux/amd64 + linux/arm64) is the supported
 production artefact, and `scripts/install.sh` is the supported entry
 point.
 
+## AI moderation
+
+Polaris ships an LLM moderation-assist substrate that lets a model
+recommend (or, with operator opt-in, autonomously apply) moderation
+actions. The feature is **off by default** and gated end-to-end by a
+versioned policy workbook plus eight server-side safety floors — the
+LLM never decides on its own which policy applies, what action verb is
+legal, or whether autonomy is even allowed for the case in front of it.
+
+Three operator-selectable modes, configured **per policy** in
+`mod_policies`:
+
+| Mode | What happens to a recommendation |
+|---|---|
+| `manual` *(default)* | Shows in the case-view advisory panel; a human moderator decides. |
+| `assisted` | Lands in `pending_auto_actions` as a draft; a moderator clicks approve / reject. |
+| `autonomous` | When confidence + safety floors clear, the action emits to atproto without human review. Reversible within 24 hours. |
+
+What's shipped today:
+
+- gRPC `Recommend` RPC on `polaris.classifier.v1.Classifier`
+  ([`proto/polaris-classifier-v1.proto`](proto/polaris-classifier-v1.proto)).
+- [Fixture adapter](examples/llm-fixture-adapter/) for end-to-end
+  wire-up validation without a real model.
+- [Live-LLM reference implementation](examples/llm-prompt-reference/)
+  against Qwen 2.5 32B Instruct (Q3_K_M GGUF, ~16 GB VRAM) via
+  `llama-cpp-python` — including a quality-gate smoke test on an
+  ambiguous criticism-vs-harassment case.
+- Dispatcher with three-mode routing (manual / assisted / autonomous)
+  and the eight server-side safety floors (CSAM hard block, global
+  kill switch, reversal-rate breaker, per-policy rate limit, subject
+  cooldown, account-takedown gate, action-kind gate, confidence floor).
+- Admin pages: `/admin/llm/audit` (filterable autonomous-action audit
+  with full LLM envelope), kill-switch toggle, dry-run calibration
+  replay (`POST /api/admin/llm/dry-run`).
+- Feedback loop: every reversal and rejection fires a structured
+  `Feedback` RPC back to the LLM substrate; daily confirmation batch
+  emits positive-signal feedback when an autonomous action survives
+  its 24-hour reversal window.
+
+How to enable it on your deployment is documented in three places:
+
+- [`docs/ops/llm-moderation.md`](docs/ops/llm-moderation.md) — the
+  operator runbook: fixture wire-up, per-policy autonomy enablement,
+  safety floors in plain English, kill-switch usage, audit page,
+  common adapters (vLLM / Claude / OpenAI / Bedrock).
+- [`docs/ops/policy-autonomy.md`](docs/ops/policy-autonomy.md) —
+  the safety-invariant catalogue, `human_required_always` semantics,
+  and the three independent enforcement layers (workbook API,
+  action-create API, dispatcher).
+- [`.design/llm-moderation-assist.md`](.design/llm-moderation-assist.md)
+  — full design doc with every REQ-* traced through to a test.
+
 ## Workspace layout
 
 | Crate | Role |
@@ -90,6 +143,12 @@ under [`docs/ops/`](docs/ops/):
 | `docs/ops/quick-start.md` | 15-minute install-to-running runbook for the compose stack. |
 | `docs/ops/upgrade.md` | Standard upgrade flow, migration handling, and rollback. |
 | `docs/ops/backup.md` | Postgres PITR + S3-object-lock attestation + quarterly restore drill. |
+| `docs/ops/llm-moderation.md` | Wire-up tutorial, per-policy autonomy enablement, safety floors, kill switch, common LLM adapters. |
+| `docs/ops/policy-autonomy.md` | `human_required_always` invariant, the three enforcement layers, pause / resume workflow. |
+| `docs/ops/policy-management.md` | Versioned workbook (`mod_policies`), seed YAML, `polaris-setup seed-policies`. |
+| `docs/ops/classifier-integration.md` | Sibling guide for the non-LLM `Classify` / `ClassifyStream` / `Feedback` / `HealthCheck` RPCs. |
+| `examples/llm-fixture-adapter/` | Rust gRPC fixture returning canned `RecommendResponse`s for end-to-end plumbing checks. |
+| `examples/llm-prompt-reference/` | Python reference impl against Qwen 2.5 32B Instruct (GGUF + llama-cpp-python) including a quality-gate smoke test. |
 
 ## License
 

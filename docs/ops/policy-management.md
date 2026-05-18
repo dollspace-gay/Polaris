@@ -343,8 +343,8 @@ policy history detectable — re-running the chain verifier
 (`docs/ops/runbook.md` §audit) is the operator-side check before
 declaring a historical audit "intact".
 
-*Coming with [#238](https://github.com/dollspace-gay/polaris/issues/238):
-the admin LLM audit page at `/admin/llm/audit` will surface
-recommendation → action linkage so reviewing "what did the LLM say
-when this autonomous label fired against harassment v5" no longer
-requires raw SQL.*
+The admin LLM audit page at `/admin/llm/audit` surfaces
+recommendation → action linkage with filters `?model=`, `?policy=`,
+`?reversed=`, `?from=`, `?to=`, so reviewing "what did the LLM say
+when this autonomous label fired against harassment v5" does not
+require raw SQL. See [`llm-moderation.md`](llm-moderation.md) § 5.

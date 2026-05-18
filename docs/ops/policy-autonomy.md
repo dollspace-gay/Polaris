@@ -95,17 +95,18 @@ The dispatcher re-reads `human_required_always` and
 `autonomous_paused_until` on **every** recommend call — there is no
 TTL on the safety floor. A stale in-memory cache can never produce an
 autonomous fire because the floor check goes straight to the DB. The
-dispatcher coverage of REQ-S8 lands with LLM-6
-([#235](https://github.com/dollspace-gay/polaris/issues/235));
-regression coverage will live at
+dispatcher's per-recommendation evaluation of REQ-S8 lives at
+[`polaris-backend/src/llm/safety_floors.rs`](../../polaris-backend/src/llm/safety_floors.rs)
+and is regression-covered by 15 cases in
 [`polaris-backend/tests/llm_safety_floors.rs`](../../polaris-backend/tests/llm_safety_floors.rs)
 per `.design/llm-moderation-assist.md` AC-6.
 
-*Coming with [#235](https://github.com/dollspace-gay/polaris/issues/235):
-the dispatcher's per-recommendation floor evaluation publishes a
-`polaris_llm_safety_floor_tripped_total{floor=...}` Prometheus counter
-so an operator can read "how often did the LLM try" without scraping
-logs.*
+Every floor evaluation increments
+`polaris_llm_safety_floor_tripped_total{policy, floor}` (Prometheus
+counter), so an operator reads "how often did the LLM try" without
+scraping logs. Each trip also emits a structured
+`tracing::warn!("llm safety floor tripped", floor, policy_identifier,
+downgrade_to_manual, detail)` line.
 
 ## When to mark a policy human-required
 
@@ -196,16 +197,40 @@ pauses there.
 
 ### Global kill switch
 
-*Coming with [#241](https://github.com/dollspace-gay/polaris/issues/241)
-(LLM-12): the global autonomy kill switch endpoint pauses every
-policy's autonomous emission in one call without touching individual
+The global autonomy kill switch is the one-click "stop the bleeding"
+lever for incident response. It pauses every policy's autonomous
+emission in a single call without touching individual
 `autonomous_paused_until` columns. The dispatcher reads the global
-flag first; per-policy pauses remain in force as the second gate.*
+flag first; per-policy pauses remain in force as the second gate, so
+clearing the global does not silently un-pause a policy that was
+paused per-policy.
 
-For now, the per-policy endpoint is the durable pause primitive. To
-pause everything during a live incident: script a sweep over every
-identifier returned by `GET /api/admin/policies?autonomy_mode=
-autonomous`.
+The state lives at
+`polaris_setup_state.global_autonomous_pause_until`. Two endpoints:
+
+```sh
+# Engage (until a specific time, or indefinitely if body is empty):
+curl -sS -X POST https://mod.example.com/api/admin/llm/pause \
+  -H "Content-Type: application/json" \
+  --cookie polaris_session=<your-cookie> \
+  -d '{"until":"2026-05-19T08:00:00Z"}'
+
+# Engage forever (until an explicit clear):
+curl -sS -X POST https://mod.example.com/api/admin/llm/pause \
+  --cookie polaris_session=<your-cookie> -d '{}'
+# {"paused_until":"9999-12-31T23:59:59Z"}
+
+# Clear:
+curl -sS -X DELETE https://mod.example.com/api/admin/llm/pause \
+  --cookie polaris_session=<your-cookie>
+# 204 No Content
+```
+
+Both write an `llm_pause_engaged` / `llm_pause_cleared` audit-log
+row with the moderator id and the resulting timestamp. The clear is
+idempotent — calling it on a non-paused state still records the
+operator's action. See [`llm-moderation.md`](llm-moderation.md) § 4
+for the full operator runbook.
 
 ### What happens to in-flight recommendations
 
@@ -228,36 +253,56 @@ policy to `autonomy_mode = autonomous`.
 
 ### Dry-run calibration first
 
-*Coming with [#240](https://github.com/dollspace-gay/polaris/issues/240)
-(LLM-11): the dry-run calibration mode runs the LLM dispatcher against
-historical actions without emitting; the report surfaces per-policy
-precision, recall, and threshold curves so an operator picks an
-`autonomous_confidence_threshold` that matches their tolerance. Don't
-flip autonomy on without it.*
+The dry-run calibration job replays the last N closed incidents
+through the configured LLM in no-side-effect mode and scores each
+case against the human moderator's actual outcome. It writes only to
+the `dry_run_jobs` and `dry_run_results` tables — no observations,
+no actions, no atproto emission — so an operator can confidently
+calibrate against production data.
 
-Until LLM-11 lands, a safe substitute is the `assisted` mode pipeline:
-run the policy in `assisted` for at least a moderator-shift week,
-review the drafts the LLM produced, and measure how often a moderator
-disagreed with the recommended action. A disagreement rate above your
-tolerance for autonomous false-positives is the signal to keep the
-policy in `assisted`.
+```sh
+# Kick off (admin-only):
+curl -sS -X POST https://mod.example.com/api/admin/llm/dry-run \
+  -H "Content-Type: application/json" \
+  --cookie polaris_session=<your-cookie> \
+  -d '{"policy_identifier":"polaris.spam","lookback_days":30}'
+# {"job_id": "<uuid>"}
+
+# Poll:
+curl -sS https://mod.example.com/api/admin/llm/dry-run/<uuid> \
+  --cookie polaris_session=<your-cookie>
+# Returns cases_evaluated / agreements / disagreements / errors /
+# agreement_rate plus a capped sample of the disagreement rows so
+# you can spot calibration patterns at a glance.
+```
+
+`lookback_days` clamps server-side to `[1, 90]`; per-job replay tops
+out at 500 cases. The full runbook (recommended agreement-rate
+thresholds for moving manual → assisted → autonomous, how to read the
+disagreement sample) lives in [`llm-moderation.md`](llm-moderation.md)
+§ 2.
+
+The fallback for operators who want a second confirmation signal is
+still the `assisted` mode pipeline: run the policy in `assisted` for
+a moderator-shift week, review the drafts the LLM produced, and
+measure how often a moderator disagreed with the recommendation.
 
 ### Monitor the reversal rate
 
-*Coming with [#235](https://github.com/dollspace-gay/polaris/issues/235)
-(LLM-6): the reversal-rate circuit breaker watches the rolling
-fraction of autonomous actions that get reversed within their
-`reversible_until` window. Exceed the operator-set rate, and the
-breaker writes `autonomous_paused_until` on the offending policy
-(audit-log actor = `circuit-breaker:<rule>`) and pages the operator
-channel.*
+The reversal-rate circuit breaker watches the rolling fraction of
+autonomous actions that get reversed within their `reversible_until`
+window. Exceeding the operator-set rate stamps
+`autonomous_paused_until = now() + 24h` on the offending policy and
+records the pause with audit-log actor `circuit-breaker:<rule>` so
+operators can distinguish breaker-driven pauses from manual ones.
 
 The metric the breaker watches is published on `/metrics` as
 `polaris_llm_reversal_rate` (per-policy gauge); the threshold lives
-in `polaris-backend/src/llm/safety_floors.rs`. Operators read the
-gauge to spot a quietly-misbehaving policy before the breaker fires:
-sustained 10%+ reversal on any autonomous policy is a smell, even if
-the rolling window hasn't crossed the alarm threshold yet.
+on the policy row itself (`autonomous_reversal_breaker_threshold`,
+default 0.15). Operators read the gauge to spot a quietly-misbehaving
+policy before the breaker fires: sustained 10%+ reversal on any
+autonomous policy is a smell even if the rolling window hasn't
+crossed the alarm threshold yet.
 
 ## Where to look when something goes wrong
 
@@ -269,19 +314,23 @@ Three primary surfaces. Use them in this order during an incident.
    chain verifier (see [`runbook.md`](runbook.md) §audit) is the
    tampering check.
 
-   *Coming with [#238](https://github.com/dollspace-gay/polaris/issues/238)
-   (LLM-9): the dedicated admin LLM audit page surfaces
-   recommendation → action linkage at `/admin/llm/audit` so reviewing
-   "what did the LLM say when this autonomous label fired" no longer
-   requires raw SQL.*
+   The dedicated admin LLM audit page lives at `/admin/llm/audit`
+   with filters `?model=`, `?policy=`, `?reversed=`, `?from=`,
+   `?to=`. Each row expands to reveal the full `LlmRecommendation`
+   observation `evidence` payload + the SHA-256 `input_hash`, so
+   reviewing "what did the LLM say when this autonomous label fired"
+   does not require raw SQL.
 
 2. **Metrics** (`/metrics`, Prometheus-format). Key gauges and
    counters:
    - `polaris_llm_reversal_rate{policy=...}` — rolling reversal
      fraction. Spike → circuit breaker is about to trip.
-   - `polaris_llm_safety_floor_tripped_total{floor=...}` — LLM tried
-     to recommend an autonomous action against a human-required
-     policy. *Coming with [#235](https://github.com/dollspace-gay/polaris/issues/235).*
+   - `polaris_llm_safety_floor_tripped_total{policy, floor}` — every
+     time the dispatcher's per-recommendation evaluation tripped a
+     safety floor. Labels: `policy` (identifier), `floor` (one of
+     `human_required` / `global_pause` / `reversal_breaker` /
+     `rate_limit` / `subject_cooldown` / `account_takedown` /
+     `action_kind` / `confidence`).
    - `polaris_llm_dispatcher_recommendations_total{outcome=...}` —
      manual / assisted-draft / autonomous-fire fan-out.
 

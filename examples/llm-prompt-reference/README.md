@@ -57,13 +57,23 @@ The test asserts:
   If a model emits one, the test reports it as a warning — that's the
   miscalibration the LLM-6 (#235) safety_floors module exists to catch.
 
-## What it doesn't yet test
+## What it doesn't test
 
-- The Rust gRPC adapter that translates Polaris's Recommend RPC into this
-  prompt + invocation (`examples/llm-fixture-adapter/` is the operator's
-  starter; see LLM-12 / #241).
-- The Polaris-side dispatcher (LLM-5 / #242) that hydrates the case from
-  the DB and routes the response through the safety floors.
-- Multi-action recommendations.
-- Production-scale throughput (this is single-request, in-process; vLLM /
-  TensorRT-LLM would push speed 2-3x higher).
+- The Rust gRPC adapter that translates Polaris's `Recommend` RPC into
+  this prompt + invocation. The in-tree
+  [`examples/llm-fixture-adapter/`](../llm-fixture-adapter/) is the
+  shipped Rust starter — it returns canned responses, so operators
+  fork it as a skeleton and replace the `Recommend` body with the
+  call into their model runtime (vLLM, llama.cpp HTTP API, Bedrock,
+  Anthropic, OpenAI, …).
+- The Polaris-side dispatcher
+  (`polaris-backend/src/llm/recommend_dispatcher.rs`) that hydrates
+  the case from the DB and routes the response through the eight
+  safety floors. The dispatcher is exercised by
+  `polaris-backend/tests/llm_safety_floors.rs` (15 cases) and
+  `polaris-backend/tests/llm_kill_switch.rs`.
+- Multi-action recommendations. The shape is supported on the wire
+  (`recommended_actions` is a list); the smoke test only validates
+  the head element.
+- Production-scale throughput. This is single-request, in-process;
+  vLLM / TensorRT-LLM would push tokens/sec 2–3× higher.

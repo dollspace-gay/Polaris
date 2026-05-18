@@ -25,11 +25,48 @@ section before flipping any policy to `autonomous`.
 This document covers:
 
 1. Wire-up tutorial (fixture adapter end-to-end).
-2. Per-policy autonomy enablement.
+2. Per-policy autonomy enablement (with dry-run calibration).
 3. Safety floors in plain English.
 4. Kill-switch usage.
 5. Reading the audit page.
 6. Common adapters.
+
+## What's shipped vs. what's pending
+
+The following pieces are landed on `main` today and exercised by
+integration tests:
+
+- gRPC `Recommend` RPC on `polaris.classifier.v1.Classifier`.
+- Dispatcher with three-mode routing (manual / assisted / autonomous).
+- Eight server-side safety floors (`polaris-backend/src/llm/safety_floors.rs`).
+- Reversal-rate circuit breaker (`polaris_llm_reversal_rate` gauge +
+  auto-pause writer).
+- Pending-auto-actions assisted queue + approve / reject endpoints
+  (`/api/queue/pending-auto-actions`).
+- Admin audit page (`/admin/llm/audit`) with model / policy / reversal /
+  date-range filters and keyset pagination.
+- Global kill switch (`POST` / `DELETE /api/admin/llm/pause`).
+- Dry-run calibration job (`POST /api/admin/llm/dry-run`,
+  `GET /api/admin/llm/dry-run/{job_id}`) — no-side-effect replay of
+  closed historical incidents through the LLM with per-case agreement
+  scoring.
+- Feedback loop: reversal, assisted-reject, and 24-hour confirmation
+  `Feedback` RPCs.
+- Two example adapters: the in-tree Rust gRPC `llm-fixture-adapter`,
+  and the Python `llm-prompt-reference` against Qwen 2.5 32B Instruct
+  Q3_K_M.
+
+The one piece that is **not** wired into the production
+`polaris-backend` binary's startup yet: the env-var driven
+`TonicClassifierClient` → `RecommendDispatcher` plumbing that calls
+`ApiState::with_llm_dispatcher` at boot. Until that lands, an operator
+who wants to exercise the LLM substrate end-to-end either (a) runs the
+fixture for plumbing validation and reads the audit / dry-run / queue
+endpoints against the empty state, or (b) builds a small main-shim
+that constructs the dispatcher and installs it onto `ApiState`
+manually. The dispatcher itself, the safety floors, the API surface,
+and every test path are production-ready; only the env-var → boot
+glue is the remaining seam.
 
 ---
 
@@ -172,23 +209,77 @@ are:
 
 ### Promoting to `autonomous`
 
-The design's hard requirement (REQ-H2): before flipping any policy
-to `autonomous`, run a **dry-run calibration** that replays the last
-N closed cases through the LLM in no-side-effect mode and emits an
-agreement report. The calibration API lives behind `POST
-/api/admin/llm/dry-run` and lands in LLM-11 (#240); until that ships,
-promote to `autonomous` only on policies where:
+The design's hard requirement (REQ-H2): before flipping any policy to
+`autonomous`, run a **dry-run calibration** against the last N closed
+cases. The job replays each historical incident through the configured
+LLM in no-side-effect mode (the runner writes only to `dry_run_jobs`
+and `dry_run_results`; no observations, no actions, no atproto emission)
+and scores each case against the action the human moderator actually
+recorded.
 
-- The fixture or production model has been observed to confidently
-  agree with the human moderator on at least 100 closed cases.
-- The policy's `human_required_always` flag is `FALSE`.
-- The policy's `autonomous_action_kinds` is `{label}` or `{warn}` —
-  `takedown` autonomy carries the heaviest blast radius and is the
-  last verb to enable.
+Kick off a job (admin-only):
+
+```sh
+curl -sS -X POST -H 'cookie: <admin-session>' \
+     -H 'content-type: application/json' \
+     -d '{"policy_identifier":"polaris.spam","lookback_days":30}' \
+     /api/admin/llm/dry-run
+# {"job_id":"<uuid>"}
+```
+
+Poll for progress + agreement rate:
+
+```sh
+curl -sS -H 'cookie: <admin-session>' \
+     /api/admin/llm/dry-run/<uuid> | jq .
+# {
+#   "id": "...",
+#   "state": "running" | "done" | "failed",
+#   "policy_identifier": "polaris.spam",
+#   "lookback_days": 30,
+#   "cases_evaluated": 217,
+#   "agreements": 198,
+#   "disagreements": 19,
+#   "errors": 0,
+#   "agreement_rate": 0.912,
+#   "disagreement_sample": [
+#     {"incident_id": "...", "llm_action_kind": "warn",
+#      "llm_confidence": 0.74, "human_action_kind": "no_action",
+#      "llm_reasoning": "Sustained reply pattern after stop signal."}
+#     // … up to 20
+#   ]
+# }
+```
+
+Inputs are bounded server-side: `lookback_days` clamps to `[1, 90]`
+and per-job replay tops out at 500 cases (`MAX_CASES_PER_JOB`). The
+runner re-implements the dispatcher's "hydrate → recommend → record"
+slice as its own narrow path rather than wrapping the dispatcher with
+a `dry_run = true` flag, because a missing-skip in that flag would
+risk real side effects landing in production.
+
+A safe promotion ladder once you have a job report in hand:
+
+- Agreement rate ≥ 95% on the policy AND the disagreement sample
+  doesn't show concentrated `human=no_action, llm=takedown` rows
+  (the most consequential failure mode) — candidate for `assisted`.
+- A moderator-shift week of `assisted` operation where rejection rate
+  on the LLM's drafts stayed in line with the dry-run miss rate —
+  candidate for `autonomous` with `{label, warn}`.
+- A second shift-week of clean autonomous operation — candidate for
+  enabling `takedown` in `autonomous_action_kinds`.
+
+Always promote `{label}` and `{warn}` before `{takedown}` —
+takedown autonomy carries the heaviest blast radius and is the last
+verb to enable. Account-level takedowns can never auto-fire even when
+`{takedown}` is in `autonomous_action_kinds` (REQ-G2 / safety floor
+S3, gated at three independent layers).
 
 The breaker (REQ-S6) auto-pauses any policy whose 7-day reversal rate
 exceeds the configured threshold (default 15%), so an autonomy
-promotion is reversible without an admin click.
+promotion is reversible without an admin click — the policy's
+`autonomous_paused_until` column gets stamped to `now() + 24h` and
+the dispatcher falls back to `assisted` on the next recommend.
 
 ---
 
@@ -333,10 +424,19 @@ human-action shape (REQ-F1):
   so a future audit can verify the same case wouldn't produce a
   different decision (replay determinism, REQ-D2).
 
-The `/admin/llm/audit` admin page (LLM-9 / #238 — not yet shipped)
-will render this audit envelope as a filterable list with `?model=`,
-`?policy=`, `?reversed=`, `?from=`, `?to=`. Until that page ships,
-read the audit envelope by SQL:
+The `/admin/llm/audit` admin page renders this audit envelope as a
+filterable list. Query-string filters: `?model=<name>`,
+`?policy=<identifier>` (matches any cited policy on the row),
+`?reversed=true|false`, `?from=<RFC3339>`, `?to=<RFC3339>`, plus
+`?cursor=<opaque>` for keyset pagination (default page size 50, hard
+ceiling 200). Each row expands to reveal the full `LlmRecommendation`
+observation's `evidence` payload and the SHA-256 `input_hash` for
+replay-determinism checks. The admin REST surface is
+`GET /api/admin/llm/audit`; both the page and the API gate on
+`Role::Admin`.
+
+If you need the raw SQL view (post-mortem reading from a replica, or
+a one-off Grafana panel), the same shape is available directly:
 
 ```sql
 SELECT a.id, a.kind, a.created_at,
