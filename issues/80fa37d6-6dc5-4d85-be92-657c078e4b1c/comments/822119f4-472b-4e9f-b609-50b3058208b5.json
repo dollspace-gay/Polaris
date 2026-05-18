@@ -1,0 +1,10 @@
+{
+  "uuid": "822119f4-472b-4e9f-b609-50b3058208b5",
+  "issue_uuid": "80fa37d6-6dc5-4d85-be92-657c078e4b1c",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/mod-policy-workbook.md\n**Implements**: REQ-D1..D4; AC-5\n\n**Files to add**:\n- polaris-frontend/src/pages/admin_policies.rs (two-pane admin edit)\n- polaris-frontend/src/pages/policies.rs (read-only browse)\n- polaris-frontend/styles/admin-policies.css\n\n**Files to modify**:\n- polaris-frontend/src/navigation.rs — routes + admin nav link\n- polaris-frontend/src/api_client/{dto,mod,native,wasm}.rs\n\n**UI**:\n- Two-pane layout (mirror /admin/moderators)\n- decision_criteria: textarea + Edit/Preview tab (REQ-D2; no live side-by-side)\n- Autonomy tab admin-only (mode + action-kinds + thresholds + pause state)\n- Version-history panel with change_summary + per-version diff links\n\n**Rust quality**:\n- All colours via var(--…) — styles_tokens forbids literal hex outside tokens.css\n- WCAG 2.x AA contrast — styles_contrast enforces\n- BEM naming (admin-policies__row, --cell--name, etc.)\n- styles_coverage requires every selector referenced from Rust have a matching rule in CSS\n\n**Tests**: styles_coverage, styles_tokens, styles_contrast all pass\n\n**Blocked by**: #225",
+  "created_at": "2026-05-18T07:46:42.924676356Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA78KtUslYl4d+Ru4W75OVRYbX293H16YN0j8ABEikUba8R18ZVfByMgkg2c6glvHZrKd8nhOqfur7sEC7D2B7AQ=="
+}
