@@ -1,0 +1,10 @@
+{
+  "uuid": "c1506db8-be62-4bb9-a4d5-e0f5d7582637",
+  "issue_uuid": "c701de24-b4bd-49bb-a267-a226cd2b5514",
+  "author": "TeIq",
+  "content": "Approach: mirror the request_one_page retry shape from label_backfill.rs. Single outer loop attempts 0..=1 (PER_REQUEST_RETRIES=1). On transport Err: log WARN with cause-chain and attempt, continue; on retries exhausted log WARN + return FetchError::Transport. Non-2xx and decode failures stay terminal. Duplicate the reqwest_error_chain helper inline (12 lines) per the brief's option (a). Add one wiremock-based unit test.",
+  "created_at": "2026-05-18T00:49:47.744152051Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPAqCSMxZCKdi/xVZR+4k4F+WgoVb6HDsVK4KwR+prhF7pYmHKRt53zK7kxv4Ck4qug2c5ArB+pCtoyGvvF9WCA=="
+}
