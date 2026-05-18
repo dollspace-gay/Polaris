@@ -1,0 +1,10 @@
+{
+  "uuid": "2dbb22d0-104f-4aa0-8ec8-8ba706eaadad",
+  "issue_uuid": "c5556658-da62-4025-a5e1-b2568ce04890",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/mod-policy-workbook.md\n**Implements**: REQ-B3..B5; AC-3, AC-7\n\n**Files to modify**:\n- polaris-backend/src/api/policy.rs — DELETE KNOWN_POLICY_REFS slice + its checker fn\n- polaris-backend/src/api/cases.rs::submit_action — validate each cited identifier via mod_policies::current_by_identifier; reject unknown (400 unknown_policy_ref) and retired (400 policy_retired); insert action + citations atomically in one tx\n- polaris-backend/src/repo/action.rs — reversal writes its own citations at reversal time (REQ-B5)\n\n**Rust quality**:\n- LRU cache hit on action-create hot path; fall through to DB on miss (REQ-B4)\n- Single sqlx::Transaction for action insert + per-citation inserts (atomicity)\n- Backward-compat: still populate actions.policy_refs TEXT[] with the flat identifier list (REQ-B2)\n\n**Tests**:\n- tests/policy_version_pinning.rs — action against a since-superseded policy version returns 409 policy_version_stale\n- Update tests/case_api.rs unknown-policy reject test against the new code path\n\n**Blocked by**: #223",
+  "created_at": "2026-05-18T07:45:20.096728811Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAHxrlJOeZY9ibSrLInQbSfuEVBVP+u1CT7Of2cIUwpo354lNmRlnUn07ZyDwRtMDg+zaxu2bzLHPEqB6xVjdfDA=="
+}
