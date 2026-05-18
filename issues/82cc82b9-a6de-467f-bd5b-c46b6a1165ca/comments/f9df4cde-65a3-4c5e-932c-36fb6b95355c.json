@@ -1,0 +1,10 @@
+{
+  "uuid": "f9df4cde-65a3-4c5e-932c-36fb6b95355c",
+  "issue_uuid": "82cc82b9-a6de-467f-bd5b-c46b6a1165ca",
+  "author": "TeIq",
+  "content": "CI test failure root-caused: NOT a test bug. CI log shows 'FATAL: could not write to file pg_wal/xlogtemp.33: No space left on device' when starting Postgres testcontainer for wellness_exposure. The GitHub runner ran out of disk after spinning up ~50 testcontainers across the workspace test suite. Both wellness tests PASS LOCALLY (4/4 against testcontainers, 2/2 against polaris-pg-live). Fix: add disk-cleanup step before cargo test (standard pattern: prune /usr/share/dotnet, /usr/local/lib/android, /opt/ghc — frees ~25 GB on ubuntu-latest).",
+  "created_at": "2026-05-18T04:09:35.877613237Z",
+  "kind": "observation",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAUvc6qOWkuRJMNaAI+hkvJm81GVkSFE9fJEUx2iXaeOjTb4TZSzwKo3EACE16J8lueJcgvAkJKfwtAlSi2kHFBg=="
+}
