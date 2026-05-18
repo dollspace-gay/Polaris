@@ -16,8 +16,9 @@
 //! - `axum_http_requests_duration_seconds{method,endpoint,status}` histogram
 //! - `axum_http_requests_pending{method,endpoint}` gauge
 //!
-//! Hand-emitted via `metrics::counter!` / `metrics::gauge!` at the
-//! relevant code sites (one site per series):
+//! Hand-emitted via `metrics::counter!` / `metrics::gauge!` /
+//! `metrics::histogram!` at the relevant code sites (one site per
+//! series):
 //!
 //! - `polaris_actions_total{kind}` — `cases::submit_action`
 //! - `polaris_labels_emitted_total{val,neg}` — `LabelEmitter::emit`
@@ -28,6 +29,46 @@
 //!   `setup::submit_plc_operation`
 //! - `polaris_setup_wizard_steps_total{step,status}` — every
 //!   `setup::*` handler
+//!
+//! # LLM moderation-assist series (REQ-I1 — issue #241 / LLM-12)
+//!
+//! Seven Prometheus series cover the LLM dispatcher and its safety
+//! floors. Stable label vocabulary — operators write Grafana alerts
+//! off these names, so renaming breaks dashboards.
+//!
+//! - `polaris_llm_recommend_total{model, policy, kind}` — counter.
+//!   Bumped once per [`RecommendedAction`] the dispatcher routes.
+//!   Emitted from
+//!   [`crate::llm::recommend_dispatcher::RecommendDispatcher::route_recommended_action`].
+//! - `polaris_llm_recommend_duration_seconds{model}` — histogram of
+//!   classifier-recommend RPC latency. Emitted around the
+//!   `ClassifierClient::recommend` call site in
+//!   [`crate::llm::recommend_dispatcher::RecommendDispatcher::dispatch_case_inner`].
+//! - `polaris_llm_recommend_confidence{policy, kind}` — histogram of
+//!   per-recommendation confidence. Emitted alongside
+//!   `polaris_llm_recommend_total`.
+//! - `polaris_llm_autonomous_action_total{policy, kind}` — counter.
+//!   Bumped after a successful autonomous-mode action insert.
+//!   Emitted from
+//!   [`crate::llm::recommend_dispatcher::RecommendDispatcher::route_recommended_action`].
+//! - `polaris_llm_autonomous_reversal_total{policy, kind}` — counter.
+//!   Bumped by [`crate::api::reversal::reverse_action`] when the
+//!   reversal targets an `actor_kind = 'autonomous_agent'` row.
+//!   Ratio of this counter to `polaris_llm_autonomous_action_total`
+//!   is the agent's per-policy misfire rate.
+//! - `polaris_llm_safety_floor_tripped_total{policy, floor}` —
+//!   counter of *evaluations* per floor (both pass and fail bump
+//!   the same series; the rate-of-trip is computed by the operator
+//!   as a fraction). Floor labels: `confidence | kind_gate |
+//!   account_takedown_block | cooldown | rate_limit |
+//!   circuit_breaker | global_pause | csam_block`. Emitted from
+//!   [`crate::llm::safety_floors::evaluate`].
+//! - `polaris_llm_assisted_queue_depth{policy}` — gauge. Sampled
+//!   every 30 s by
+//!   [`crate::llm::recommend_dispatcher::spawn_assisted_queue_depth_sampler`]
+//!   (started from the binary entrypoint).
+//!
+//! [`RecommendedAction`]: polaris_classifier_proto::v1::RecommendedAction
 //!
 //! # Authorization
 //!

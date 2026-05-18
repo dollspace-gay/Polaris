@@ -86,6 +86,96 @@ use crate::llm::safety_floors::{self, EffectiveMode};
 use crate::repo::action::{LlmAuditFields, NewAction};
 use crate::repo::{ActionRepo, ObservationRepo, PgActionRepo, PgObservationRepo};
 
+/// Sampling cadence for the
+/// `polaris_llm_assisted_queue_depth{policy}` gauge (REQ-I1).
+///
+/// 30s matches the resolution operators run their Grafana dashboards
+/// at; sampling more often would only buy noise (the queue moves
+/// per-moderator-action, not per-second). The sampler is spawned by
+/// the binary entrypoint via [`spawn_assisted_queue_depth_sampler`].
+pub const ASSISTED_QUEUE_DEPTH_SAMPLE_INTERVAL: Duration = Duration::from_secs(30);
+
+/// Spawn the `polaris_llm_assisted_queue_depth{policy}` gauge sampler
+/// (REQ-I1).
+///
+/// Runs forever on the supplied [`tokio::runtime::Handle`] (or the
+/// ambient runtime if called from a task), polling `pending_auto_actions`
+/// every [`ASSISTED_QUEUE_DEPTH_SAMPLE_INTERVAL`] and updating one
+/// gauge series per policy that currently has pending rows. Series for
+/// policies that drain to zero are NOT emitted on the next tick — the
+/// `metrics` recorder keeps the last sample until a new one arrives,
+/// which is the standard Prometheus convention for gauges (the absent
+/// sample reads as "stale"; the operator's alerting layer treats a
+/// stale series the same as a zero).
+///
+/// The sampler reads the pending count grouped by the citation's
+/// `policy_identifier` (the first cited policy from the JSONB payload
+/// — multi-policy drafts surface against their lead policy). A query
+/// failure logs at `tracing::warn!` and the loop continues; the
+/// sampler never panics.
+///
+/// # Panics
+///
+/// Spawn-side function; the spawn itself panics only if called outside
+/// a tokio runtime (the normal main-entrypoint shape). The loop body
+/// does not panic.
+pub fn spawn_assisted_queue_depth_sampler(pool: sqlx::PgPool) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(ASSISTED_QUEUE_DEPTH_SAMPLE_INTERVAL);
+        // Drop the first tick — `interval` fires immediately on
+        // construction which would race a fresh deployment's
+        // migrations. The 30s spacing kicks in from the second tick.
+        tick.tick().await;
+        loop {
+            tick.tick().await;
+            match sample_assisted_queue_depth(&pool).await {
+                Ok(()) => {}
+                Err(err) => tracing::warn!(
+                    error = ?err,
+                    "llm assisted-queue-depth sampler: query failed; will retry on next tick",
+                ),
+            }
+        }
+    })
+}
+
+/// Single sampling pass for [`spawn_assisted_queue_depth_sampler`].
+/// Public so the integration tests can drive a tick without spawning
+/// the loop.
+///
+/// # Errors
+///
+/// [`sqlx::Error`] on any DB failure.
+pub async fn sample_assisted_queue_depth(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
+    let rows = sqlx::query!(
+        r#"
+        SELECT
+            (recommended_action->>'cited_policy_identifiers')::JSONB->>0 AS "policy?",
+            COUNT(*) AS "count!"
+        FROM pending_auto_actions
+        WHERE state = 'pending'
+        GROUP BY 1
+        "#,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for row in rows {
+        let policy = row.policy.unwrap_or_else(|| "<unknown>".to_owned());
+        #[allow(
+            clippy::cast_precision_loss,
+            reason = "queue depth is bounded by the design's queue-ceiling (default 500); the f64 cast never loses precision in practice"
+        )]
+        let depth = row.count as f64;
+        metrics::gauge!(
+            "polaris_llm_assisted_queue_depth",
+            "policy" => policy,
+        )
+        .set(depth);
+    }
+    Ok(())
+}
+
 /// Default per-subject debounce window for `Push` triggers (REQ-C2 / Q4).
 ///
 /// Within this window a second `Push` on the same `subject_did` is
@@ -455,8 +545,21 @@ impl RecommendDispatcher {
         //    (REQ-F1).
         let input_hash = canonical_request_hash(&request);
 
-        // 5. Classifier RPC.
+        // 5. Classifier RPC. REQ-I1: time the round trip via a
+        //    `metrics::histogram!` so the operator can read
+        //    p50/p95/p99 inference latency per model from the
+        //    `/metrics` endpoint. The model label is taken from the
+        //    response (the request side has no model attribution; the
+        //    adapter decides) so the histogram series fans out per
+        //    adapter-reported model.
+        let recommend_started = Instant::now();
         let response = self.classifier_client.recommend(request.clone()).await?;
+        let recommend_elapsed = recommend_started.elapsed();
+        metrics::histogram!(
+            "polaris_llm_recommend_duration_seconds",
+            "model" => response.model.clone(),
+        )
+        .record(recommend_elapsed.as_secs_f64());
 
         // 6. Persist the response as an `LlmRecommendation`
         //    observation. The full response payload + the request
@@ -581,6 +684,30 @@ impl RecommendDispatcher {
         .await
         .map_err(crate::repo::RepoError::from)?;
 
+        // REQ-I1: per-recommendation observability. Three series fan
+        // out off `(model, policy, kind)` so an operator can write
+        // PromQL like `rate(polaris_llm_recommend_total{policy="polaris.spam",
+        // kind="label"}[5m])` and watch the LLM's behaviour on the
+        // policy under load. The confidence histogram is per
+        // `(policy, kind)` rather than including the model — the
+        // model dimension is already covered by
+        // `polaris_llm_recommend_duration_seconds`, and folding model
+        // into the confidence series multiplies the cardinality
+        // without information operators ask for in practice.
+        metrics::counter!(
+            "polaris_llm_recommend_total",
+            "model" => response.model.clone(),
+            "policy" => live_policy.identifier.clone(),
+            "kind" => recommended_action.action_kind.clone(),
+        )
+        .increment(1);
+        metrics::histogram!(
+            "polaris_llm_recommend_confidence",
+            "policy" => live_policy.identifier.clone(),
+            "kind" => recommended_action.action_kind.clone(),
+        )
+        .record(f64::from(recommended_action.confidence));
+
         tracing::info!(
             policy_identifier = %live_policy.identifier,
             recommended_kind = recommended_action.action_kind.as_str(),
@@ -619,6 +746,26 @@ impl RecommendDispatcher {
                         input_hash,
                     )
                     .await?;
+                // REQ-I1: autonomous-emit counter. Read by ops
+                // dashboards as the "what is the agent doing right
+                // now?" rate. The reversal counter
+                // (`polaris_llm_autonomous_reversal_total`) is bumped
+                // by the reversal handler in `api/reversal.rs` when a
+                // human overturns an autonomous action — the ratio
+                // of the two is the agent's misfire rate per policy.
+                metrics::counter!(
+                    "polaris_llm_autonomous_action_total",
+                    "policy" => live_policy.identifier.clone(),
+                    "kind" => recommended_action.action_kind.clone(),
+                )
+                .increment(1);
+                tracing::info!(
+                    policy_identifier = %live_policy.identifier,
+                    recommended_kind = recommended_action.action_kind.as_str(),
+                    confidence = recommended_action.confidence,
+                    action_id = %action_id.0,
+                    "llm dispatcher: autonomous action emitted",
+                );
                 Ok(DispatchOutcome::AutonomousAction {
                     action_id,
                     observation_id,

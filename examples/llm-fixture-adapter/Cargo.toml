@@ -1,0 +1,63 @@
+[package]
+name = "llm-fixture-adapter"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+description = "Minimal gRPC fixture for the polaris.classifier.v1 Recommend RPC. Returns canned RecommendResponses for operator wire-up walkthroughs (.design/llm-moderation-assist.md AC-11)."
+publish = false
+
+# Standalone binary — NOT a workspace member. The workspace
+# [workspace.members] list in /Cargo.toml does not include this path so
+# the fixture is built only via `cargo run --manifest-path
+# examples/llm-fixture-adapter/Cargo.toml` (or `cargo run -p` from the
+# fixture's own directory). This keeps the workspace build hermetic
+# (the fixture is operator-facing example code, not part of the
+# production crate graph).
+
+[[bin]]
+name = "llm-fixture-adapter"
+path = "src/main.rs"
+
+[dependencies]
+# polaris-classifier-proto provides the generated `Classifier`
+# server trait + request/response messages. Path-only path-dep —
+# the fixture lives in the same repo so the version stays in sync
+# with the workspace's proto.
+polaris-classifier-proto = { path = "../../polaris-classifier-proto" }
+
+# tonic 0.14: same pin as the workspace. The fixture is a gRPC
+# server; tonic ships `transport::Server::builder()` under the
+# `transport` feature (default-on in 0.14).
+tonic = "0.14"
+
+# tonic-prost 0.14: runtime companion required by tonic 0.14's
+# prost-driven codegen. The polaris-classifier-proto generated tree
+# references `tonic_prost::*` so anyone depending on it transitively
+# needs this crate too.
+tonic-prost = "0.14"
+
+# prost: every generated message implements `prost::Message`.
+prost = "0.14"
+
+# prost-types: well-known types (the proto imports
+# `google.protobuf.Empty` for HealthCheck).
+prost-types = "0.14"
+
+# tokio: tonic runs on tokio.
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+
+# tokio-stream: the generated `Classifier` trait has an associated
+# stream type for `ClassifyStream`; the fixture's implementation
+# short-circuits to Status::unimplemented but the type must still be
+# named. tokio-stream's ReceiverStream is the canonical fixture
+# placeholder — already in the workspace lockfile transitively via
+# tonic.
+tokio-stream = "0.1"
+
+# tracing: structured logging on each RPC so an operator running the
+# fixture sees what Polaris is asking for. Subscriber is initialised
+# with `tracing-subscriber`'s env filter so the operator can
+# `RUST_LOG=info` to control verbosity.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

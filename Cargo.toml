@@ -10,6 +10,16 @@ members = [
     "polaris-publish-did-service",
     "xtask",
 ]
+# Standalone example binaries that ship in-repo but are not workspace
+# members. Without an explicit exclude the workspace auto-discovery
+# can rope a sub-Cargo.toml back in via path-dep traversal; pinning
+# the exclusion keeps `cargo build --workspace` hermetic. Build the
+# fixture directly with `cargo run --manifest-path
+# examples/llm-fixture-adapter/Cargo.toml` (see
+# `docs/ops/llm-moderation.md`).
+exclude = [
+    "examples/llm-fixture-adapter",
+]
 resolver = "2"
 
 [workspace.package]

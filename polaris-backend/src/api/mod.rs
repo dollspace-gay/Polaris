@@ -332,6 +332,14 @@ fn authed_router(state: ApiState) -> Router {
             "/api/cases/{incident_id}/llm-recommendation",
             post(llm::case_endpoint::request_recommendation),
         )
+        // Issue #241 / LLM-12: global LLM kill switch (REQ-S7). POST
+        // sets `polaris_setup_state.global_autonomous_pause_until`,
+        // DELETE clears it. Both admin-only (handler-enforced) and
+        // audit-logged inside the same transaction as the toggle.
+        .route(
+            "/api/admin/llm/pause",
+            post(llm::admin_pause::pause_llm).delete(llm::admin_pause::resume_llm),
+        )
         .route(
             "/api/actions/{action_id}/reverse",
             post(reversal::reverse_action),

@@ -218,7 +218,104 @@ pub async fn reverse_action(
     let moderator_id = polaris_types::ModeratorId(ctx.moderator_id.0);
     let new_row = build_reversal_row(&original, moderator_id, body.reasoning, now);
     let inserted = state.actions.insert(new_row).await?;
+
+    // LLM-12 REQ-I1: when the reversal targets an autonomous-agent
+    // action, bump `polaris_llm_autonomous_reversal_total{policy, kind}`
+    // for every cited policy. The ratio of this counter to
+    // `polaris_llm_autonomous_action_total` is the agent's per-
+    // policy misfire rate; the dispatcher's S6 reversal-rate
+    // breaker reads the same signal from `actions` rows to
+    // auto-pause a miscalibrated policy. Counter emission is a
+    // best-effort observability hook: a query failure here logs
+    // but does not roll back the reversal (the action row IS the
+    // audit anchor).
+    record_autonomous_reversal_metric(&state.pool, original.id, original.kind).await;
+
     Ok((StatusCode::CREATED, Json(inserted)))
+}
+
+/// LLM-12 REQ-I1: best-effort metric emission when a reversal hits
+/// an autonomous-agent action.
+///
+/// Reads the original action's `actor_kind` + cited policies from the
+/// DB; bumps `polaris_llm_autonomous_reversal_total{policy, kind}` once
+/// per cited policy when `actor_kind = 'autonomous_agent'`. Any query
+/// failure is logged at `tracing::warn!` and swallowed — the reversal
+/// has already committed and the counter is observability not
+/// correctness.
+///
+/// The lookup is split into two cheap queries rather than a join so
+/// the `actor_kind` probe short-circuits before the citation fan-out:
+/// reversals against human actions (the common case) do one COUNT-1
+/// row read and exit.
+async fn record_autonomous_reversal_metric(
+    pool: &sqlx::PgPool,
+    original_id: ActionId,
+    original_kind: ActionKind,
+) {
+    let row = match sqlx::query!(
+        r"SELECT actor_kind FROM actions WHERE id = $1",
+        original_id.0,
+    )
+    .fetch_optional(pool)
+    .await
+    {
+        Ok(r) => r,
+        Err(err) => {
+            tracing::warn!(
+                action_id = %original_id.0,
+                error = ?err,
+                "llm reversal metric: original-action probe failed",
+            );
+            return;
+        }
+    };
+    let Some(row) = row else { return };
+    if row.actor_kind.as_deref() != Some("autonomous_agent") {
+        return;
+    }
+
+    let policies = match sqlx::query_scalar!(
+        r"SELECT policy_identifier FROM action_policy_citations
+          WHERE action_id = $1",
+        original_id.0,
+    )
+    .fetch_all(pool)
+    .await
+    {
+        Ok(rows) => rows,
+        Err(err) => {
+            tracing::warn!(
+                action_id = %original_id.0,
+                error = ?err,
+                "llm reversal metric: citation lookup failed",
+            );
+            return;
+        }
+    };
+
+    let kind_label = original_kind.as_str().to_owned();
+    if policies.is_empty() {
+        // Defence: bump a sentinel series so an autonomous action
+        // missing citations is still visible in the counter (it
+        // means the action was inserted without citation rows,
+        // which is a separate invariant bug).
+        metrics::counter!(
+            "polaris_llm_autonomous_reversal_total",
+            "policy" => "<unknown>".to_owned(),
+            "kind" => kind_label.clone(),
+        )
+        .increment(1);
+        return;
+    }
+    for identifier in policies {
+        metrics::counter!(
+            "polaris_llm_autonomous_reversal_total",
+            "policy" => identifier,
+            "kind" => kind_label.clone(),
+        )
+        .increment(1);
+    }
 }
 
 #[cfg(test)]
