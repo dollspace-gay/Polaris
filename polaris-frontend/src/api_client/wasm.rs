@@ -18,11 +18,11 @@ use web_sys::RequestCredentials;
 use super::dto::{
     AddModeratorRequest, AdminModerator, CaseView, CreatePolicyDto, DashboardFilters,
     DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList, LlmAuditFilters,
-    LlmAuditPageDto, ModPolicyDto, ModPolicyEditDto, ModPolicyHistoryEntryDto,
-    ModPolicySummaryDto, PatchModeratorRoleRequest, PausePolicyDto, PolicyListFilters,
-    PublishLabelerRecordRequest, PublishLabelerRecordResponse, RequestPlcSignatureResponse,
-    RequestRecommendationOutcome, ReverseBody, SubjectLookupRequest, SubjectLookupResponse,
-    SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
+    LlmAuditPageDto, ModPolicyDto, ModPolicyEditDto, ModPolicyHistoryEntryDto, ModPolicySummaryDto,
+    PatchModeratorRoleRequest, PausePolicyDto, PolicyListFilters, PublishLabelerRecordRequest,
+    PublishLabelerRecordResponse, RequestPlcSignatureResponse, RequestRecommendationOutcome,
+    ReverseBody, SubjectLookupRequest, SubjectLookupResponse, SubmitAction,
+    SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
     dashboard_filters_to_query_string, llm_audit_filters_to_query_string,
     policy_filters_to_query_string,
 };
@@ -371,10 +371,7 @@ impl PolarisApiClient for WasmPolarisApiClient {
         self.post_json(&path, &serde_json::json!({})).await
     }
 
-    async fn list_llm_audit(
-        &self,
-        filters: &LlmAuditFilters,
-    ) -> Result<LlmAuditPageDto, ApiError> {
+    async fn list_llm_audit(&self, filters: &LlmAuditFilters) -> Result<LlmAuditPageDto, ApiError> {
         let query = llm_audit_filters_to_query_string(filters);
         let path = if query.is_empty() {
             "/api/admin/llm/audit".to_owned()

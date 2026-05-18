@@ -204,7 +204,9 @@ async fn pause_sets_until_timestamp() {
     assert!(payload["paused_until"].is_string());
     // Column should hold the timestamp we set (round-tripped through
     // Postgres microsecond precision; assert within 1 second).
-    let column = read_pause_column(&f.pool).await.expect("column was written");
+    let column = read_pause_column(&f.pool)
+        .await
+        .expect("column was written");
     let delta = (column - until).num_milliseconds().abs();
     assert!(delta < 1000, "column timestamp drifted: {delta}ms");
 }
@@ -228,7 +230,9 @@ async fn pause_without_body_pauses_forever_until_9999() {
         paused_until.starts_with("9999-"),
         "expected forever sentinel, got {paused_until}",
     );
-    let column = read_pause_column(&f.pool).await.expect("column was written");
+    let column = read_pause_column(&f.pool)
+        .await
+        .expect("column was written");
     assert_eq!(column.format("%Y").to_string(), "9999");
 }
 
@@ -306,8 +310,8 @@ async fn paused_state_makes_safety_floors_s7_block() {
             description: "Used by the kill-switch integration tests.".to_owned(),
             scope: "post".to_owned(),
             severity: "alert".to_owned(),
-            decision_criteria:
-                "Apply when the kill-switch integration test exercises this policy.".to_owned(),
+            decision_criteria: "Apply when the kill-switch integration test exercises this policy."
+                .to_owned(),
             examples_positive: None,
             examples_negative: None,
             suggested_action_kinds: vec!["label".to_owned()],

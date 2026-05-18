@@ -796,10 +796,9 @@ async fn instrument_and_emit(
         && let Some(reversed_id) = inserted.reverses_action_id
         && let Some(dispatcher) = state.llm_dispatcher.as_ref()
     {
-        let reversed_autonomous =
-            is_action_autonomous(&state.pool, reversed_id.0)
-                .await
-                .unwrap_or(false);
+        let reversed_autonomous = is_action_autonomous(&state.pool, reversed_id.0)
+            .await
+            .unwrap_or(false);
         if reversed_autonomous {
             match crate::llm::feedback::load_feedback_context(
                 &state.pool,

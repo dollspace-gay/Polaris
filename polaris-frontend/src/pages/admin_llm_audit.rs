@@ -149,7 +149,10 @@ fn Forbidden() -> impl IntoView {
 /// not `Copy`. Closing over the signals directly keeps every
 /// invocation site cheap (signals ARE `Copy`).
 #[component]
-#[allow(clippy::too_many_arguments, reason = "single-purpose page body; arguments are bound to the page's reactive state, not domain entities")]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "single-purpose page body; arguments are bound to the page's reactive state, not domain entities"
+)]
 fn AdminLlmAuditBody(
     rows: RwSignal<Vec<LlmAuditEntryDto>>,
     next_cursor: RwSignal<Option<String>>,

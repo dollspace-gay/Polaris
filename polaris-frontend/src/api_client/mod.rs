@@ -35,11 +35,11 @@ pub mod dto;
 use dto::{
     AddModeratorRequest, AdminModerator, CaseView, CreatePolicyDto, DashboardFilters,
     DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList, LlmAuditFilters,
-    LlmAuditPageDto, ModPolicyDto, ModPolicyEditDto, ModPolicyHistoryEntryDto,
-    ModPolicySummaryDto, PatchModeratorRoleRequest, PausePolicyDto, PolicyListFilters,
-    PublishLabelerRecordRequest, PublishLabelerRecordResponse, RecommendationDto,
-    RequestPlcSignatureResponse, RequestRecommendationOutcome, ReverseBody, SubjectLookupResponse,
-    SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
+    LlmAuditPageDto, ModPolicyDto, ModPolicyEditDto, ModPolicyHistoryEntryDto, ModPolicySummaryDto,
+    PatchModeratorRoleRequest, PausePolicyDto, PolicyListFilters, PublishLabelerRecordRequest,
+    PublishLabelerRecordResponse, RecommendationDto, RequestPlcSignatureResponse,
+    RequestRecommendationOutcome, ReverseBody, SubjectLookupResponse, SubmitAction,
+    SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
 };
 
 // The `#![cfg(...)]` inner attribute at the top of each impl file is the
@@ -468,10 +468,7 @@ pub trait PolarisApiClient {
     /// Pagination is keyset on `(created_at, action_id)` — pass the
     /// `next_cursor` from a previous page through `filters.cursor`
     /// to fetch the next page.
-    async fn list_llm_audit(
-        &self,
-        filters: &LlmAuditFilters,
-    ) -> Result<LlmAuditPageDto, ApiError>;
+    async fn list_llm_audit(&self, filters: &LlmAuditFilters) -> Result<LlmAuditPageDto, ApiError>;
 }
 
 /// Walk an observation list and parse the most-recent

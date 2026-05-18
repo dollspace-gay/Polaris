@@ -384,15 +384,18 @@ pub async fn list_autonomous_audit(
                     version: c.policy_version,
                 })
                 .collect();
-            let reversal =
-                match (r.reversal_id, r.reversal_created_at, r.reversal_moderator_id) {
-                    (Some(id), Some(ts), Some(mid)) => Some(ReversalInfo {
-                        action_id: id,
-                        reversed_at: ts,
-                        reversed_by_moderator_id: mid,
-                    }),
-                    _ => None,
-                };
+            let reversal = match (
+                r.reversal_id,
+                r.reversal_created_at,
+                r.reversal_moderator_id,
+            ) {
+                (Some(id), Some(ts), Some(mid)) => Some(ReversalInfo {
+                    action_id: id,
+                    reversed_at: ts,
+                    reversed_by_moderator_id: mid,
+                }),
+                _ => None,
+            };
             let reasoning = extract_top_reasoning(&r.evidence);
             AuditEntry {
                 action_id: r.action_id,

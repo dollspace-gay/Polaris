@@ -331,7 +331,10 @@ mod tests {
     #[test]
     fn pause_forever_sentinel_is_9999_year() {
         let s = pause_forever_sentinel();
-        assert_eq!(s.format("%Y-%m-%dT%H:%M:%SZ").to_string(), "9999-12-31T23:59:59Z");
+        assert_eq!(
+            s.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            "9999-12-31T23:59:59Z"
+        );
     }
 
     #[test]

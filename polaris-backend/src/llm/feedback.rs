@@ -85,7 +85,9 @@ pub enum FeedbackError {
     /// the reversed action is autonomous, and an autonomous action
     /// MUST carry the audit envelope (DB CHECK
     /// `actions_autonomous_audit_complete`, migration 51).
-    #[error("action {action_id} has no llm_observation_id but the caller asserted autonomous origin")]
+    #[error(
+        "action {action_id} has no llm_observation_id but the caller asserted autonomous origin"
+    )]
     MissingObservation {
         /// The action row that failed the audit-envelope precondition.
         action_id: Uuid,
@@ -355,9 +357,9 @@ pub async fn load_feedback_context(
     .fetch_one(pool)
     .await?;
 
-    let event_id =
-        row.llm_observation_id
-            .ok_or(FeedbackError::MissingObservation { action_id })?;
+    let event_id = row
+        .llm_observation_id
+        .ok_or(FeedbackError::MissingObservation { action_id })?;
     let classifier_confidence = row.recommendation_confidence.unwrap_or(0.0);
     Ok(FeedbackContext {
         event_id,

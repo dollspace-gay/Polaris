@@ -257,14 +257,8 @@ mod tests {
     /// LLM-10 confirmation path: positive signal, empty reasoning.
     #[test]
     fn build_feedback_with_outcome_confirmation_carries_no_reasoning() {
-        let req = build_feedback_with_outcome(
-            "evt-100",
-            "spam",
-            0.95,
-            ActionKind::Takedown,
-            true,
-            "",
-        );
+        let req =
+            build_feedback_with_outcome("evt-100", "spam", 0.95, ActionKind::Takedown, true, "");
         assert!(req.was_recommendation_taken);
         assert!(req.reversal_reasoning.is_empty());
     }
