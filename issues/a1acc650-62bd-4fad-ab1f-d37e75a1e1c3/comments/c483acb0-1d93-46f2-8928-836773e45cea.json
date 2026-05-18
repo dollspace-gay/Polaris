@@ -1,0 +1,10 @@
+{
+  "uuid": "c483acb0-1d93-46f2-8928-836773e45cea",
+  "issue_uuid": "a1acc650-62bd-4fad-ab1f-d37e75a1e1c3",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/llm-moderation-assist.md\n**Implements**: REQ-E2..E4, REQ-J1 (queue UI)\n\n**Files to add**:\n- polaris-backend/src/api/queue/pending_auto_actions.rs\n- polaris-backend/src/repo/pending_auto_actions.rs\n- polaris-frontend/src/components/pending_auto_actions_queue.rs\n- polaris-frontend/styles/pending-auto-actions-queue.css\n\n**Endpoints**:\n- GET /api/queue/pending-auto-actions (filtered by routing rules)\n- POST /api/queue/pending-auto-actions/:id/approve (promotes to action; actor_kind='human')\n- POST /api/queue/pending-auto-actions/:id/reject (records moderator reasoning; fires Feedback RPC)\n- daily batch: expire rows older than 7 days (state → 'expired')\n\n**Rust quality**:\n- Repo: parameterized sqlx queries only\n- Approve path: open a tx, insert action + citations from the draft snapshot, mark draft 'approved'\n- Reject path: mark draft 'rejected' + reasoning + enqueue feedback call\n- Frontend: BEM naming, tokens-only colours, contrast-passing pairings\n\n**Tests**:\n- tests/pending_auto_actions_endpoint.rs — approve creates action; reject fires feedback; expired drafts auto-marked\n\n**Blocked by**: #LLM-3, #LLM-5",
+  "created_at": "2026-05-18T08:00:48.969515547Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAyVhRcyqWEyJL/UdgDX+fTisVGNCT77Ll5fCOBSz6vbo8M3Nl+Bc1YjdNQVxlWePTGi+HzcmMwstEh1917eHZAw=="
+}
