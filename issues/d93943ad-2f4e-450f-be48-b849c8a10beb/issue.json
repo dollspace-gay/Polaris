@@ -1,0 +1,10 @@
+{
+  "uuid": "d93943ad-2f4e-450f-be48-b849c8a10beb",
+  "display_id": 201,
+  "title": "Report-card buttons must be idempotent per report + actioned reports must hide",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T01:05:47.789664997Z",
+  "updated_at": "2026-05-18T01:05:47.789664997Z"
+}
