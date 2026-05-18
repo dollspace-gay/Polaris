@@ -1,0 +1,10 @@
+{
+  "uuid": "7ff978e2-69d7-4156-8107-680e406c115a",
+  "issue_uuid": "90a6f8ba-832b-427a-b460-5975f67bfa1b",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/llm-moderation-assist.md\n**Implements**: REQ-A2, REQ-C3 step 1\n\n**Files to add**:\n- polaris-backend/src/llm/mod.rs (new module)\n- polaris-backend/src/llm/case_context.rs — `pub async fn hydrate(pool: &PgPool, case_id: Uuid) -> Result<RecommendRequest, HydrateError>`\n\n**Hydration joins**:\n- subjects (DID, kind, created_at, first_seen_by_mod)\n- incidents (severity, status, related subjects via the join table)\n- reports (category, body, reporter_did)\n- observations (all kinds; classifier signals + pattern outputs + upstream labels)\n- actions (prior actions on this subject; chronological; reasoning + cited policies — but NOT moderator_id, privacy floor)\n- mod_policies where scope covers subject.kind (current versions; decision_criteria, examples)\n- subject post text + embeds via the existing media-walker / post hydration\n\n**Rust quality**:\n- One pool, multiple parameterized queries (sqlx::query!)\n- Privacy: PriorAction omits moderator_id (REQ-A2 privacy boundary)\n- Page-size caps: max 20 reports, max 50 observations, max 50 prior actions per RecommendRequest (configurable)\n- Memoize per-policy lookup via mod_policies LRU cache\n\n**Tests**:\n- tests/case_context_hydrate.rs — fixture case with 3 reports + 5 observations + 2 prior actions; assert RecommendRequest shape\n\n**Blocked by**: #LLM-1, #LLM-3",
+  "created_at": "2026-05-18T07:55:48.001468718Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA1/jx/7e7+EKP9Ue19YFCAr0q+tbOHL06h8DScdT+NbUgjXnyPm+05zPG3vx5jxRRZlkHdmxjKO2bmFrM5wgQCQ=="
+}
