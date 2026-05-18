@@ -1,0 +1,10 @@
+{
+  "uuid": "6cc49094-68d9-4cf2-a5d2-ea5744021292",
+  "issue_uuid": "1590a547-2826-4dfb-8cc0-4a7ee5fd6b8a",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/mod-policy-workbook.md\n**Implements**: REQ-E3\n\n**Files to modify**:\n- polaris-backend/src/bin/polaris_setup.rs — new subcommand:\n  polaris-setup seed-policies --file <path> [--replace]\n\n**Behaviour**:\n- Default: insert new policies, skip existing identifiers\n- --replace: amend existing policies (creates new version with change_summary = \"Imported from <path>\"); insert new ones\n- Hard-block: any seed policy with human_required_always=TRUE on an identifier whose current autonomy_mode!=manual ABORTS before mutating\n\n**Rust quality**:\n- Reuse SeedPolicy + loader from issue #227 (do not duplicate parser)\n- Exit 0 on success; 1 validation failure; 2 IO failure\n\n**Tests**:\n- tests/seed_policies_subcommand.rs — golden YAML import into fresh DB; --replace amends existing\n\n**Blocked by**: #227",
+  "created_at": "2026-05-18T07:47:05.787293777Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA+8jkODwRHxLHHiwjbp6MaM+MUgSU+pDvDTg6gpxKyU0r4DjJDBHlzTlHrlIbeBqsHE2cYDPxc7EDyzUuHbHbAw=="
+}
