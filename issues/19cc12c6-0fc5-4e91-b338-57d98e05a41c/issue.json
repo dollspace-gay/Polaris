@@ -1,0 +1,10 @@
+{
+  "uuid": "19cc12c6-0fc5-4e91-b338-57d98e05a41c",
+  "display_id": 211,
+  "title": "Helm values.yaml.example pins non-existent 0.1.0-bluesky image tag",
+  "status": "open",
+  "priority": "low",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T02:36:59.323609542Z",
+  "updated_at": "2026-05-18T02:36:59.323609542Z"
+}
