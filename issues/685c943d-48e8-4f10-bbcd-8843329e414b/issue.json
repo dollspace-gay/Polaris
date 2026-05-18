@@ -2,12 +2,13 @@
   "uuid": "685c943d-48e8-4f10-bbcd-8843329e414b",
   "display_id": 223,
   "title": "Add mod_policies + action_policy_citations migrations + repo layer",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "parent_uuid": "a887392e-c950-4260-b7be-7ea69a974bf3",
   "created_by": "TeIq",
   "created_at": "2026-05-18T07:40:33.766079308Z",
-  "updated_at": "2026-05-18T07:40:35.177145559Z",
+  "updated_at": "2026-05-18T08:19:23.333713369Z",
+  "closed_at": "2026-05-18T08:19:23.333713369Z",
   "labels": [
     "rust"
   ]
