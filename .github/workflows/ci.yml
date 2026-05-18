@@ -75,23 +75,34 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      # Reclaim ~25 GB on the ubuntu-latest runner before docker / cargo
+      # Reclaim ~28 GB on the ubuntu-latest runner before docker / cargo
       # start writing. The workspace test suite spins up ~50 Postgres
       # testcontainers (each `tests/*.rs` integration test boots its
-      # own hermetic Postgres 16 instance via testcontainers-rs). On
-      # main commit 0ffede18 the runner ran out of disk just before
-      # wellness_exposure with `FATAL: could not write to file
-      # "pg_wal/xlogtemp.33": No space left on device` — the failure
-      # mode is silent (testcontainers surfaces it as
-      # WaitContainer(WaitLog(EndOfStream))). Removing the pre-
-      # installed Android SDK / .NET / Haskell trees is the standard
-      # GitHub-Actions remediation; it is read-only-disk-space and
-      # has no effect on the test environment.
+      # own hermetic Postgres 16 instance via testcontainers-rs) plus
+      # debug binaries for every test under `target/debug/deps/`, and
+      # the combined footprint exceeds the runner's default ~14 GB free
+      # space. The first manual-rm cleanup (dotnet/android/ghc/boost/
+      # CodeQL) was insufficient — `whoami.rs` still tripped
+      # `pg_wal/xlogtemp.33: No space left on device`. Switching to the
+      # community-standard `jlumbroso/free-disk-space` action which
+      # additionally clears Docker preinstalled images, swap, and a few
+      # other large trees so the headroom comfortably covers a full
+      # `cargo test --workspace` plus its testcontainers fleet.
       - name: free runner disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-                      /usr/local/share/boost /opt/hostedtoolcache/CodeQL
-          df -h /
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          # Defaults clear Android, .NET, Haskell, large packages,
+          # Docker images, tool cache, and swap — exactly the trees we
+          # used to remove manually plus several more. Keep the agent's
+          # own working tree intact (`tool-cache: false` would re-enable
+          # it; we leave it on so the Rust toolchain cache is fresh).
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
       - uses: dtolnay/rust-toolchain@1.88
       - uses: Swatinem/rust-cache@v2
       # REQ-E4 / AC-E4: run the producer-slice smoke test explicitly
@@ -168,6 +179,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.88
       - uses: Swatinem/rust-cache@v2
+      # `cargo xtask gen-lexicons` shells out to the published
+      # `proto-blue-codegen` CLI (see `xtask/src/gen_lexicons.rs`). The
+      # version pins must move in lockstep with the workspace's
+      # `proto-blue = "0.3"` dep; bumping proto-blue's major or minor
+      # in `Cargo.toml` requires bumping this `--version` too so codegen
+      # output stays consistent with the runtime types.
+      - name: install proto-blue-codegen
+        run: cargo install --locked --version ^0.3 proto-blue-codegen
       - name: lexicon codegen is in sync (REQ-3 / AC-2)
         run: |
           cargo xtask gen-lexicons

@@ -45,6 +45,14 @@ COPY polaris-publish-labeler-record polaris-publish-labeler-record
 COPY polaris-publish-did-service polaris-publish-did-service
 COPY xtask xtask
 
+# The `polaris-classifier-proto` crate's build.rs reads
+# `../proto/polaris-classifier-v1.proto` at compile time (tonic-prost
+# codegen). Without copying the root `proto/` tree the build aborts
+# with `protoc failed: Could not make proto path relative` — see the
+# publish-image failure on commit 89a7b5d0. The proto directory is
+# small (~10 KB) so copying it unconditionally has no measurable cost.
+COPY proto proto
+
 # Build the backend binary. The release profile is the workspace
 # default; LTO and codegen-units are tuned in the workspace Cargo.toml.
 # We do NOT build polaris-frontend here — the wasm bundle is a separate
