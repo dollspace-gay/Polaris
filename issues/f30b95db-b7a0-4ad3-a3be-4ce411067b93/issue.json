@@ -2,12 +2,13 @@
   "uuid": "f30b95db-b7a0-4ad3-a3be-4ce411067b93",
   "display_id": 233,
   "title": "DB foundation: LlmRecommendation observation kind + actions audit cols + pending_auto_actions table + global pause",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "parent_uuid": "38a78c72-404f-483c-807a-8f5a08f37e83",
   "created_by": "TeIq",
   "created_at": "2026-05-18T07:55:05.243082230Z",
-  "updated_at": "2026-05-18T08:05:45.744408851Z",
+  "updated_at": "2026-05-18T10:37:07.135642571Z",
+  "closed_at": "2026-05-18T10:37:07.135642571Z",
   "labels": [
     "rust"
   ],
