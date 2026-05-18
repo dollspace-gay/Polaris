@@ -1,0 +1,10 @@
+{
+  "uuid": "e18c2911-2ae8-4bcc-ae16-d2b3a4e8c234",
+  "display_id": 214,
+  "title": "Login allow-list + admin moderator management (Ozone-style ACL)",
+  "status": "open",
+  "priority": "critical",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T02:52:15.372487570Z",
+  "updated_at": "2026-05-18T02:52:15.372487570Z"
+}
