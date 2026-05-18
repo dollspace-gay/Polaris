@@ -1,0 +1,10 @@
+{
+  "uuid": "83905cb8-824a-4535-9892-37aee5b8e7fd",
+  "issue_uuid": "e18c2911-2ae8-4bcc-ae16-d2b3a4e8c234",
+  "author": "TeIq",
+  "content": "APPROVE-WITH-FOLLOW-UPS. Dispatch 1 (backend): migration 46 with monotone trigger, Role+Moderator/Triage, ACL gate at OAuth callback with bootstrap carve-out, pinned_admin set on first-user grant, admin CRUD endpoints, 5 integration tests pass; lib tests 565→570. Dispatch 2 (frontend): AdminModeratorsPage at /admin/moderators, login banner unauthorized arm with handle echo, 4 API client methods on native+wasm, 184 frontend lib tests pass, production bundle 23f988350c9b29b1. Follow-up #216 (pre-existing auth_atproto_http tests need 303 update).",
+  "created_at": "2026-05-18T03:46:29.914551799Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAM0KUEpVRpfi/D1SXBqIJndXqnpOj92VFRjqImzWWAt75NsUgBk/rhiAo7cms05YyHRdaTA+sbX8XO2I/bObLDw=="
+}
