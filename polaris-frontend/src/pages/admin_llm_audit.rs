@@ -12,7 +12,7 @@
 //! Filter bar (model / policy / reversed / date range) → table of
 //! autonomous actions → click-row expand to reveal the full LLM
 //! response payload (read out of `observations.evidence` via the
-//! row's `llm_observation_id`), input_hash, and full reasoning.
+//! row's `llm_observation_id`), `input_hash`, and full reasoning.
 //! Pagination is keyset; the "Load more" affordance posts the
 //! server-returned `next_cursor` to fetch the next page.
 //!
@@ -343,6 +343,17 @@ fn AdminLlmAuditBody(
 #[component]
 fn AuditRow(row: LlmAuditEntryDto) -> impl IntoView {
     let expanded = RwSignal::new(false);
+    // Render the confidence as an integer percentage. The clamp keeps
+    // the input in `[0.0, 1.0]`, the `* 100.0` keeps it in `[0.0,
+    // 100.0]`, and `.round()` yields a non-negative integer-valued
+    // f32 — so the f32→u32 cast is range-safe by construction. The
+    // narrow `#[allow]` documents the safety locally rather than at
+    // module scope.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        reason = "value is clamped to [0,100] then rounded — fits u32 without loss"
+    )]
     let confidence_pct = (row.recommendation_confidence.clamp(0.0, 1.0) * 100.0).round() as u32;
     let confidence_label = format!("{confidence_pct}%");
     let action_chip = format!(

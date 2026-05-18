@@ -26,8 +26,6 @@
 
 use std::sync::Arc;
 
-use chrono::Utc;
-use serde_json::Value;
 use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
@@ -39,7 +37,12 @@ use crate::llm::case_context;
 /// any `lookback_days` request — the actual ceiling is whichever of
 /// {lookback rows, this constant} is smaller. Stops a careless
 /// operator from spending a fortune on one click.
-pub const MAX_CASES_PER_JOB: usize = 500;
+///
+/// Typed as `i64` rather than `usize` because the only consumer is
+/// the `LIMIT` clause on the eligibility-selection queries (sqlx
+/// binds row-count parameters as `i64`). A `usize` here would force
+/// a fallible cast at every call site for no benefit.
+pub const MAX_CASES_PER_JOB: i64 = 500;
 
 /// Spawn a background task that drives the dry-run replay for the
 /// supplied job row. Returns immediately; the task updates the
@@ -58,9 +61,13 @@ pub fn spawn_dry_run_job(pool: PgPool, classifier_client: Arc<dyn ClassifierClie
                 error = %err,
                 "dry-run job failed; marking row as failed",
             );
-            // Best-effort failure mark; if THIS write also fails the
-            // job is left in `running` and the daily-sweep-equivalent
-            // (TODO follow-up) will eventually reap it.
+            // Best-effort failure mark. If THIS write also fails (DB
+            // gone, pool exhausted, etc.) the job row is left in
+            // `running` indefinitely. The poll API surfaces that state
+            // verbatim so the operator sees the staleness; a periodic
+            // reaper that reclaims stuck rows is out of scope for the
+            // dry-run feature itself and is tracked as a future
+            // hardening item against the job table directly.
             let _ = sqlx::query!(
                 r"UPDATE dry_run_jobs
                      SET state = 'failed',
@@ -123,7 +130,7 @@ async fn run_dry_run_job(
             ",
             job.lookback_days,
             ident,
-            MAX_CASES_PER_JOB as i64,
+            MAX_CASES_PER_JOB,
         )
         .fetch_all(pool)
         .await?
@@ -139,7 +146,7 @@ async fn run_dry_run_job(
              LIMIT $2
             ",
             job.lookback_days,
-            MAX_CASES_PER_JOB as i64,
+            MAX_CASES_PER_JOB,
         )
         .fetch_all(pool)
         .await?
@@ -263,10 +270,7 @@ async fn evaluate_one_incident(
         return Ok(EvalOutcome::NoHumanOutcome);
     };
 
-    let matched = match human.action_kind.as_deref() {
-        None => None,
-        Some(k) => Some(k == first.action_kind),
-    };
+    let matched = human.action_kind.as_deref().map(|k| k == first.action_kind);
 
     sqlx::query!(
         r"INSERT INTO dry_run_results
@@ -300,10 +304,11 @@ async fn evaluate_one_incident(
 }
 
 /// What the human moderator actually did on the incident — the
-/// "ground truth" the LLM is being scored against. NULL action_kind
-/// means the incident closed without an action recorded (treated as
-/// `no_action` for comparison purposes is intentional but we record
-/// the raw NULL so the operator can see it).
+/// "ground truth" the LLM is being scored against. A `NULL`
+/// `action_kind` means the incident closed without an action
+/// recorded (treated as `no_action` for comparison purposes is
+/// intentional but we record the raw `NULL` so the operator can
+/// see it).
 struct HumanOutcome {
     action_kind: Option<String>,
     label_value: Option<String>,
@@ -346,12 +351,23 @@ enum EvalOutcome {
 /// verbatim; the operator-facing error display lives in the API.
 #[derive(Debug, Error)]
 pub enum DryRunError {
+    /// `case_context::hydrate` failed for an incident — the LLM call
+    /// is skipped and the row is recorded with this string in
+    /// `dry_run_results.error_message`.
     #[error("hydrate failed: {0}")]
     Hydrate(String),
 
+    /// The LLM `recommend` round-trip failed (transport, decode, or
+    /// upstream service error). The row is recorded with the
+    /// stringified error in `dry_run_results.error_message` and the
+    /// runner moves on — a per-case failure does not abort the job.
     #[error("recommend failed: {0}")]
     Recommend(String),
 
+    /// SQL failure on one of the bookkeeping writes
+    /// (`dry_run_jobs` aggregate update, `dry_run_results` insert).
+    /// Surfaces from the runner up to the spawned task's catch-all
+    /// which marks the job `state = 'failed'`.
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 }

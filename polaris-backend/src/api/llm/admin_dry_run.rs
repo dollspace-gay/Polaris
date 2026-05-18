@@ -54,22 +54,41 @@ pub struct DryRunRequest {
 /// job id the operator polls.
 #[derive(Debug, Clone, Serialize)]
 pub struct DryRunStartResponse {
+    /// Surrogate primary key of the newly-spawned dry-run job. The
+    /// operator polls progress via `GET /api/admin/llm/dry-run/{job_id}`.
     pub job_id: Uuid,
 }
 
 /// Response for `GET /api/admin/llm/dry-run/{job_id}`.
 #[derive(Debug, Clone, Serialize)]
 pub struct DryRunJobView {
+    /// Surrogate primary key of the job row.
     pub id: Uuid,
+    /// Lifecycle state: one of `pending`, `running`, `done`, `failed`.
     pub state: String,
+    /// Policy filter the job is restricted to, or `None` for
+    /// "every policy".
     pub policy_identifier: Option<String>,
+    /// How far back the replay reaches in days.
     pub lookback_days: i32,
+    /// Wall-clock time the job row was inserted.
     pub created_at: DateTime<Utc>,
+    /// Wall-clock time the job transitioned to `done`/`failed`,
+    /// or `None` while still in progress.
     pub completed_at: Option<DateTime<Utc>>,
+    /// Number of historical incidents the runner has visited so far.
     pub cases_evaluated: i32,
+    /// Cases where the LLM and the human moderator agreed on the
+    /// primary `action_kind`.
     pub agreements: i32,
+    /// Cases where the LLM and the human moderator disagreed.
     pub disagreements: i32,
+    /// Cases the runner skipped due to a per-case error (hydrate,
+    /// recommend, or DB write failure). The job continues past
+    /// per-case errors.
     pub errors: i32,
+    /// Top-level error message if the job itself failed (vs. a
+    /// per-case error), otherwise `None`.
     pub error_message: Option<String>,
     /// Agreement rate as a fraction in `[0.0, 1.0]`, computed
     /// server-side so the operator's UI doesn't have to. `None`
@@ -81,12 +100,23 @@ pub struct DryRunJobView {
     pub disagreement_sample: Vec<DryRunDisagreementRow>,
 }
 
+/// One row from `dry_run_results` where the LLM's primary
+/// recommendation disagreed with the human moderator's actual outcome.
+/// Surfaced in the poll response as a small calibration sample.
 #[derive(Debug, Clone, Serialize)]
 pub struct DryRunDisagreementRow {
+    /// Incident the disagreement is about.
     pub incident_id: Uuid,
+    /// `action_kind` the LLM recommended (or `None` if the LLM
+    /// errored / returned an empty `recommended_actions` array).
     pub llm_action_kind: Option<String>,
+    /// LLM confidence for the primary recommendation, in `[0, 1]`.
     pub llm_confidence: Option<f32>,
+    /// Free-text reasoning the LLM emitted on the primary
+    /// recommendation.
     pub llm_reasoning: Option<String>,
+    /// `action_kind` the human moderator actually committed on the
+    /// incident, or `None` if the incident closed without an action.
     pub human_action_kind: Option<String>,
 }
 
@@ -150,7 +180,7 @@ pub async fn start_dry_run(
 ///
 /// # Errors
 /// * [`ApiError::Forbidden`] for non-admin callers.
-/// * [`ApiError::Internal`] on DB failure or missing job_id.
+/// * [`ApiError::Internal`] on DB failure or missing `job_id`.
 pub async fn get_dry_run_job(
     State(state): State<ApiState>,
     Extension(ctx): Extension<ModeratorAuthCtx>,

@@ -106,16 +106,38 @@ impl PendingAutoActionState {
 /// pinning a decode here would couple this repo to those shapes.
 #[derive(Debug, Clone)]
 pub struct PendingAutoAction {
+    /// Surrogate primary key for the queue row.
     pub id: Uuid,
+    /// The incident this draft is suggesting an action against.
     pub incident_id: Uuid,
+    /// The subject the proposed action targets (denormalized off the
+    /// incident for cheap pagination + cheaper UI rendering).
     pub subject_id: Uuid,
+    /// Verbatim JSONB payload describing the LLM's recommended
+    /// action. Decoded by the handler against the
+    /// `recommend_dispatcher` shape; not interpreted here.
     pub recommended_action: serde_json::Value,
+    /// Foreign-key to the `LlmRecommendation` observation that
+    /// produced this draft — used to wire approve/reject feedback
+    /// back to the LLM substrate.
     pub llm_observation_id: Uuid,
+    /// Verbatim JSONB array of `(policy_identifier, version)` pairs
+    /// the LLM cited. Frozen at draft-creation time so the moderator
+    /// sees exactly what the LLM saw, even if the workbook is edited
+    /// between recommendation and review.
     pub cited_policy_versions: serde_json::Value,
+    /// Current lifecycle state (`pending`, `approved`, `rejected`,
+    /// `superseded`, `expired`).
     pub state: PendingAutoActionState,
+    /// Moderator who picked up the draft (claim-on-view). `None`
+    /// while it is unclaimed in the queue.
     pub claimed_by_moderator_id: Option<Uuid>,
+    /// Wall-clock time the draft was inserted.
     pub created_at: DateTime<Utc>,
+    /// Wall-clock time the draft transitioned out of `pending`.
+    /// `None` while still pending.
     pub resolved_at: Option<DateTime<Utc>>,
+    /// Hard expiry — sweep transitions rows past this to `expired`.
     pub expires_at: DateTime<Utc>,
 }
 
@@ -137,8 +159,11 @@ pub enum PendingAutoActionError {
     /// `pending` state the caller expected.
     #[error("pending_auto_actions row {id} is in state {current}, expected {expected}")]
     InvalidTransition {
+        /// Primary key of the offending row.
         id: Uuid,
+        /// State the row was found in.
         current: PendingAutoActionState,
+        /// State the caller required for the transition to be legal.
         expected: PendingAutoActionState,
     },
 
@@ -148,6 +173,7 @@ pub enum PendingAutoActionError {
     #[error("unknown pending_auto_actions state: {0:?}")]
     UnknownState(String),
 
+    /// Underlying SQL failure (connection / query / decode).
     #[error(transparent)]
     Database(#[from] sqlx::Error),
 }

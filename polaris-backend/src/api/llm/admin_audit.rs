@@ -150,7 +150,7 @@ pub struct LlmAuditQuery {
 }
 
 /// Verify the caller is `Role::Admin`. Mirrors the gate pattern used
-/// across the other admin surfaces (admin_moderators, admin_policies).
+/// across the other admin surfaces (`admin_moderators`, `admin_policies`).
 fn require_admin(ctx: &ModeratorAuthCtx) -> Result<(), ApiError> {
     if ctx.roles.contains(&Role::Admin) {
         Ok(())

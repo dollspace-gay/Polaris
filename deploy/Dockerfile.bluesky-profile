@@ -39,8 +39,21 @@ COPY rust-toolchain.toml ./
 COPY polaris-types polaris-types
 COPY polaris-backend polaris-backend
 COPY polaris-frontend polaris-frontend
+COPY polaris-lexicons polaris-lexicons
+COPY polaris-classifier-proto polaris-classifier-proto
+COPY polaris-trust polaris-trust
 COPY polaris-publish-labeler-record polaris-publish-labeler-record
+COPY polaris-publish-did-service polaris-publish-did-service
 COPY xtask xtask
+
+# Workspace validation walks every member's manifest paths regardless
+# of the `-p` target — copying `proto/` and the `.sqlx/` offline cache
+# keeps the build self-contained. See the labeler-profile Dockerfile
+# for the longer rationale; both images share the same compile-time
+# constraint.
+COPY proto proto
+COPY .sqlx .sqlx
+ENV SQLX_OFFLINE=true
 
 # Static musl target. The release profile is the workspace default;
 # `--locked` and `--target` together produce a freestanding binary at

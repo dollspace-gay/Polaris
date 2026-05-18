@@ -119,6 +119,8 @@ pub const ASSISTED_QUEUE_DEPTH_SAMPLE_INTERVAL: Duration = Duration::from_secs(3
 /// Spawn-side function; the spawn itself panics only if called outside
 /// a tokio runtime (the normal main-entrypoint shape). The loop body
 /// does not panic.
+#[must_use = "the spawned sampler will keep ticking even if its handle is dropped, \
+              but tests and shutdown paths usually want to await it for clean teardown"]
 pub fn spawn_assisted_queue_depth_sampler(pool: sqlx::PgPool) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(ASSISTED_QUEUE_DEPTH_SAMPLE_INTERVAL);
@@ -631,8 +633,11 @@ impl RecommendDispatcher {
     /// + per-mode handler. Helper for [`Self::dispatch_case_inner`].
     #[allow(
         clippy::too_many_arguments,
+        clippy::too_many_lines,
         reason = "single-call orchestrator: bundling the inputs into a struct \
-                  would just shadow the proto types"
+                  would just shadow the proto types; splitting the body across \
+                  helpers would obscure the linear safety-floor → per-mode flow \
+                  that this function is the canonical reading of"
     )]
     async fn route_recommended_action(
         &self,

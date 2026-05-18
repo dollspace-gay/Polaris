@@ -53,6 +53,17 @@ COPY xtask xtask
 # small (~10 KB) so copying it unconditionally has no measurable cost.
 COPY proto proto
 
+# The `.sqlx/` offline cache holds the type-checked metadata for every
+# `sqlx::query!` / `sqlx::query_as!` site in the workspace. Without it
+# the compile-time macro expansion attempts to connect to a live DB
+# (`DATABASE_URL`) and aborts with "set DATABASE_URL to use query
+# macros online, or run cargo sqlx prepare". The `SQLX_OFFLINE=true`
+# env below pins the macro to the cache so Docker builds stay
+# DB-independent. Both must move together — adding new queries in code
+# without re-running `cargo sqlx prepare` breaks the publish-image job.
+COPY .sqlx .sqlx
+ENV SQLX_OFFLINE=true
+
 # Build the backend binary. The release profile is the workspace
 # default; LTO and codegen-units are tuned in the workspace Cargo.toml.
 # We do NOT build polaris-frontend here — the wasm bundle is a separate

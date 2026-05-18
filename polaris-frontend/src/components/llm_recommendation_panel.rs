@@ -811,14 +811,12 @@ mod tests {
                 confidence: rec
                     .recommended_actions
                     .first()
-                    .map(|a| a.confidence)
-                    .unwrap_or(0.0),
+                    .map_or(0.0, |a| a.confidence),
             },
             confidence: rec
                 .recommended_actions
                 .first()
-                .map(|a| a.confidence)
-                .unwrap_or(0.0),
+                .map_or(0.0, |a| a.confidence),
             evidence: serde_json::to_value(rec).expect("evidence"),
             detected_at: chrono::Utc::now(),
         }
@@ -908,7 +906,7 @@ mod tests {
     }
 
     /// AC-10 — the panel's component props compile against the
-    /// production shape (SubjectId / IncidentId / Vec<Observation>).
+    /// production shape (`SubjectId` / `IncidentId` / `Vec<Observation>`).
     /// We materialise the macro-generated `Props` type-witness so a
     /// future signature break surfaces here rather than at the
     /// case-view call site.

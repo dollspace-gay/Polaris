@@ -31,9 +31,7 @@ use crate::api::state::ApiState;
 use crate::auth::ModeratorAuthCtx;
 use crate::classifier::ClassifierClient;
 use crate::llm::feedback::{FeedbackContext, fire_assisted_reject_feedback, load_feedback_context};
-use crate::repo::pending_auto_actions::{
-    self, PendingAutoAction, PendingAutoActionError, PendingAutoActionState,
-};
+use crate::repo::pending_auto_actions::{self, PendingAutoAction, PendingAutoActionError};
 use base64::Engine as _;
 use polaris_types::ActionKind;
 use sqlx::PgPool;
@@ -46,18 +44,36 @@ const DEFAULT_LIMIT: i64 = pending_auto_actions::DEFAULT_LIMIT;
 const MAX_LIMIT: i64 = pending_auto_actions::MAX_LIMIT;
 
 /// Wire DTO for one draft in the list response.
+///
+/// One-to-one with [`PendingAutoAction`], except `state` is rendered
+/// as the wire-form string (`"pending"`, `"approved"`, …) rather than
+/// the typed enum, so the frontend can match on strings without a
+/// shared crate dependency.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PendingAutoActionDto {
+    /// Surrogate primary key (matches `PendingAutoAction::id`).
     pub id: Uuid,
+    /// Incident the draft suggests an action against.
     pub incident_id: Uuid,
+    /// Subject the proposed action targets.
     pub subject_id: Uuid,
+    /// Verbatim JSONB payload describing the LLM's recommended action.
     pub recommended_action: serde_json::Value,
+    /// Foreign key into `observations` for the originating
+    /// `LlmRecommendation` row.
     pub llm_observation_id: Uuid,
+    /// JSONB array of `(policy_identifier, version)` pairs the LLM
+    /// cited at recommendation time.
     pub cited_policy_versions: serde_json::Value,
+    /// Lifecycle state as the wire-form string.
     pub state: String,
+    /// Moderator who has claim of the draft, or `None` while unclaimed.
     pub claimed_by_moderator_id: Option<Uuid>,
+    /// When the draft was inserted into the queue.
     pub created_at: DateTime<Utc>,
+    /// When the draft transitioned out of `pending`, or `None`.
     pub resolved_at: Option<DateTime<Utc>>,
+    /// Hard expiry the daily sweep enforces.
     pub expires_at: DateTime<Utc>,
 }
 
@@ -82,6 +98,7 @@ impl From<PendingAutoAction> for PendingAutoActionDto {
 /// Wire envelope for the list endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PendingAutoActionListResponse {
+    /// Page of drafts in newest-first order.
     pub items: Vec<PendingAutoActionDto>,
     /// Opaque cursor for the next page; `None` when this is the last
     /// page.
@@ -91,8 +108,12 @@ pub struct PendingAutoActionListResponse {
 /// Inputs parsed from the `?cursor=` query param.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListQueryParams {
+    /// Opaque keyset cursor returned by a prior page's `next_cursor`.
+    /// Pass it back verbatim to fetch the following page.
     #[serde(default)]
     pub cursor: Option<String>,
+    /// Optional page size override; clamped server-side to
+    /// `[1, MAX_LIMIT]`. Defaults to [`DEFAULT_LIMIT`].
     #[serde(default)]
     pub limit: Option<i64>,
 }
@@ -103,6 +124,9 @@ pub struct ListQueryParams {
 /// preserved per REQ-G4: never includes moderator identity).
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct RejectBody {
+    /// Free-text reasoning the moderator typed when rejecting the
+    /// draft. Empty is permitted (`""`). The string is fed into the
+    /// `reversal_reasoning` field on the LLM feedback envelope.
     #[serde(default)]
     pub reasoning: String,
 }
@@ -132,8 +156,12 @@ pub async fn list_queue(
         .await
         .map_err(map_repo_err)?;
 
-    let has_more = rows.len() as i64 > limit;
-    let trimmed: Vec<PendingAutoAction> = rows.into_iter().take(limit as usize).collect();
+    // `limit` is `[1, MAX_LIMIT]` and `MAX_LIMIT` is well within usize
+    // on all supported targets — the `try_from` is purely to satisfy
+    // the clippy::cast lints without an `#[allow]` escape.
+    let limit_usize = usize::try_from(limit).unwrap_or(usize::MAX);
+    let has_more = rows.len() > limit_usize;
+    let trimmed: Vec<PendingAutoAction> = rows.into_iter().take(limit_usize).collect();
     let next_cursor = if has_more {
         trimmed
             .last()
@@ -224,12 +252,18 @@ pub async fn reject_draft(
             .get("action_kind")
             .and_then(|v| v.as_str())
             .unwrap_or("no_action");
+        // Confidence is constrained to [0, 1] at recommendation time
+        // (`recommend_dispatcher` clamps before insert), so the
+        // f64→f32 narrowing is lossless for the values we observe.
+        // The `#[allow]` is local to the conversion to keep the cast
+        // contract documented at the site rather than at the function
+        // boundary.
+        #[allow(clippy::cast_possible_truncation)]
         let confidence = row
             .recommended_action
             .get("confidence")
             .and_then(serde_json::Value::as_f64)
-            .map(|f| f as f32)
-            .unwrap_or(0.0);
+            .map_or(0.0_f32, |f| f as f32);
         let recommended_kind = parse_action_kind(kind_str).unwrap_or(ActionKind::NoAction);
 
         let ctx = FeedbackContext {
@@ -296,14 +330,18 @@ fn encode_cursor(ts: DateTime<Utc>, id: Uuid) -> String {
 /// descriptive message so the frontend can clear the cursor and
 /// retry from the top.
 fn decode_cursor(raw: &str) -> Result<(DateTime<Utc>, Uuid), String> {
-    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .decode(raw)
-        .map_err(|e| format!("base64 decode: {e}"))?;
+    // Local type for the encoded payload. Declared at the top of the
+    // function so clippy::items_after_statements does not fire on the
+    // `let bytes = …` that would otherwise precede it.
     #[derive(Deserialize)]
     struct Payload {
         ts: DateTime<Utc>,
         id: Uuid,
     }
+
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(raw)
+        .map_err(|e| format!("base64 decode: {e}"))?;
     let p: Payload = serde_json::from_slice(&bytes).map_err(|e| format!("json: {e}"))?;
     Ok((p.ts, p.id))
 }
@@ -360,7 +398,7 @@ const fn recommended_kind_to_wire(k: ActionKind) -> &'static str {
 ///   (migration 50). Becomes the wire `event_id` so the LLM
 ///   substrate correlates the rejection back to the prompt+response
 ///   it scored.
-/// * `recommended_action_kind` — the action_kind the LLM recommended
+/// * `recommended_action_kind` — the `action_kind` the LLM recommended
 ///   (read from `pending_auto_actions.recommended_action`'s JSONB).
 /// * `recommendation_confidence` — the LLM's reported confidence.
 /// * `rejection_reasoning` — the moderator's stated reason in free
@@ -383,7 +421,7 @@ const fn recommended_kind_to_wire(k: ActionKind) -> &'static str {
 /// use polaris_backend::api::state::ApiState;
 /// use polaris_types::ActionKind;
 ///
-/// # async fn run(state: ApiState) -> Result<(), Box<dyn std::error::Error>> {
+/// # fn run(state: ApiState) -> Result<(), Box<dyn std::error::Error>> {
 /// // LLM-7 reject handler call site (forthcoming in #236):
 /// fire_reject_feedback_hook(
 ///     &state,
@@ -391,11 +429,10 @@ const fn recommended_kind_to_wire(k: ActionKind) -> &'static str {
 ///     ActionKind::Takedown,     // recommended_action_kind from JSONB
 ///     0.83,                     // recommendation_confidence
 ///     "the cited policy doesn't cover this exact pattern",
-/// )
-/// .await?;
+/// )?;
 /// # Ok(()) }
 /// ```
-pub async fn fire_reject_feedback_hook(
+pub fn fire_reject_feedback_hook(
     state: &ApiState,
     llm_observation_id: Uuid,
     recommended_action_kind: ActionKind,

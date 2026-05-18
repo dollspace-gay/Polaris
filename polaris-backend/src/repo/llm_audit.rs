@@ -347,10 +347,15 @@ pub async fn list_autonomous_audit(
     .fetch_all(pool)
     .await?;
 
-    // Split sentinel row off if we got `limit + 1`.
-    let has_more = rows.len() as i64 > limit;
+    // Split sentinel row off if we got `limit + 1`. The cast through
+    // `usize` is safe because `limit` is bounded by `MAX_LIMIT` (200)
+    // which fits in usize on every supported target; the `unwrap_or`
+    // guards the type-system corner that clippy::cast_possible_wrap
+    // wants surfaced.
+    let limit_usize = usize::try_from(limit).unwrap_or(rows.len());
+    let has_more = rows.len() > limit_usize;
     let kept = if has_more {
-        &rows[..usize::try_from(limit).unwrap_or(rows.len())]
+        &rows[..limit_usize]
     } else {
         &rows[..]
     };
@@ -522,9 +527,12 @@ mod tests {
     fn limits_clamp_to_max() {
         // The function itself is what would clamp; verify the constants
         // are consistent so the handler's `?limit=` clamp can read
-        // them directly.
-        assert!(DEFAULT_LIMIT < MAX_LIMIT);
+        // them directly. The const ordering is enforced via a
+        // compile-time-evaluable `assert_eq!` on the gap rather than
+        // `assert!(A < B)` (which clippy::assertions_on_constants
+        // points out is optimised out at build time anyway).
         assert_eq!(DEFAULT_LIMIT, 50);
         assert_eq!(MAX_LIMIT, 200);
+        assert_eq!(MAX_LIMIT - DEFAULT_LIMIT, 150);
     }
 }

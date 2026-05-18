@@ -47,7 +47,7 @@
 //! batch does NOT persist a "confirmed" marker — re-running the
 //! batch against the same data would re-emit the same feedback. This
 //! is acceptable for the LLM substrate (RAG corpora and fine-tuning
-//! pipelines dedupe on event_id), and avoids a second write path
+//! pipelines dedupe on `event_id`), and avoids a second write path
 //! that the append-only `actions` table is hostile to. If the LLM
 //! substrate becomes sensitive to duplicates, a `confirmed_at`
 //! column on `actions` is the right next step — out of scope for
@@ -96,7 +96,7 @@ pub enum FeedbackError {
 
 /// One row of the autonomous-action backing data the feedback paths
 /// need: the LLM observation id (becomes the wire `event_id`), the
-/// model's classifier_label hint, the model's confidence, and the
+/// model's `classifier_label` hint, the model's confidence, and the
 /// human-facing `ActionKind` (so the feedback envelope's
 /// `moderator_action_kind` aligns with the wire vocabulary in
 /// [`crate::classifier::action_kind_wire_string`]).
@@ -121,7 +121,7 @@ pub struct FeedbackContext {
     /// `Reverse`; for the assisted-reject path it is `NoAction`; for
     /// the confirmation path it is the *original* autonomous action's
     /// kind (the LLM's recommendation stood, so the moderator's
-    /// "implicit" action_kind matches the agent's).
+    /// "implicit" `action_kind` matches the agent's).
     pub moderator_action_kind: ActionKind,
 }
 
@@ -131,8 +131,8 @@ pub struct FeedbackContext {
 /// [`crate::api::cases::submit_action`] when a moderator submits a
 /// `kind = Reverse` action targeting an autonomous-agent action row.
 /// The reversed action's audit envelope (LLM observation id, model,
-/// model_version, prompt_template_id, recommendation_confidence,
-/// input_hash) is loaded via [`load_feedback_context`].
+/// `model_version`, `prompt_template_id`, `recommendation_confidence`,
+/// `input_hash`) is loaded via [`load_feedback_context`].
 ///
 /// # Privacy
 ///
