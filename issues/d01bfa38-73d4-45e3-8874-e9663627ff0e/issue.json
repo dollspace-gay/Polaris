@@ -2,11 +2,12 @@
   "uuid": "d01bfa38-73d4-45e3-8874-e9663627ff0e",
   "display_id": 246,
   "title": "Wire env-driven LLM dispatcher install into polaris-backend main.rs",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-18T19:34:23.943215482Z",
-  "updated_at": "2026-05-18T19:34:25.586469983Z",
+  "updated_at": "2026-05-18T19:52:09.282138055Z",
+  "closed_at": "2026-05-18T19:52:09.282138055Z",
   "labels": [
     "feature"
   ]
