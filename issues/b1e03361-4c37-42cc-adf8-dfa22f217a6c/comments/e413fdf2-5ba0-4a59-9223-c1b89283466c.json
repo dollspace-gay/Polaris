@@ -1,0 +1,10 @@
+{
+  "uuid": "e413fdf2-5ba0-4a59-9223-c1b89283466c",
+  "issue_uuid": "b1e03361-4c37-42cc-adf8-dfa22f217a6c",
+  "author": "TeIq",
+  "content": "Background: alerts 6+7 fire on hickory-proto 0.25.2 pulled via proto-blue-identity 0.3.2 -> hickory-resolver 0.25.2 -> hickory-proto 0.25.2. Alert #6 (GHSA-3v94-mw7p-v465 NSEC3 unbounded loop): no fix available upstream. Alert #7 (GHSA-q2qq-hmj6-3wpp O(n²) name compression): fixed in 0.26.1. proto-blue-identity is at latest (0.3.2 per cargo search) — no version that uses hickory 0.26.x exists yet. Three paths forward, ordered by cost: (1) file upstream issue against dollspace-gay/proto-blue requesting a hickory bump and wait; (2) [patch.crates-io] override in workspace Cargo.toml pointing at a fork of proto-blue-identity with bumped hickory-resolver; (3) accept the risk and document — both CVEs are CPU-exhaustion / DoS during DNS resolution, not RCE or auth bypass, and Polaris's DNS path is gated through proto-blue's IdResolver against fixed PDS/PLC endpoints, not arbitrary user-controlled DNS.",
+  "created_at": "2026-05-18T04:12:05.421864669Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABArsT01dGFxQRs8xPsadaFNZ2ogvD1vBqj9TAFSEUCnrzW/2JQS2QMoNl4meG5Ynlm0u+4syKKv/GmhdQBWFTJBA=="
+}
