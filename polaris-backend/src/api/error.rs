@@ -186,6 +186,42 @@ pub enum ApiError {
         retired_at: DateTime<Utc>,
     },
 
+    /// An autonomous-agent-emitted action cites a policy whose current
+    /// `mod_policies` row carries `human_required_always = TRUE`
+    /// (`.design/mod-policy-workbook.md` REQ-G3). This is the
+    /// action-create API layer of the three-layer enforcement: the
+    /// policy edit API rejects the autonomy flip at write time, the
+    /// LLM dispatcher rejects on every recommendation evaluation, and
+    /// this variant rejects a directly-constructed autonomous action
+    /// that has slipped past both. Wire shape: `403 Forbidden` with
+    /// body `{ "code": "policy_autonomy_forbidden", "identifier": "...",
+    /// "reason": "policy is human_required_always; autonomous agent
+    /// cannot enforce it" }`.
+    ///
+    /// Surfaced only when `actor_kind = 'autonomous_agent'` is asserted
+    /// by an internal caller (today only LLM-5 / #242, when shipped);
+    /// the public HTTP `POST /api/cases/:id/actions` route never sets
+    /// that `actor_kind`, so a wire-level caller cannot trigger this
+    /// variant by crafting a request body.
+    #[error("policy {identifier} is human_required_always; autonomous agent cannot enforce it")]
+    PolicyAutonomyForbidden {
+        /// The identifier of the cited human-required policy that
+        /// blocked the autonomous action.
+        identifier: String,
+    },
+
+    /// An autonomous-agent-emitted action attempts a `takedown` on a
+    /// subject whose `kind = 'account'` (`.design/mod-policy-workbook.md`
+    /// REQ-G2). Account-level takedowns are never autonomous; they
+    /// always require a human moderator. Wire shape: `403 Forbidden`
+    /// with body `{ "code": "account_takedown_autonomous_forbidden" }`.
+    ///
+    /// Like [`Self::PolicyAutonomyForbidden`], surfaced only when an
+    /// internal caller asserts `actor_kind = 'autonomous_agent'`; the
+    /// public HTTP route never reaches this variant.
+    #[error("autonomous agent cannot take down account-kind subjects")]
+    AccountTakedownAutonomousForbidden,
+
     /// A repository-layer failure. The `IntoResponse` impl classifies
     /// `RepoError::NotFound` as 404, `RepoError::UniqueViolation` as 409,
     /// and the remainder as 500.
@@ -194,6 +230,12 @@ pub enum ApiError {
 }
 
 impl IntoResponse for ApiError {
+    #[allow(
+        clippy::too_many_lines,
+        reason = "single-ladder dispatch from every ApiError variant to its wire (status, code, body) triple. \
+                  Splitting per-arm would force a helper per variant that just round-trips a struct, \
+                  obscuring the load-bearing one-to-one mapping between variant and HTTP shape."
+    )]
     fn into_response(self) -> axum::response::Response {
         let (status, code, msg) = match &self {
             Self::Unauthorized => (
@@ -307,6 +349,33 @@ impl IntoResponse for ApiError {
                     "retired_at": retired_at,
                 });
                 return (StatusCode::BAD_REQUEST, axum::Json(body)).into_response();
+            }
+            Self::PolicyAutonomyForbidden { identifier } => {
+                // REQ-G3 layer-2 wire shape (action-create API): `403
+                // Forbidden` with the rejection rationale named in
+                // both the `code` (matched on by the dispatcher/test)
+                // and a human `reason` field so an investigator
+                // reading the response body sees why the action was
+                // refused without cross-referencing the design doc.
+                let body = serde_json::json!({
+                    "error": format!("policy {identifier} is human_required_always; autonomous agent cannot enforce it"),
+                    "code": "policy_autonomy_forbidden",
+                    "identifier": identifier,
+                    "reason": "policy is human_required_always; autonomous agent cannot enforce it",
+                });
+                return (StatusCode::FORBIDDEN, axum::Json(body)).into_response();
+            }
+            Self::AccountTakedownAutonomousForbidden => {
+                // REQ-G2 wire shape: `403 Forbidden` carrying only the
+                // typed code. The frontend / dispatcher matches on the
+                // code; no additional fields are required because the
+                // rule is invariant ("autonomous agent + takedown +
+                // account-kind subject = always refused").
+                let body = serde_json::json!({
+                    "error": "autonomous agent cannot take down account-kind subjects",
+                    "code": "account_takedown_autonomous_forbidden",
+                });
+                return (StatusCode::FORBIDDEN, axum::Json(body)).into_response();
             }
             Self::Repo(RepoError::NotFound) => {
                 (StatusCode::NOT_FOUND, "not_found", "resource not found")
@@ -462,6 +531,40 @@ mod tests {
             body["retired_at"].is_string(),
             "retired_at must serialise as an RFC-3339 string; got {body}",
         );
+    }
+
+    #[tokio::test]
+    async fn policy_autonomy_forbidden_maps_to_403_with_identifier_and_reason() {
+        // REQ-G3 layer-2 wire-shape pin. The action-create handler's
+        // autonomy-floor rejection must surface a 403 carrying the
+        // rejecting identifier and the canonical reason string so
+        // both the LLM dispatcher (when it lands) and the regression
+        // test in `tests/policy_human_required_never_autonomous.rs`
+        // can match deterministically on `code`.
+        let (status, body) = render(ApiError::PolicyAutonomyForbidden {
+            identifier: "polaris.csam".to_owned(),
+        })
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(body["code"], "policy_autonomy_forbidden");
+        assert_eq!(body["identifier"], "polaris.csam");
+        assert!(
+            body["reason"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("human_required_always"),
+            "reason string must name the load-bearing flag; got {body}",
+        );
+    }
+
+    #[tokio::test]
+    async fn account_takedown_autonomous_forbidden_maps_to_403() {
+        // REQ-G2 wire-shape pin: bare `code` with no per-policy
+        // identifier (the rule is invariant on subject-kind, not
+        // policy).
+        let (status, body) = render(ApiError::AccountTakedownAutonomousForbidden).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(body["code"], "account_takedown_autonomous_forbidden");
     }
 
     #[tokio::test]

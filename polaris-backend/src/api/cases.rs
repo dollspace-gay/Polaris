@@ -49,6 +49,7 @@ use crate::api::policy_cache;
 use crate::api::state::ApiState;
 use crate::auth::ModeratorAuthCtx;
 use crate::labeler::emitter::{SubjectRef, emit_best_effort};
+use crate::repo::action::LlmAuditFields;
 use crate::repo::mod_policies::ModPolicyError;
 use crate::repo::{
     ActionRepo, IncidentRepo, NewAction as RepoNewAction, ObservationRepo, ReportRepo, SubjectRepo,
@@ -432,11 +433,42 @@ pub async fn submit_action(
 /// the action row plus its citation rows so a partial citation is
 /// never visible. The legacy `actions.policy_refs TEXT[]` column is
 /// also populated with the flat identifier list per REQ-B2.
+///
+/// Public-HTTP wire calls always land here with `actor_kind = 'human'`
+/// (`autonomous_audit = None`) — the wire `SubmitAction` shape carries
+/// no `actor_kind` field, and this handler never invents one. The
+/// autonomous-agent code path goes through the deliberately narrow
+/// [`submit_action_autonomous_for_test`] entry point (today exercised
+/// only by [`tests/policy_human_required_never_autonomous.rs`]; will
+/// be replaced by the LLM dispatcher LLM-5 / #242 once it lands), so
+/// REQ-G3 / REQ-G2 cannot be tripped from an external caller.
 async fn submit_action_cold(
     state: &ApiState,
     ctx: &ModeratorAuthCtx,
     subject_id: SubjectId,
     body: &SubmitAction,
+) -> Result<(StatusCode, Json<Action>), ApiError> {
+    submit_action_inner(state, ctx, subject_id, body, None).await
+}
+
+/// Shared core of the cold-path action insert. Threaded by both
+/// [`submit_action_cold`] (HTTP entry, always `autonomous_audit = None`)
+/// and [`submit_action_autonomous_for_test`] (test-only entry, always
+/// `Some(_)`).
+///
+/// When `autonomous_audit` is `Some`, the inserted row carries
+/// `actor_kind = 'autonomous_agent'` and the migration-51 audit-column
+/// CHECK at the DB boundary will reject a partial envelope. The two
+/// REQ-G2 / REQ-G3 floors are evaluated server-side BEFORE the insert
+/// so an autonomous emission against a `human_required_always` policy
+/// (or an autonomous account-takedown) is rejected with the typed
+/// `403` shape rather than reaching the DB and surfacing as a `500`.
+async fn submit_action_inner(
+    state: &ApiState,
+    ctx: &ModeratorAuthCtx,
+    subject_id: SubjectId,
+    body: &SubmitAction,
+    autonomous_audit: Option<LlmAuditFields>,
 ) -> Result<(StatusCode, Json<Action>), ApiError> {
     validate_submit_action_shape(body)?;
 
@@ -457,7 +489,15 @@ async fn submit_action_cold(
     // surfaces a `400` without ever touching the actions table.
     let citations = resolve_policy_citations(&state.pool, body).await?;
 
-    let new_action = build_new_action(body, subject_id, ctx);
+    // REQ-G2 / REQ-G3 layer-2 autonomy floors. Only evaluated when the
+    // caller asserted `actor_kind = 'autonomous_agent'` via
+    // `autonomous_audit = Some(_)`. The default HTTP path
+    // (`autonomous_audit = None` → `actor_kind = 'human'`) is unaffected.
+    if autonomous_audit.is_some() {
+        enforce_autonomy_floors(state, subject_id, body, &citations).await?;
+    }
+
+    let new_action = build_new_action(body, subject_id, ctx, autonomous_audit);
 
     // Single tx: action insert + per-citation inserts. Either both
     // commit or neither — REQ-B3 atomicity invariant.
@@ -472,6 +512,109 @@ async fn submit_action_cold(
 
     instrument_and_emit(state, subject_id, &inserted).await?;
     Ok((StatusCode::CREATED, Json(inserted)))
+}
+
+/// Test-only handle on the autonomous-agent action-create path.
+///
+/// Drives the same cold-path validation + autonomy-floor + insert flow
+/// as a wire HTTP submission but with an explicitly-provided LLM audit
+/// envelope so the inserted row's `actor_kind = 'autonomous_agent'`
+/// satisfies the migration-51 CHECK constraint. Used exclusively by
+/// `tests/policy_human_required_never_autonomous.rs` to prove the
+/// action-create layer of the REQ-G2 / REQ-G3 enforcement triple
+/// rejects an autonomously-cited human-required policy (or an
+/// autonomous account takedown) with the documented `403` shape.
+///
+/// **Do not call from production code.** The LLM dispatcher (LLM-5 /
+/// #242) will land its own typed entry point once that work ships;
+/// widening this surface in the meantime would re-introduce the
+/// "external caller forges actor_kind" attack the
+/// `submit_action`-via-HTTP path is structurally immune to.
+///
+/// # Errors
+///
+/// Returns the same [`ApiError`] variants as the HTTP cold path, plus
+/// [`ApiError::PolicyAutonomyForbidden`] (REQ-G3) and
+/// [`ApiError::AccountTakedownAutonomousForbidden`] (REQ-G2) for the
+/// autonomy-specific rejections.
+#[doc(hidden)]
+pub async fn submit_action_autonomous_for_test(
+    state: &ApiState,
+    ctx: &ModeratorAuthCtx,
+    subject_id: SubjectId,
+    body: &SubmitAction,
+    audit: LlmAuditFields,
+) -> Result<(StatusCode, Json<Action>), ApiError> {
+    submit_action_inner(state, ctx, subject_id, body, Some(audit)).await
+}
+
+/// REQ-G2 / REQ-G3 layer-2 enforcement.
+///
+/// Runs only when the caller asserts `actor_kind = 'autonomous_agent'`
+/// (i.e. an internal dispatcher path, never a wire HTTP submission;
+/// see the doc-comment on [`submit_action_autonomous_for_test`]).
+///
+/// 1. REQ-G3: read every cited policy's *current* row via the
+///    `policy_cache` (the same cache the citation snapshot itself
+///    came from, so the read is in-process and warm). If any cited
+///    policy carries `human_required_always = TRUE`, reject with
+///    `403 policy_autonomy_forbidden` naming the offending identifier.
+/// 2. REQ-G2: if the action's `kind = takedown` AND the subject's
+///    `kind = 'account'`, reject with `403
+///    account_takedown_autonomous_forbidden`. Account-level
+///    takedowns are never autonomous.
+///
+/// The two checks are independent — both fire when both apply, with
+/// REQ-G3 evaluated first because a policy-level rejection is the
+/// stronger signal (the policy contract itself forbids autonomy)
+/// while REQ-G2 is a subject-shape constraint applied on top.
+async fn enforce_autonomy_floors(
+    state: &ApiState,
+    subject_id: SubjectId,
+    body: &SubmitAction,
+    citations: &[(String, i32)],
+) -> Result<(), ApiError> {
+    // REQ-G3: any cited human-required policy aborts the autonomous
+    // emission. The cache hit shares the snapshot the citation
+    // resolver just populated, so this is a microsecond-level
+    // in-process lookup rather than a re-roundtrip to Postgres.
+    for (identifier, _) in citations {
+        let policy = policy_cache::get_current(&state.pool, identifier)
+            .await
+            .map_err(map_policy_lookup_err)?;
+        // `Ok(None)` cannot occur here in practice: the citation set
+        // was just resolved against the same pool moments ago. The
+        // defensive branch returns the same `unknown_policy_ref` shape
+        // the citation resolver would, so a hypothetical
+        // delete-between-reads race surfaces the same wire code rather
+        // than a 500.
+        let Some(policy) = policy else {
+            return Err(ApiError::UnknownPolicyRef {
+                identifier: identifier.clone(),
+            });
+        };
+        if policy.human_required_always {
+            return Err(ApiError::PolicyAutonomyForbidden {
+                identifier: identifier.clone(),
+            });
+        }
+    }
+
+    // REQ-G2: autonomous + takedown + account-kind subject → refuse.
+    // The subject's kind is read fresh rather than carried in the
+    // wire body so a caller cannot forge a non-account kind to slip
+    // an account-level takedown past the floor.
+    if matches!(body.kind, ActionKind::Takedown) {
+        let subject = state
+            .subjects
+            .get(subject_id)
+            .await?
+            .ok_or(ApiError::NotFound)?;
+        if matches!(subject.kind, polaris_types::SubjectKind::Account) {
+            return Err(ApiError::AccountTakedownAutonomousForbidden);
+        }
+    }
+    Ok(())
 }
 
 /// Per-report idempotent action insert (issue #202).
@@ -562,7 +705,12 @@ async fn submit_action_with_report(
     // transaction so a partial citation is never visible.
     let citations = resolve_policy_citations(&state.pool, body).await?;
 
-    let new_action = build_new_action(body, subject_id, ctx);
+    // Per-report path is the cookie-driven moderator click path — the
+    // wire body carries no `actor_kind`, so the row is always
+    // `actor_kind = 'human'`. The autonomous-agent floors do not need
+    // to run here; see [`submit_action_autonomous_for_test`] for the
+    // narrow internal path that does carry an audit envelope.
+    let new_action = build_new_action(body, subject_id, ctx, None);
     let inserted = state.actions.insert_in_tx(&mut tx, new_action).await?;
 
     sqlx::query!(
@@ -730,7 +878,12 @@ pub async fn submit_bulk_action(
     let emit_eligible = matches!(body.body.kind, ActionKind::Label | ActionKind::Takedown);
 
     for subject_id in &body.subject_ids {
-        let new_action = build_new_action(&body.body, *subject_id, &ctx);
+        // Bulk-action submissions ride the same cookie-authenticated
+        // wire path as single-subject ones: human moderator, no LLM
+        // audit envelope. The autonomous-agent floors do not apply
+        // here for the same reason — bulk-actions cannot route
+        // through the dispatcher.
+        let new_action = build_new_action(&body.body, *subject_id, &ctx, None);
         match insert_action_with_citations(&state, new_action, &citations).await {
             Ok(inserted) => {
                 metrics::counter!(
@@ -940,10 +1093,16 @@ fn map_policy_lookup_err(err: ModPolicyError) -> ApiError {
 /// Helper: translate the wire DTO into a repo-level `NewAction`. The
 /// moderator id comes from `ctx`, NOT from the request body — that is the
 /// AC-7 attribution contract.
+///
+/// `llm_audit` is `Some(_)` only for the autonomous-agent test-only
+/// path ([`submit_action_autonomous_for_test`]); every wire HTTP call
+/// passes `None`, producing a row with `actor_kind = 'human'` and the
+/// LLM audit columns NULL (the migration-51 backward-compat shape).
 fn build_new_action(
     body: &SubmitAction,
     subject_id: SubjectId,
     ctx: &ModeratorAuthCtx,
+    llm_audit: Option<LlmAuditFields>,
 ) -> RepoNewAction {
     // `polaris_types::NewAction` and `repo::NewAction` are structurally
     // identical; we go through the typed conversion to keep the two crates'
@@ -969,7 +1128,7 @@ fn build_new_action(
         policy_refs: typed.policy_refs,
         reversible_until: typed.reversible_until,
         reverses_action_id: typed.reverses_action_id,
-        llm_audit: None,
+        llm_audit,
     }
 }
 
@@ -1082,8 +1241,13 @@ mod tests {
         // forge a moderator_id, because the field is not in `SubmitAction`.
         let body = good_body();
         let session_ctx = ctx();
-        let new = build_new_action(&body, SubjectId::new(), &session_ctx);
+        let new = build_new_action(&body, SubjectId::new(), &session_ctx, None);
         assert_eq!(new.moderator_id.0, session_ctx.moderator_id.0);
+        // Round-trip the human default: no audit envelope means
+        // `actor_kind` will land as `'human'` at the DB boundary
+        // (the repo selects the column literal from
+        // `new.llm_audit.is_some()`).
+        assert!(new.llm_audit.is_none());
     }
 
     #[test]
