@@ -1,0 +1,10 @@
+{
+  "uuid": "0facac40-cc2b-4f22-ae01-cd6b624a1656",
+  "display_id": 210,
+  "title": "Add easy-install flow: polaris-setup CLI, install.sh, ghcr publish workflow",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T02:06:59.683581749Z",
+  "updated_at": "2026-05-18T02:06:59.683581749Z"
+}
