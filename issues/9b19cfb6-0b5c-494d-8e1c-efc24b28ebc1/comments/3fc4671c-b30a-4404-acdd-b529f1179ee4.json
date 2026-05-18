@@ -1,0 +1,10 @@
+{
+  "uuid": "3fc4671c-b30a-4404-acdd-b529f1179ee4",
+  "issue_uuid": "9b19cfb6-0b5c-494d-8e1c-efc24b28ebc1",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/llm-moderation-assist.md\n**Implements**: REQ-J1; AC-10\n\n**Files to add**:\n- polaris-frontend/src/components/llm_recommendation_panel.rs\n- polaris-frontend/styles/llm-recommendation-panel.css\n\n**Files to modify**:\n- polaris-frontend/src/pages/case_view.rs — render the panel from latest LlmRecommendation observation\n- polaris-frontend/src/api_client/dto.rs — RecommendationDto + RecommendedActionDto\n- polaris-frontend/src/api_client/{mod,native,wasm}.rs — fetch_recommendation(case_id)\n\n**Panel content** (per resolved Q5):\n- Model + version chips\n- Confidence: filled bar with translucent ghost-bar at policy.autonomous_confidence_threshold\n- Recommended action(s) with policy citations linked to /policies detail pages\n- LLM reasoning (Markdown rendered)\n- Caveats list\n- Per-mode CTAs:\n  - manual: \"Use as draft\" pre-fills action composer\n  - assisted: \"Approve\" / \"Reject\" buttons\n  - autonomous already-fired: banner + \"Reverse\" affordance\n\n**Rust quality**: BEM, var(--…) only, contrast passing, mobile-narrow layout\n\n**Tests**: styles_coverage / styles_tokens / styles_contrast pass\n\n**Blocked by**: #LLM-5",
+  "created_at": "2026-05-18T08:00:59.751764630Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABABHVA2ok01DkGcdaYvm1ljLACIu/MPtdlDMykC+X5X15O5qlW37yI/iML+TCMH8Om5Mj09/jqFpjcloP7s4B2BA=="
+}
