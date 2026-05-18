@@ -26,21 +26,24 @@ RUN apk add --no-cache musl-dev openssl-dev openssl-libs-static pkgconfig git
 
 WORKDIR /app
 
-# Copy the workspace manifest + all member manifests first so layer
-# caching on `cargo fetch` survives source-only edits. The lockfile
-# pins every transitive dep; the build is reproducible.
+# Copy the workspace manifests + sources for ALL nine workspace
+# members. Cargo validates every workspace member's Cargo.toml paths
+# (the `[lib] path = ...` and `[bin] path = ...` fields) when
+# resolving the workspace — including for crates the target binary
+# doesn't depend on. Manifest-only stubs would fail validation. The
+# build stage is discarded after stage 2, so a larger build context
+# costs nothing in the final image.
 COPY Cargo.toml Cargo.lock ./
-COPY polaris-types/Cargo.toml polaris-types/Cargo.toml
-COPY polaris-backend/Cargo.toml polaris-backend/Cargo.toml
-COPY polaris-frontend/Cargo.toml polaris-frontend/Cargo.toml
-COPY polaris-publish-labeler-record/Cargo.toml polaris-publish-labeler-record/Cargo.toml
-COPY xtask/Cargo.toml xtask/Cargo.toml
 COPY rust-toolchain.toml ./
-
-# Now the source.
 COPY polaris-types polaris-types
 COPY polaris-backend polaris-backend
+COPY polaris-frontend polaris-frontend
+COPY polaris-lexicons polaris-lexicons
+COPY polaris-classifier-proto polaris-classifier-proto
+COPY polaris-trust polaris-trust
 COPY polaris-publish-labeler-record polaris-publish-labeler-record
+COPY polaris-publish-did-service polaris-publish-did-service
+COPY xtask xtask
 
 # Build the backend binary. The release profile is the workspace
 # default; LTO and codegen-units are tuned in the workspace Cargo.toml.
