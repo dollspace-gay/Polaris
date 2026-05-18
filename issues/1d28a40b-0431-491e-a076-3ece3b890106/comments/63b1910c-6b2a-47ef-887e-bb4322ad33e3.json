@@ -1,0 +1,10 @@
+{
+  "uuid": "63b1910c-6b2a-47ef-887e-bb4322ad33e3",
+  "issue_uuid": "1d28a40b-0431-491e-a076-3ece3b890106",
+  "author": "TeIq",
+  "content": "Dispatch 2 (docs polish) starting. Loaded preflight, captured polaris-setup --help (0.1.0, flags: --hostname/--non-interactive/--force/--dir) and install.sh --help (env: POLARIS_HOSTNAME/NONINTERACTIVE/FORCE/INSTALL_DIR/VERSION; flags: --help/--dry-run). Will rewrite README quick start (operator vs dev), shrink docs/ops/quick-start.md around install.sh, add docs/ops/upgrade.md, deploy/helm/README.md, deploy/systemd/README.md. No code, dockerfile, workflow, compose, helm template, or systemd unit touched.",
+  "created_at": "2026-05-18T02:28:32.617969154Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAqOtVzjeFYOLOMS9/BXYjYr2jfm1c/xNyaTpKeTvQfgAhipZ+BY7CaLsFCmoVhRlQyQFRuDCMDXq9ztG5RdaeAg=="
+}
