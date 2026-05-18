@@ -1,0 +1,10 @@
+{
+  "uuid": "cebd661e-ec93-494d-a8fc-9a91c367c09b",
+  "issue_uuid": "022ad6dc-5a27-4ff1-81ef-40348713c39d",
+  "author": "TeIq",
+  "content": "Resuming partial impl. Already landed: migration 45, ReportId newtype, frontend SubmitAction.report_id, frontend report_list.rs button wiring, backend DTO field. Still missing: backend handler tx logic, filter in list_by_subject/build_case_view, integration test, sqlx cache, fix unused_imports warning.",
+  "created_at": "2026-05-18T01:22:04.073823210Z",
+  "kind": "observation",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA/C2itwTmpg3f3t0RjBJnvQgLY1fZV+XG+FOn9RATaeA2gao8Cq32pBKnSQxhiaOe7JhR+r1i3AY9jrtYMzL/DA=="
+}
