@@ -2,12 +2,13 @@
   "uuid": "90a6f8ba-832b-427a-b460-5975f67bfa1b",
   "display_id": 234,
   "title": "Case-context hydration: build RecommendRequest from DB",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "parent_uuid": "38a78c72-404f-483c-807a-8f5a08f37e83",
   "created_by": "TeIq",
   "created_at": "2026-05-18T07:55:40.345848881Z",
-  "updated_at": "2026-05-18T08:05:58.056138385Z",
+  "updated_at": "2026-05-18T11:05:46.312882750Z",
+  "closed_at": "2026-05-18T11:05:46.312882750Z",
   "labels": [
     "rust"
   ],
