@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO action_policy_citations\n            (action_id, policy_identifier, policy_version)\n        SELECT $1, ident, ver\n        FROM UNNEST($2::TEXT[], $3::INTEGER[]) AS u(ident, ver)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray",
+        "Int4Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "77ff5fd73161462256dcf00eb3fd60091462526329804f8796c848c6265c7e97"
+}

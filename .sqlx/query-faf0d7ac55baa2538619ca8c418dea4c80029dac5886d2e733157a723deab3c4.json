@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE mod_policies\n        SET autonomous_paused_until = NULL\n        WHERE identifier = $1 AND effective_until IS NULL\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "faf0d7ac55baa2538619ca8c418dea4c80029dac5886d2e733157a723deab3c4"
+}

@@ -1,0 +1,78 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            id, identifier, version, name, description,\n            scope, severity, autonomy_mode, is_retired,\n            effective_from\n        FROM mod_policies\n        WHERE effective_until IS NULL\n          AND ($1::TEXT IS NULL OR scope = $1)\n          AND ($2::TEXT IS NULL OR autonomy_mode = $2)\n          AND (\n              $3::TEXT IS NULL\n              OR name ILIKE $3\n              OR description ILIKE $3\n              OR decision_criteria ILIKE $3\n          )\n        ORDER BY identifier ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "identifier",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "version",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "scope",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "severity",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "autonomy_mode",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_retired",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "effective_from",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fe932f6348bd94e912cd610f0b003970adf0591cb0b32609ee43041160911557"
+}
