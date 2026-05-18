@@ -1,0 +1,10 @@
+{
+  "uuid": "1c97d9ed-b2be-43c0-893b-481dc679dfa5",
+  "issue_uuid": "c5556658-da62-4025-a5e1-b2568ce04890",
+  "author": "TeIq",
+  "content": "Implementation landed locally. cargo build/clippy/fmt all green. New tests/policy_version_pinning.rs (5 tests covering happy path, unknown 400, retired 400, version pinning under amend race, reversal cites current version). tests/case_api.rs updated to assert new unknown_policy_ref/identifier wire shape. 9 existing HTTP-driven tests seeded with placeholder mod_policies via new pub helper polaris_backend::test_support::seed_placeholder_policies. cargo sqlx prepare regenerated 3 new offline cache entries.",
+  "created_at": "2026-05-18T09:40:25.949158819Z",
+  "kind": "progress",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAov0xBKQF/M3562q+34wSamztjxVtuQ6rYRCBwZvFYTV4VgLC62ib3UHnE9hozpEErmDPvtNUskJRjSlzsVa5AA=="
+}
