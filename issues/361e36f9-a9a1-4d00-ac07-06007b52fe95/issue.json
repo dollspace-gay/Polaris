@@ -1,0 +1,11 @@
+{
+  "uuid": "361e36f9-a9a1-4d00-ac07-06007b52fe95",
+  "display_id": 235,
+  "title": "Safety floors module — all 8 invariants enforced server-side",
+  "status": "open",
+  "priority": "high",
+  "parent_uuid": "38a78c72-404f-483c-807a-8f5a08f37e83",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T07:58:21.176180700Z",
+  "updated_at": "2026-05-18T07:58:21.176180700Z"
+}
