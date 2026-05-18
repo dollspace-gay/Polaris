@@ -1,0 +1,10 @@
+{
+  "uuid": "67d223ae-49ba-4cb0-89b2-e54fa20bd409",
+  "issue_uuid": "ae50200a-9006-4a0e-9eea-9887b6d4f493",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/mod-policy-workbook.md\n**Implements**: REQ-G1, REQ-G2, REQ-G3; AC-8\n\n**Three enforcement layers**:\n1. **Policy edit API** (PATCH /api/admin/policies/:identifier): if human_required_always=TRUE and patch sets autonomy_mode='autonomous' → 403 policy_autonomy_forbidden\n2. **Action-create API** (POST /api/cases/:id/actions): cited policy has human_required_always=TRUE AND actor_kind='autonomous_agent' → 403 (catches direct insert bypassing dispatcher)\n3. **LLM dispatcher** (covered separately in LLM-assist REQ-S8) — out of scope for this issue but cross-tested here\n\n**Also enforces REQ-G1**: autonomous_action_kinds gated server-side to {label, warn, takedown}\n**Also enforces REQ-G2**: autonomous + takedown + subject.kind='account' → 403\n\n**Files to modify**:\n- polaris-backend/src/api/admin_policies/handlers.rs (G1 + G3-layer-1)\n- polaris-backend/src/api/cases.rs (G2 + G3-layer-2)\n\n**Tests** (load-bearing — tests/policy_human_required_never_autonomous.rs):\na) PATCH polaris.csam → autonomy_mode='autonomous' returns 403\nb) Direct action insert with actor_kind='autonomous_agent' citing polaris.csam returns 403\nc) Policy edit with autonomous_action_kinds=['escalate'] returns 400\nd) autonomous_action_kinds=['mute'] returns 400\ne) autonomous + takedown + subject.kind='account' returns 403\n\n**Rust quality**: Server-side invariants — never rely on frontend; each rejection has a structured error code\n\n**Blocked by**: #224, #225",
+  "created_at": "2026-05-18T07:47:18.584408394Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAfpEBf1T8eb9I4FYqKxu8NkR7lTyqlB5P8098sJVrZw3c3SWGeDEI/XKEFWPvKBzIt0KhXVKuFfyFbxZB+ndwAw=="
+}
