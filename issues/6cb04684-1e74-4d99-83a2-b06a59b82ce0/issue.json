@@ -1,0 +1,10 @@
+{
+  "uuid": "6cb04684-1e74-4d99-83a2-b06a59b82ce0",
+  "display_id": 213,
+  "title": "Wire install.sh POLARIS_VERSION to actually fetch the prebuilt polaris-setup binary from a GitHub release",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T02:37:22.665360812Z",
+  "updated_at": "2026-05-18T02:37:22.665360812Z"
+}
