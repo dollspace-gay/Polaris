@@ -1514,6 +1514,145 @@ pub enum RequestRecommendationOutcome {
     },
 }
 
+// ── LLM admin audit (issue #238 / LLM-9 / REQ-F4) ────────────────────────
+
+/// One row of the `GET /api/admin/llm/audit` response.
+///
+/// Mirrors the backend's [`polaris_backend::api::llm::admin_audit::LlmAuditEntryDto`]
+/// field-for-field. The full LLM response payload is reachable via
+/// `llm_observation_id` — fetching the row off `observations.evidence`
+/// would be a second round-trip the row-expand UI makes on demand.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LlmAuditEntryDto {
+    /// The autonomous action's id.
+    pub action_id: uuid::Uuid,
+    /// `actions.kind` — one of `label` / `warn` / `takedown` / …
+    pub action_kind: String,
+    /// `actions.label_value` when the action is a label.
+    #[serde(default)]
+    pub label_value: Option<String>,
+    /// Subject DID (when present).
+    #[serde(default)]
+    pub subject_did: Option<String>,
+    /// Subject kind — one of `account` / `post` / `list` / `feed`.
+    pub subject_kind: String,
+    /// Subject AT-URI (when present).
+    #[serde(default)]
+    pub subject_uri: Option<String>,
+    /// Always `"autonomous_agent"`.
+    pub actor_kind: String,
+    /// LLM model identifier (e.g. `qwen2.5-32b-instruct-q3_k_m`).
+    pub model: String,
+    /// LLM model version string.
+    pub model_version: String,
+    /// Adapter-stable prompt template identifier.
+    pub prompt_template_id: String,
+    /// Top recommendation's confidence (`[0.0, 1.0]`).
+    pub recommendation_confidence: f32,
+    /// SHA-256-hex of the canonicalised `RecommendRequest`.
+    pub input_hash: String,
+    /// Snapshotted `(identifier, version)` citations.
+    pub cited_policies: Vec<LlmAuditCitedPolicyDto>,
+    /// Top recommendation's reasoning string.
+    #[serde(default)]
+    pub reasoning: String,
+    /// When the action was created.
+    pub created_at: DateTime<Utc>,
+    /// When the action's reversal window closes.
+    pub reversible_until: DateTime<Utc>,
+    /// Reversal info when one exists; `None` otherwise.
+    #[serde(default)]
+    pub reversal: Option<LlmAuditReversalDto>,
+    /// Points at the `LlmRecommendation` observation row (its
+    /// `evidence` JSONB carries the full LLM response payload per
+    /// REQ-B2).
+    pub llm_observation_id: uuid::Uuid,
+}
+
+/// One `(identifier, version)` pair on an audit-row's `cited_policies`
+/// list.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LlmAuditCitedPolicyDto {
+    /// Policy identifier (e.g. `polaris.spam`).
+    pub identifier: String,
+    /// Pinned version at action-create time.
+    pub version: i32,
+}
+
+/// Reversal-side info on an audit row.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LlmAuditReversalDto {
+    /// The reversal action's id.
+    pub action_id: uuid::Uuid,
+    /// When the reversal was created.
+    pub reversed_at: DateTime<Utc>,
+    /// Moderator who issued the reversal.
+    pub reversed_by_moderator_id: uuid::Uuid,
+}
+
+/// Full page shape returned by `GET /api/admin/llm/audit`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LlmAuditPageDto {
+    /// Rows in the page, newest-first.
+    pub items: Vec<LlmAuditEntryDto>,
+    /// Opaque cursor for the next page when more rows exist.
+    #[serde(default)]
+    pub next_cursor: Option<String>,
+}
+
+/// Client-supplied filters for `GET /api/admin/llm/audit`.
+///
+/// All fields optional. Empty / `None` fields are omitted from the URL
+/// entirely — the backend's `Query<LlmAuditQuery>` extractor reads each
+/// parameter as `Option<T>`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LlmAuditFilters {
+    /// Filter to actions emitted by the named LLM model.
+    pub model: Option<String>,
+    /// Filter to actions citing this policy identifier.
+    pub policy: Option<String>,
+    /// `Some(true)` returns only reversed rows; `Some(false)` returns
+    /// only non-reversed rows.
+    pub reversed: Option<bool>,
+    /// Earliest `actions.created_at` (RFC3339, inclusive).
+    pub from: Option<DateTime<Utc>>,
+    /// Latest `actions.created_at` (RFC3339, inclusive).
+    pub to: Option<DateTime<Utc>>,
+    /// Opaque cursor from a prior page.
+    pub cursor: Option<String>,
+    /// Page size. The backend defaults to 50 and clamps to `[1, 200]`.
+    pub limit: Option<i64>,
+}
+
+/// Serialise [`LlmAuditFilters`] into a percent-encoded URL query
+/// string (without the leading `?`). Empty / `None` fields are omitted.
+#[must_use]
+pub fn llm_audit_filters_to_query_string(filters: &LlmAuditFilters) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(value) = filters.model.as_deref().filter(|v| !v.is_empty()) {
+        parts.push(format!("model={}", percent_encode(value)));
+    }
+    if let Some(value) = filters.policy.as_deref().filter(|v| !v.is_empty()) {
+        parts.push(format!("policy={}", percent_encode(value)));
+    }
+    if let Some(value) = filters.reversed {
+        parts.push(format!("reversed={value}"));
+    }
+    if let Some(value) = filters.from {
+        parts.push(format!("from={}", percent_encode(&value.to_rfc3339())));
+    }
+    if let Some(value) = filters.to {
+        parts.push(format!("to={}", percent_encode(&value.to_rfc3339())));
+    }
+    if let Some(value) = filters.cursor.as_deref().filter(|v| !v.is_empty()) {
+        parts.push(format!("cursor={}", percent_encode(value)));
+    }
+    if let Some(value) = filters.limit {
+        parts.push(format!("limit={value}"));
+    }
+    parts.join("&")
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -1790,5 +1929,96 @@ mod tests {
         assert_eq!(json["reason"], "debounce_hit");
         let back: RequestRecommendationOutcome = serde_json::from_value(json).expect("deserialize");
         assert_eq!(back, outcome);
+    }
+
+    #[test]
+    fn llm_audit_filters_query_string_omits_empty_fields() {
+        let filters = LlmAuditFilters::default();
+        assert_eq!(llm_audit_filters_to_query_string(&filters), "");
+
+        let filters = LlmAuditFilters {
+            model: Some("qwen2.5-32b-instruct-q3_k_m".to_owned()),
+            policy: Some("polaris.spam".to_owned()),
+            reversed: Some(true),
+            limit: Some(100),
+            ..Default::default()
+        };
+        let qs = llm_audit_filters_to_query_string(&filters);
+        assert!(qs.contains("model=qwen2.5-32b-instruct-q3_k_m"));
+        assert!(qs.contains("policy=polaris.spam"));
+        assert!(qs.contains("reversed=true"));
+        assert!(qs.contains("limit=100"));
+        assert!(!qs.contains("from="));
+        assert!(!qs.contains("cursor="));
+    }
+
+    #[test]
+    fn llm_audit_filters_query_string_percent_encodes_cursor() {
+        let filters = LlmAuditFilters {
+            cursor: Some("abc+/=".to_owned()),
+            ..Default::default()
+        };
+        let qs = llm_audit_filters_to_query_string(&filters);
+        // `+` and `=` are NOT in the unreserved set; they must be
+        // percent-encoded so the wire string is router-safe.
+        assert!(qs.starts_with("cursor=abc%2B%2F%3D"), "got: {qs}");
+    }
+
+    #[test]
+    fn llm_audit_entry_round_trips_through_serde() {
+        let entry = LlmAuditEntryDto {
+            action_id: uuid::Uuid::nil(),
+            action_kind: "label".to_owned(),
+            label_value: Some("spam".to_owned()),
+            subject_did: Some("did:plc:abc".to_owned()),
+            subject_kind: "post".to_owned(),
+            subject_uri: Some("at://did:plc:abc/app.bsky.feed.post/x".to_owned()),
+            actor_kind: "autonomous_agent".to_owned(),
+            model: "qwen2.5-32b-instruct-q3_k_m".to_owned(),
+            model_version: "v1".to_owned(),
+            prompt_template_id: "polaris.case-review.v1".to_owned(),
+            recommendation_confidence: 0.94,
+            input_hash: "deadbeef".to_owned(),
+            cited_policies: vec![LlmAuditCitedPolicyDto {
+                identifier: "polaris.spam".to_owned(),
+                version: 3,
+            }],
+            reasoning: "the spam was conspicuous".to_owned(),
+            created_at: Utc::now(),
+            reversible_until: Utc::now() + chrono::Duration::hours(24),
+            reversal: None,
+            llm_observation_id: uuid::Uuid::nil(),
+        };
+        let json = serde_json::to_value(&entry).expect("serialize");
+        let back: LlmAuditEntryDto = serde_json::from_value(json).expect("deserialize");
+        assert_eq!(back, entry);
+    }
+
+    #[test]
+    fn llm_audit_entry_decodes_legacy_payload_without_optional_fields() {
+        // The backend uses `#[serde(skip_serializing_if = "Option::is_none")]`
+        // on optional fields. Verify deserialize accepts a payload that
+        // omits them entirely.
+        let json = serde_json::json!({
+            "action_id": "00000000-0000-0000-0000-000000000000",
+            "action_kind": "warn",
+            "subject_kind": "account",
+            "actor_kind": "autonomous_agent",
+            "model": "qwen-32b",
+            "model_version": "v1",
+            "prompt_template_id": "polaris.case-review.v1",
+            "recommendation_confidence": 0.81,
+            "input_hash": "abc123",
+            "cited_policies": [],
+            "created_at": "2026-05-18T00:00:00Z",
+            "reversible_until": "2026-05-19T00:00:00Z",
+            "llm_observation_id": "00000000-0000-0000-0000-000000000000",
+        });
+        let dto: LlmAuditEntryDto = serde_json::from_value(json).expect("deserialize");
+        assert_eq!(dto.label_value, None);
+        assert_eq!(dto.subject_did, None);
+        assert_eq!(dto.subject_uri, None);
+        assert_eq!(dto.reasoning, "");
+        assert!(dto.reversal.is_none());
     }
 }

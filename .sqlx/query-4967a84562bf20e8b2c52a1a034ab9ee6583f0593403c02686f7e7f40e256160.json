@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT actor_kind,\n               (SELECT policy_identifier FROM action_policy_citations\n                WHERE action_id = $1\n                ORDER BY policy_version DESC, policy_identifier ASC\n                LIMIT 1) AS \"policy?\"\n        FROM actions\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "actor_kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "policy?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "4967a84562bf20e8b2c52a1a034ab9ee6583f0593403c02686f7e7f40e256160"
+}

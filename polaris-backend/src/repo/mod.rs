@@ -55,6 +55,7 @@ pub mod action_policy_citations;
 pub mod appeal;
 pub mod federation;
 pub mod incident;
+pub mod llm_audit;
 pub mod mod_policies;
 pub mod observation;
 pub mod pattern_action;

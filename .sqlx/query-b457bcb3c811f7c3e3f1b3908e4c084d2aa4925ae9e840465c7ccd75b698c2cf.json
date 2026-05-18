@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT COALESCE(\n                   recommended_action -> 'cited_policy_identifiers' ->> 0,\n                   '(uncited)'\n               ) AS \"policy!\",\n               COUNT(*) AS \"count!\"\n        FROM pending_auto_actions\n        WHERE state = 'pending'\n        GROUP BY 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "policy!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "b457bcb3c811f7c3e3f1b3908e4c084d2aa4925ae9e840465c7ccd75b698c2cf"
+}

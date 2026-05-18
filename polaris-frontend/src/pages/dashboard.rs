@@ -53,6 +53,7 @@ use crate::components::dashboard::coordinated_signals::CoordinatedSignalsPanel;
 use crate::components::dashboard::moderator_load::ModeratorLoadPanel;
 use crate::components::dashboard::report_volume_chart::ReportVolumeChart;
 use crate::components::filter_bar::{FilterBar, FilterState};
+use crate::pages::admin_llm_audit::ADMIN_LLM_AUDIT_PATH;
 use crate::pages::admin_moderators::ADMIN_MODERATORS_PATH;
 use crate::pages::admin_policies::ADMIN_POLICIES_PATH;
 use crate::pages::login::{is_unauthorized, redirect_to_login};
@@ -107,6 +108,9 @@ fn AdminLink() -> impl IntoView {
                             </a>
                             <a class="pattern-dashboard__admin-link" href=ADMIN_POLICIES_PATH>
                                 "Policies →"
+                            </a>
+                            <a class="pattern-dashboard__admin-link" href=ADMIN_LLM_AUDIT_PATH>
+                                "LLM audit →"
                             </a>
                         </>
                     }.into_any(),

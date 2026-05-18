@@ -1,0 +1,430 @@
+/*
+ * Admin LLM audit page styles (issue #238 / LLM-9 / REQ-J2).
+ *
+ * The operator's "what is the autonomous agent doing?" page. Mirrors
+ * the admin-moderators / admin-policies pages' structural and naming
+ * conventions: BEM throughout, tokens-only colour discipline
+ * (`var(--…)` everywhere; no literal hex outside `tokens.css`).
+ */
+
+.admin-llm-audit {
+  padding: var(--space-lg);
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-primary);
+  min-height: 100vh;
+}
+
+.admin-llm-audit__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.admin-llm-audit__header h1 {
+  font-size: var(--font-size-xl);
+  margin: 0;
+}
+
+.admin-llm-audit__tagline {
+  color: var(--color-fg-secondary);
+  font-size: var(--font-size-sm);
+  max-width: 64ch;
+  line-height: var(--line-height-normal);
+}
+
+.admin-llm-audit__back-link {
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  align-self: flex-start;
+}
+
+.admin-llm-audit__back-link:hover,
+.admin-llm-audit__back-link:focus-visible {
+  text-decoration: underline;
+}
+
+.admin-llm-audit__loading,
+.admin-llm-audit__redirect,
+.admin-llm-audit__empty {
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-muted);
+  font-size: var(--font-size-sm);
+}
+
+.admin-llm-audit__error {
+  margin: var(--space-sm) 0;
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-danger);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-primary);
+  font-size: var(--font-size-sm);
+}
+
+.admin-llm-audit__forbidden {
+  margin-top: var(--space-lg);
+  padding: var(--space-lg);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-fg-primary);
+}
+
+.admin-llm-audit__forbidden h2 {
+  font-size: var(--font-size-lg);
+  margin: 0 0 var(--space-sm) 0;
+  color: var(--color-warning);
+}
+
+.admin-llm-audit__forbidden p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-secondary);
+}
+
+/* ── Filter bar ────────────────────────────────────────────────── */
+
+.admin-llm-audit__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.admin-llm-audit__filter-label {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.admin-llm-audit__filter-input,
+.admin-llm-audit__filter-select {
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  min-width: 12ch;
+}
+
+.admin-llm-audit__filter-input:focus,
+.admin-llm-audit__filter-select:focus {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+
+.admin-llm-audit__filter-submit {
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-accent-fg);
+  background-color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.admin-llm-audit__filter-submit:hover:not(:disabled),
+.admin-llm-audit__filter-submit:focus-visible {
+  filter: brightness(1.1);
+}
+
+.admin-llm-audit__filter-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ── Table ─────────────────────────────────────────────────────── */
+
+.admin-llm-audit__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-primary);
+}
+
+.admin-llm-audit__th {
+  text-align: left;
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-secondary);
+  font-weight: 600;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-llm-audit__th--kind {
+  width: 12ch;
+}
+
+.admin-llm-audit__th--confidence {
+  width: 14ch;
+}
+
+.admin-llm-audit__th--reversal {
+  width: 12ch;
+}
+
+.admin-llm-audit__th--created {
+  width: 22ch;
+}
+
+.admin-llm-audit__th--model,
+.admin-llm-audit__th--policies,
+.admin-llm-audit__th--subject {
+  /* Flex columns; no fixed width so they share remaining space. */
+}
+
+.admin-llm-audit__row {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.admin-llm-audit__row:hover {
+  background-color: var(--color-bg-elevated);
+}
+
+.admin-llm-audit__cell {
+  padding: var(--space-sm) var(--space-md);
+  vertical-align: top;
+  color: var(--color-fg-primary);
+}
+
+.admin-llm-audit__cell--subject {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  max-width: 38ch;
+}
+
+.admin-llm-audit__subject-kind {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.admin-llm-audit__subject-id {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-primary);
+  word-break: break-all;
+}
+
+.admin-llm-audit__row-expander {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: var(--color-fg-primary);
+}
+
+.admin-llm-audit__row-expander:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.admin-llm-audit__action-chip {
+  display: inline-block;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.admin-llm-audit__action-chip--label {
+  background-color: var(--color-accent);
+  color: var(--color-accent-fg);
+  border-color: var(--color-accent);
+}
+
+.admin-llm-audit__action-chip--warn {
+  background-color: var(--color-warning);
+  color: var(--color-warning-fg);
+  border-color: var(--color-warning);
+}
+
+.admin-llm-audit__action-chip--takedown {
+  background-color: var(--color-danger);
+  color: var(--color-danger-fg);
+  border-color: var(--color-danger);
+}
+
+.admin-llm-audit__action-chip--no-action,
+.admin-llm-audit__action-chip--escalate,
+.admin-llm-audit__action-chip--mute {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-secondary);
+  border-color: var(--color-border);
+}
+
+.admin-llm-audit__action-chip--unknown {
+  background-color: var(--color-bg-secondary);
+  color: var(--color-fg-muted);
+  border-color: var(--color-border);
+}
+
+.admin-llm-audit__cell--confidence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 10ch;
+}
+
+.admin-llm-audit__confidence-bar {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 6px;
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.admin-llm-audit__confidence-fill {
+  display: block;
+  height: 100%;
+  background-color: var(--color-accent);
+  transition: width 200ms ease-out;
+}
+
+.admin-llm-audit__confidence-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-llm-audit__model {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-primary);
+}
+
+.admin-llm-audit__model-version {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+}
+
+.admin-llm-audit__cell--policies {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+  word-break: break-word;
+}
+
+.admin-llm-audit__reversal-chip {
+  display: inline-block;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.admin-llm-audit__reversal-chip--standing {
+  background-color: var(--color-success);
+  color: var(--color-success-fg);
+  border-color: var(--color-success);
+}
+
+.admin-llm-audit__reversal-chip--reversed {
+  background-color: var(--color-warning);
+  color: var(--color-warning-fg);
+  border-color: var(--color-warning);
+}
+
+.admin-llm-audit__created {
+  font-size: var(--font-size-xs);
+  color: var(--color-fg-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── Row-expand details ────────────────────────────────────────── */
+
+.admin-llm-audit__expand-row {
+  background-color: var(--color-bg-elevated);
+}
+
+.admin-llm-audit__expand-cell {
+  padding: var(--space-md);
+}
+
+.admin-llm-audit__expand {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: var(--space-md);
+  row-gap: var(--space-xs);
+  margin: 0;
+}
+
+.admin-llm-audit__expand-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-fg-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.admin-llm-audit__expand-value {
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-primary);
+  margin: 0;
+  word-break: break-word;
+}
+
+.admin-llm-audit__expand-value code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.admin-llm-audit__reasoning {
+  white-space: pre-wrap;
+  font-family: var(--font-sans);
+  line-height: var(--line-height-normal);
+}
+
+/* ── Load-more affordance ─────────────────────────────────────── */
+
+.admin-llm-audit__load-more {
+  display: block;
+  margin: var(--space-md) auto;
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-fg-primary);
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.admin-llm-audit__load-more:hover:not(:disabled),
+.admin-llm-audit__load-more:focus-visible {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-accent);
+}
+
+.admin-llm-audit__load-more:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

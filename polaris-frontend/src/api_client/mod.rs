@@ -34,12 +34,12 @@ pub mod dto;
 
 use dto::{
     AddModeratorRequest, AdminModerator, CaseView, CreatePolicyDto, DashboardFilters,
-    DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList, ModPolicyDto, ModPolicyEditDto,
-    ModPolicyHistoryEntryDto, ModPolicySummaryDto, PatchModeratorRoleRequest, PausePolicyDto,
-    PolicyListFilters, PublishLabelerRecordRequest, PublishLabelerRecordResponse,
-    RecommendationDto, RequestPlcSignatureResponse, RequestRecommendationOutcome, ReverseBody,
-    SubjectLookupResponse, SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse,
-    WhoamiResponse,
+    DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList, LlmAuditFilters,
+    LlmAuditPageDto, ModPolicyDto, ModPolicyEditDto, ModPolicyHistoryEntryDto,
+    ModPolicySummaryDto, PatchModeratorRoleRequest, PausePolicyDto, PolicyListFilters,
+    PublishLabelerRecordRequest, PublishLabelerRecordResponse, RecommendationDto,
+    RequestPlcSignatureResponse, RequestRecommendationOutcome, ReverseBody, SubjectLookupResponse,
+    SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
 };
 
 // The `#![cfg(...)]` inner attribute at the top of each impl file is the
@@ -454,6 +454,24 @@ pub trait PolarisApiClient {
         &self,
         incident_id: IncidentId,
     ) -> Result<RequestRecommendationOutcome, ApiError>;
+
+    // ── LLM admin audit (issue #238 / LLM-9) ────────────────────────
+
+    /// `GET /api/admin/llm/audit` — admin-only list of autonomous-agent
+    /// actions with their LLM audit envelope, cited policies, and
+    /// reversal state (`.design/llm-moderation-assist.md` REQ-F4).
+    ///
+    /// Admin-only on the backend; callers without `Role::Admin` see
+    /// [`ApiError::Http`] with status 403. The frontend audit page
+    /// surfaces that as a Forbidden banner.
+    ///
+    /// Pagination is keyset on `(created_at, action_id)` — pass the
+    /// `next_cursor` from a previous page through `filters.cursor`
+    /// to fetch the next page.
+    async fn list_llm_audit(
+        &self,
+        filters: &LlmAuditFilters,
+    ) -> Result<LlmAuditPageDto, ApiError>;
 }
 
 /// Walk an observation list and parse the most-recent

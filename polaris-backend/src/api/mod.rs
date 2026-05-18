@@ -447,6 +447,11 @@ fn authed_router(state: ApiState) -> Router {
             "/api/admin/policies/{identifier}/{version}",
             get(admin_policies::get_admin_policy_at_version),
         )
+        // Issue #238 / LLM-9: admin LLM audit endpoint — list recent
+        // autonomous-agent actions with their LLM audit envelope,
+        // cited policies, and reversal state
+        // (`.design/llm-moderation-assist.md` REQ-F4).
+        .route("/api/admin/llm/audit", get(llm::admin_audit::list_llm_audit))
         // Moderator-facing read-only browse (REQ-D4). Same DTO shape
         // the admin surface returns; RBAC is `Role::Moderator` or
         // higher (handler-enforced).

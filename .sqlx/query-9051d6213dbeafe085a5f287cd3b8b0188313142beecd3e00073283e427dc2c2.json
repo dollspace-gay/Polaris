@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE polaris_setup_state\n          SET global_autonomous_pause_until = NULL\n          WHERE id = TRUE",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "9051d6213dbeafe085a5f287cd3b8b0188313142beecd3e00073283e427dc2c2"
+}

@@ -23,6 +23,9 @@
 //! - `/admin/policies` —
 //!   [`AdminPoliciesPage`](crate::pages::admin_policies::AdminPoliciesPage)
 //!   (issue #226 / WB-4, admin-only policy workbook editor).
+//! - `/admin/llm/audit` —
+//!   [`AdminLlmAuditPage`](crate::pages::admin_llm_audit::AdminLlmAuditPage)
+//!   (issue #238 / LLM-9, admin-only LLM audit list).
 //! - `/policies` —
 //!   [`PoliciesPage`](crate::pages::policies::PoliciesPage)
 //!   (issue #226 / WB-4, moderator-readable policy browse view).
@@ -65,6 +68,7 @@ use crate::api_client::dto::WhoamiResponse;
 use crate::api_client::{ApiError, PolarisApiClient, default_client};
 use crate::components::command_palette::CommandPalette;
 use crate::components::exposure_counter::ExposureCounter;
+use crate::pages::admin_llm_audit::AdminLlmAuditPage;
 use crate::pages::admin_moderators::AdminModeratorsPage;
 use crate::pages::admin_policies::AdminPoliciesPage;
 use crate::pages::case_view::CaseView;
@@ -184,6 +188,13 @@ pub fn App() -> impl IntoView {
                             // banner; non-moderators on `/policies` see
                             // a 401 → /login redirect.
                             <Route path=path!("/admin/policies") view=AdminPoliciesPage/>
+                            // Issue #238 / LLM-9: admin LLM audit page —
+                            // the operator's "what is my agent doing?"
+                            // surface. Admin-only on the backend; a
+                            // non-admin who navigates here sees the
+                            // inline Forbidden banner instead of the
+                            // table.
+                            <Route path=path!("/admin/llm/audit") view=AdminLlmAuditPage/>
                             <Route path=path!("/policies") view=PoliciesPage/>
                         </Routes>
                     </main>

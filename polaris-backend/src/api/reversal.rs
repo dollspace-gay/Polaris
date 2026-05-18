@@ -271,7 +271,7 @@ async fn record_autonomous_reversal_metric(
         }
     };
     let Some(row) = row else { return };
-    if row.actor_kind.as_deref() != Some("autonomous_agent") {
+    if row.actor_kind != "autonomous_agent" {
         return;
     }
 

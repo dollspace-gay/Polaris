@@ -7,6 +7,7 @@
 //! pages stay free of presentation concerns. The two compose at the page
 //! boundary.
 
+pub mod admin_llm_audit;
 pub mod admin_moderators;
 pub mod admin_policies;
 pub mod case_view;

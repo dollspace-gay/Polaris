@@ -13,12 +13,14 @@ use serde::de::DeserializeOwned;
 
 use super::dto::{
     AddModeratorRequest, AdminModerator, CaseView, CreatePolicyDto, DashboardFilters,
-    DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList, ModPolicyDto, ModPolicyEditDto,
-    ModPolicyHistoryEntryDto, ModPolicySummaryDto, PatchModeratorRoleRequest, PausePolicyDto,
-    PolicyListFilters, PublishLabelerRecordRequest, PublishLabelerRecordResponse,
-    RequestPlcSignatureResponse, RequestRecommendationOutcome, ReverseBody, SubjectLookupRequest,
-    SubjectLookupResponse, SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse,
-    WhoamiResponse, dashboard_filters_to_query_string, policy_filters_to_query_string,
+    DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList, LlmAuditFilters,
+    LlmAuditPageDto, ModPolicyDto, ModPolicyEditDto, ModPolicyHistoryEntryDto,
+    ModPolicySummaryDto, PatchModeratorRoleRequest, PausePolicyDto, PolicyListFilters,
+    PublishLabelerRecordRequest, PublishLabelerRecordResponse, RequestPlcSignatureResponse,
+    RequestRecommendationOutcome, ReverseBody, SubjectLookupRequest, SubjectLookupResponse,
+    SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
+    dashboard_filters_to_query_string, llm_audit_filters_to_query_string,
+    policy_filters_to_query_string,
 };
 use super::{ApiError, HealthStatus, PolarisApiClient};
 
@@ -392,5 +394,18 @@ impl PolarisApiClient for NativePolarisApiClient {
         // empty object so the request advertises `application/json`.
         let path = format!("/api/cases/{incident_id}/llm-recommendation");
         self.post_json(&path, &serde_json::json!({})).await
+    }
+
+    async fn list_llm_audit(
+        &self,
+        filters: &LlmAuditFilters,
+    ) -> Result<LlmAuditPageDto, ApiError> {
+        let query = llm_audit_filters_to_query_string(filters);
+        let path = if query.is_empty() {
+            "/api/admin/llm/audit".to_owned()
+        } else {
+            format!("/api/admin/llm/audit?{query}")
+        };
+        self.get_json(&path).await
     }
 }
