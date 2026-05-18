@@ -1,0 +1,10 @@
+{
+  "uuid": "1d813a6c-bedb-48b7-8efb-b54c85b4270a",
+  "issue_uuid": "0facac40-cc2b-4f22-ae01-cd6b624a1656",
+  "author": "TeIq",
+  "content": "Plan: (1) new polaris-backend bin polaris-setup (src/bin/polaris_setup.rs) using clap+rand+hex (all workspace deps), generates .env (chmod 600) and client-metadata.json from --hostname; (2) scripts/install.sh shellcheck-clean bash with set -euo pipefail, detects docker+compose v2, fetches binary if missing, runs setup, prints final docker compose command (does not run it); (3) .github/workflows/publish-image.yml triggers on push-to-main + v* tags only, builds multi-arch via buildx, pushes to ghcr.io/dollspace-gay/polaris-backend; (4) flip deploy/docker-compose.yaml from build: to image:, keep build: as commented alt; (5) update POLARIS_IMAGE_TAG default to :latest in deploy/.env.example. NO documentation changes (dispatch 2 owns those).",
+  "created_at": "2026-05-18T02:07:17.955509810Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAUc3qQQJE7YQcBajO0OO0QPXcF2RYDCruwMJuyArIg6Je4ybMXpNnkGvxCL8EauaV82za7FE0rQmi3bZuO7FUCQ=="
+}
