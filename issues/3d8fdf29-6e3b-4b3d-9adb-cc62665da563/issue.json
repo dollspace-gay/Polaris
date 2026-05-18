@@ -1,0 +1,11 @@
+{
+  "uuid": "3d8fdf29-6e3b-4b3d-9adb-cc62665da563",
+  "display_id": 239,
+  "title": "Feedback loop: reversal + assisted-reject + auto-confirmation feeds Feedback RPC",
+  "status": "open",
+  "priority": "medium",
+  "parent_uuid": "38a78c72-404f-483c-807a-8f5a08f37e83",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T08:03:17.291023079Z",
+  "updated_at": "2026-05-18T08:03:17.291023079Z"
+}
