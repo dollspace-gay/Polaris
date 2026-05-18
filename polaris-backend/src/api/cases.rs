@@ -510,7 +510,7 @@ async fn submit_action_inner(
     action_policy_citations::insert_for_action(&mut tx, inserted.id.0, &citations).await?;
     tx.commit().await.map_err(crate::repo::RepoError::from)?;
 
-    instrument_and_emit(state, subject_id, &inserted).await?;
+    instrument_and_emit(state, subject_id, &inserted, &body.reasoning).await?;
     Ok((StatusCode::CREATED, Json(inserted)))
 }
 
@@ -731,7 +731,7 @@ async fn submit_action_with_report(
 
     tx.commit().await.map_err(crate::repo::RepoError::from)?;
 
-    instrument_and_emit(state, subject_id, &inserted).await?;
+    instrument_and_emit(state, subject_id, &inserted, &body.reasoning).await?;
     Ok((StatusCode::CREATED, Json(inserted)))
 }
 
@@ -742,6 +742,7 @@ async fn instrument_and_emit(
     state: &ApiState,
     subject_id: SubjectId,
     inserted: &Action,
+    reversal_reasoning: &str,
 ) -> Result<(), ApiError> {
     // REQ-D3: scope under a `submit_action` span carrying the
     // persisted action's UUID. The same UUID appears on the emitter's
@@ -776,7 +777,82 @@ async fn instrument_and_emit(
         let subject_ref = build_subject_ref(state, subject_id).await?;
         let _ = emit_best_effort(emitter, inserted, &subject_ref, None).await;
     }
+
+    // LLM-10 / #239 / REQ-G1: when a moderator reverses an autonomous
+    // action, fan out a fire-and-forget `Feedback` RPC to the LLM
+    // adapter so the operator's substrate can learn from the negative
+    // signal. The check is gated on:
+    //
+    //   * `inserted.kind == Reverse` AND a target action id is set.
+    //   * The dispatcher is configured (production wiring; tests that
+    //     do not exercise the LLM pipeline pass `None` and skip).
+    //   * The target action's `actor_kind = 'autonomous_agent'`.
+    //
+    // The dispatcher exposes a clone of its `ClassifierClient` so the
+    // feedback delivery shares the same transport (and circuit
+    // breaker) the recommend path uses — operator-configurable in
+    // one place. See [`crate::llm::feedback::fire_reversal_feedback`].
+    if matches!(inserted.kind, ActionKind::Reverse)
+        && let Some(reversed_id) = inserted.reverses_action_id
+        && let Some(dispatcher) = state.llm_dispatcher.as_ref()
+    {
+        let reversed_autonomous =
+            is_action_autonomous(&state.pool, reversed_id.0)
+                .await
+                .unwrap_or(false);
+        if reversed_autonomous {
+            match crate::llm::feedback::load_feedback_context(
+                &state.pool,
+                reversed_id.0,
+                ActionKind::Reverse,
+            )
+            .await
+            {
+                Ok(ctx) => {
+                    crate::llm::feedback::fire_reversal_feedback(
+                        dispatcher.classifier_client(),
+                        "llm-autonomous".to_owned(),
+                        ctx,
+                        reversal_reasoning,
+                    );
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        action_id = %inserted.id,
+                        reversed_id = %reversed_id.0,
+                        error = %err,
+                        "LLM reversal-feedback context load failed; reversal proceeded",
+                    );
+                }
+            }
+        }
+    }
+
     Ok(())
+}
+
+/// SELECT `actor_kind = 'autonomous_agent'` for one action row.
+///
+/// Returns `Ok(true)` if the target was authored by the LLM
+/// dispatcher, `Ok(false)` otherwise. Errors (row missing, SQL
+/// failure) collapse to `Err` — the caller falls back to "not
+/// autonomous" because skipping the feedback fan-out is preferable
+/// to a 500 on the moderator's reversal path.
+async fn is_action_autonomous(
+    pool: &sqlx::PgPool,
+    action_id: uuid::Uuid,
+) -> Result<bool, sqlx::Error> {
+    let row = sqlx::query!(
+        r#"
+        SELECT actor_kind AS "actor_kind!"
+        FROM actions
+        WHERE id = $1
+        "#,
+        action_id,
+    )
+    .fetch_one(pool)
+    .await?;
+    Ok(row.actor_kind == "autonomous_agent")
 }
 
 // ── 4. POST /api/bulk-actions ───────────────────────────────────────────

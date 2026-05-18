@@ -283,6 +283,20 @@ async fn main() -> anyhow::Result<()> {
         upstream_cancel.clone(),
     );
 
+    // LLM-10 (#239 / REQ-G3): daily confirmation-feedback batch.
+    // Scans `actions` for autonomous-agent rows whose
+    // `reversible_until` has lapsed without a reversal and fires a
+    // positive-signal `Feedback` RPC for each. Skipped silently if
+    // the deployment did not configure an LLM dispatcher (no
+    // ClassifierClient to send through).
+    if let Some(dispatcher) = api_state.llm_dispatcher.as_ref() {
+        spawn_llm_feedback_confirmation_worker(
+            db.pool().clone(),
+            dispatcher.classifier_client(),
+            upstream_cancel.clone(),
+        );
+    }
+
     // Issue #107 / M5 PR 1: spawn the federation worker if enabled. The
     // supervisor manages one per-peer Firehose task and drains the JoinSet
     // until cancellation. The CancellationToken is created here and held
@@ -416,6 +430,77 @@ fn spawn_label_backfill_worker(
 ) {
     tokio::spawn(async move {
         polaris_backend::ingest::label_backfill_worker::run(pool, key_cache, cancel).await;
+    });
+}
+
+/// LLM-10 (#239 / REQ-G3): spawn the daily confirmation-feedback
+/// batch worker.
+///
+/// Every 24 hours, scans the `actions` table for autonomous-agent
+/// rows whose `reversible_until` window has lapsed without a
+/// reversal and fires a positive-signal `Feedback` RPC for each.
+/// This closes the learning loop for the LLM substrate's *successful*
+/// decisions (REQ-G3): the negative signal (reversal / reject) flows
+/// from the user-facing handlers; the positive signal comes from
+/// this batch.
+///
+/// The worker shares the lifecycle-cancel token with the rest of
+/// the ingest workers so a SIGINT tears everything down together.
+/// Tick failures (DB unreachable, etc.) log at WARN and the loop
+/// continues — a transient outage on one tick is recoverable on
+/// the next.
+fn spawn_llm_feedback_confirmation_worker(
+    pool: sqlx::PgPool,
+    classifier_client: Arc<dyn polaris_backend::classifier::ClassifierClient>,
+    cancel: CancellationToken,
+) {
+    /// Interval between batch runs. 24 hours per REQ-G3 ("a daily
+    /// batch job"). A 1-hour cadence would be cheap, but the design
+    /// pins this to the natural human-review rhythm — a reversal
+    /// that's going to happen will happen within the action's
+    /// `reversible_until` window, which is set to 24h+ by the
+    /// service layer.
+    const DAILY_TICK: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
+
+    /// Stable classifier-name label for the WARN logs the worker emits
+    /// on a feedback delivery failure.
+    const CLASSIFIER_NAME: &str = "llm-autonomous";
+
+    tokio::spawn(async move {
+        tracing::info!(
+            interval_s = DAILY_TICK.as_secs(),
+            "LLM-feedback confirmation worker starting",
+        );
+        loop {
+            tokio::select! {
+                biased;
+                () = cancel.cancelled() => {
+                    tracing::info!("LLM-feedback confirmation worker cancelled");
+                    return;
+                }
+                () = tokio::time::sleep(DAILY_TICK) => {}
+            }
+            match polaris_backend::llm::feedback::run_daily_confirmation_batch(
+                pool.clone(),
+                Arc::clone(&classifier_client),
+                CLASSIFIER_NAME.to_owned(),
+            )
+            .await
+            {
+                Ok(count) => {
+                    tracing::info!(
+                        confirmations_fired = count,
+                        "LLM-feedback confirmation worker: batch complete",
+                    );
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        error = %err,
+                        "LLM-feedback confirmation worker: batch failed; retrying next tick",
+                    );
+                }
+            }
+        }
     });
 }
 

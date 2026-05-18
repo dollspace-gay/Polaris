@@ -436,6 +436,22 @@ impl RecommendDispatcher {
         self
     }
 
+    /// Borrow the underlying classifier client.
+    ///
+    /// Used by [`crate::llm::feedback`] (LLM-10 / #239) to fire the
+    /// post-action `Feedback` RPC through the same transport the
+    /// dispatcher already holds. The transport's circuit breaker and
+    /// timeout config are therefore shared across the recommend and
+    /// feedback paths — operator-configurable in one place.
+    ///
+    /// Returns a clone of the `Arc<dyn ClassifierClient>` so the
+    /// caller can `tokio::spawn` a fire-and-forget feedback delivery
+    /// without holding a reference to the dispatcher.
+    #[must_use]
+    pub fn classifier_client(&self) -> Arc<dyn ClassifierClient> {
+        Arc::clone(&self.classifier_client)
+    }
+
     /// Drive the full per-case dispatcher pipeline for one incident.
     ///
     /// See the module-level doc for the state machine; the body is a

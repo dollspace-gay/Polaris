@@ -33,4 +33,6 @@ pub use client::{
 };
 pub use error::ClassifierError;
 pub use fanout::{ClassifierFanout, ClassifyEvent, ConfiguredClassifier};
-pub use feedback::{action_kind_wire_string, build_feedback, spawn_feedback};
+pub use feedback::{
+    action_kind_wire_string, build_feedback, build_feedback_with_outcome, spawn_feedback,
+};

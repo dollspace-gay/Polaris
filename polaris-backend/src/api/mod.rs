@@ -46,6 +46,7 @@ pub mod pattern_actions;
 pub mod policies;
 pub mod policy;
 pub mod policy_cache;
+pub mod queue;
 pub mod readyz;
 pub mod reversal;
 pub mod scheduled_takedowns;

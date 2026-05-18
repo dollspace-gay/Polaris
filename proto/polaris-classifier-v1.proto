@@ -160,6 +160,24 @@ message Label {
 }
 
 // Feedback from Polaris to the classifier service. Opt-in.
+//
+// LLM-10 (#239 / REQ-G1..G4) extends the envelope with two
+// outcome-tracking fields the LLM moderation-assist substrate uses
+// to close its learning loop:
+//
+//   * `was_recommendation_taken` — `true` on positive confirmation
+//     (assisted-mode draft approved, or autonomous action's
+//     `reversible_until` window elapsed unreversed), `false` on
+//     reversal of an autonomous action or rejection of an
+//     assisted-mode draft.
+//
+//   * `reversal_reasoning` — the moderator's stated *reason* for
+//     reversing an autonomous action or rejecting an assisted draft.
+//     Free text. The privacy floor (REQ-G4) is the same as for the
+//     legacy four fields: NO moderator identity (no handle, no DID,
+//     no moderator_id) is carried in this envelope. The reasoning
+//     is the moderator's *content* for the LLM to learn from, not
+//     their identity.
 message FeedbackRequest {
   // The originating event_id from the corresponding ClassifyRequest.
   string event_id = 1;
@@ -180,6 +198,45 @@ message FeedbackRequest {
   // spam 0.95, moderator decided no_action") but Polaris does not
   // dictate how.
   string moderator_action_kind = 4;
+
+  // LLM-10 (#239, REQ-G1..G3): did the moderator accept the
+  // recommendation?
+  //
+  // Semantics:
+  //   * Reversal of an autonomous action ⇒ `false` (REQ-G1).
+  //   * Rejection of an assisted-mode draft ⇒ `false` (REQ-G2).
+  //   * `reversible_until` window elapses unreversed ⇒ `true`
+  //     (REQ-G3 — the LLM's autonomous action stood, positive
+  //     signal).
+  //   * Approval of an assisted-mode draft ⇒ `true` (REQ-G2).
+  //
+  // For the legacy classifier-feedback path (issue #130 / PR 6) this
+  // field defaults to `false` because the legacy path emits feedback
+  // on any moderator action regardless of agreement; the existing
+  // `moderator_action_kind` field already carries the alignment
+  // signal in that case.
+  //
+  // Backward-compat: this is field 5; classifier services that
+  // pre-date LLM-10 simply receive proto3's default (`false`) and
+  // ignore the field.
+  bool was_recommendation_taken = 5;
+
+  // LLM-10 (#239, REQ-G1): when a moderator reverses an autonomous
+  // action (or rejects an assisted-mode draft), the moderator's
+  // stated *reason* in free text.
+  //
+  // Privacy floor (REQ-G4): the reasoning is *content* the LLM can
+  // learn from. It is NOT the moderator's identity. The build path
+  // in `polaris-backend/src/classifier/feedback.rs::build_feedback`
+  // takes a `&str` parameter — there is no path for a
+  // `moderator_id` or `moderator_handle` to be threaded in. A test
+  // in `polaris-backend/tests/llm_feedback_privacy.rs` asserts the
+  // payload's encoded form never contains a DID / handle prefix.
+  //
+  // Empty string for the positive-confirmation path (REQ-G3): the
+  // action stood without intervention, there is no reasoning to
+  // carry.
+  string reversal_reasoning = 6;
 }
 
 // Feedback acknowledgement.
