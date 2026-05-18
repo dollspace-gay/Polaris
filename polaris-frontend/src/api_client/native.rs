@@ -16,9 +16,9 @@ use super::dto::{
     DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList, ModPolicyDto, ModPolicyEditDto,
     ModPolicyHistoryEntryDto, ModPolicySummaryDto, PatchModeratorRoleRequest, PausePolicyDto,
     PolicyListFilters, PublishLabelerRecordRequest, PublishLabelerRecordResponse,
-    RequestPlcSignatureResponse, ReverseBody, SubjectLookupRequest, SubjectLookupResponse,
-    SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
-    dashboard_filters_to_query_string, policy_filters_to_query_string,
+    RequestPlcSignatureResponse, RequestRecommendationOutcome, ReverseBody, SubjectLookupRequest,
+    SubjectLookupResponse, SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse,
+    WhoamiResponse, dashboard_filters_to_query_string, policy_filters_to_query_string,
 };
 use super::{ApiError, HealthStatus, PolarisApiClient};
 
@@ -380,5 +380,17 @@ impl PolarisApiClient for NativePolarisApiClient {
             .await
             .map_err(|e| ApiError::Transport(e.to_string()))?;
         decode_response(resp).await
+    }
+
+    async fn request_recommendation(
+        &self,
+        incident_id: IncidentId,
+    ) -> Result<RequestRecommendationOutcome, ApiError> {
+        // The dispatcher endpoint takes no JSON body — the moderator
+        // identity flows via the session cookie and the dispatcher
+        // hydrates everything else from the incident id. Send an
+        // empty object so the request advertises `application/json`.
+        let path = format!("/api/cases/{incident_id}/llm-recommendation");
+        self.post_json(&path, &serde_json::json!({})).await
     }
 }

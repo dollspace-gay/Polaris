@@ -1386,6 +1386,134 @@ pub struct PausePolicyDto {
     pub forever: Option<bool>,
 }
 
+// ── LLM recommendation panel (issue #237 / LLM-8) ────────────────────
+
+/// Frontend mirror of the proto `RecommendResponse` shape
+/// (`proto/polaris-classifier-v1.proto` `message RecommendResponse`).
+///
+/// The dispatcher persists the full `RecommendResponse` payload verbatim
+/// into the `LlmRecommendation` observation's free-form `evidence` JSONB
+/// column (per `.design/llm-moderation-assist.md` REQ-B2). The
+/// case-view recommendation panel parses that JSON blob into this DTO
+/// rather than re-fetching from the wire — the case-view payload
+/// already carries the observation list, so no extra round-trip is
+/// needed for the initial render.
+///
+/// # Wire shape
+///
+/// `snake_case` throughout to match prost's JSON convention and the
+/// dispatcher's serde defaults (REQ-A3).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RecommendationDto {
+    /// Echoed from `RecommendRequest.event_id` so a stored
+    /// recommendation can be correlated with the originating case
+    /// envelope.
+    #[serde(default)]
+    pub event_id: String,
+    /// Model identifier as the adapter reports it
+    /// (e.g. `"claude-sonnet-4-6"`, `"qwen-32b-q3km"`).
+    pub model: String,
+    /// Adapter-defined version string (semver, git SHA, training-run
+    /// timestamp). Audited per REQ-A3.
+    #[serde(default)]
+    pub model_version: String,
+    /// Opaque adapter-stable identifier for the prompt template the
+    /// adapter ran. The adapter owns stable versioning; Polaris
+    /// audits it without interpreting.
+    #[serde(default)]
+    pub prompt_template_id: String,
+    /// The structured action recommendations. Usually one; multiple
+    /// allowed when the LLM thinks several independent actions apply
+    /// (e.g. "label the post AND warn the account").
+    #[serde(default)]
+    pub recommended_actions: Vec<RecommendedActionDto>,
+    /// Optional synthesis paragraph framing multiple recommended
+    /// actions. Markdown. Empty when there's only one recommended
+    /// action.
+    #[serde(default)]
+    pub overall_reasoning: String,
+    /// Observability: input token count for this call. Surfaced in
+    /// admin audit views (REQ-F4); the case-view panel ignores it.
+    #[serde(default)]
+    pub input_tokens: i32,
+    /// Observability: output token count for this call. Same role.
+    #[serde(default)]
+    pub output_tokens: i32,
+}
+
+/// One recommended action within a [`RecommendationDto`].
+///
+/// Mirrors the proto `RecommendedAction` message field-for-field.
+/// Each field's contract matches the proto comments (REQ-A3) — the
+/// dispatcher validates the shape before persisting, so a
+/// [`RecommendedActionDto`] read out of an observation's `evidence`
+/// blob has already passed the action-kind / label-value / scope /
+/// citation gates on the way in.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RecommendedActionDto {
+    /// One of `label` | `warn` | `takedown` | `escalate` | `no_action`.
+    pub action_kind: String,
+    /// Required when `action_kind == "label"`; empty otherwise.
+    #[serde(default)]
+    pub label_value: String,
+    /// `"account"` or `"post"`.
+    pub subject_scope: String,
+    /// `[0.0, 1.0]`. Below the policy's
+    /// `autonomous_confidence_threshold` downgrades to assisted; below
+    /// `assisted_confidence_threshold` downgrades to manual.
+    pub confidence: f32,
+    /// At least one entry; every identifier must be present in the
+    /// request's `policies` array (dispatcher validates on insert).
+    #[serde(default)]
+    pub cited_policy_identifiers: Vec<String>,
+    /// The LLM's stated reasoning for this action. Markdown. ≥10
+    /// chars per the `actions.reasoning` CHECK constraint.
+    #[serde(default)]
+    pub reasoning: String,
+    /// Non-blocking notes the LLM wants the moderator to see.
+    /// Surfaced in the case-view panel's caveats list (REQ-J1).
+    #[serde(default)]
+    pub caveats: Vec<String>,
+}
+
+/// Outcome of `POST /api/cases/:incident_id/llm-recommendation`.
+///
+/// Mirrors the backend's
+/// [`polaris_backend::api::llm::case_endpoint::DispatchOutcomeDto`].
+/// The tagged-enum wire form (`{"outcome":"advisory","observation_id":…}`)
+/// matches the backend's `#[serde(tag = "outcome", rename_all =
+/// "snake_case")]` exactly so the frontend can branch on the typed
+/// variant without parsing strings by hand.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub enum RequestRecommendationOutcome {
+    /// LLM recommendation persisted as an advisory observation.
+    Advisory {
+        /// Observation row id.
+        observation_id: uuid::Uuid,
+    },
+    /// Assisted-mode draft inserted into `pending_auto_actions`.
+    AssistedDraft {
+        /// First inserted draft id.
+        draft_id: uuid::Uuid,
+        /// Backing observation row id.
+        observation_id: uuid::Uuid,
+    },
+    /// Autonomous-mode action emitted.
+    AutonomousAction {
+        /// Inserted action row id.
+        action_id: uuid::Uuid,
+        /// Backing observation row id.
+        observation_id: uuid::Uuid,
+    },
+    /// Dispatcher tripped a gate. `reason` is a stable wire string
+    /// (`debounce_hit` / `queue_depth_exceeded` / `no_autonomy_enabled`).
+    Skipped {
+        /// Operator-readable rationale.
+        reason: String,
+    },
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -1586,5 +1714,81 @@ mod tests {
         });
         let view: CaseView = serde_json::from_value(json).expect("deserialize");
         assert!(view.network_context.is_null());
+    }
+
+    #[test]
+    fn recommendation_dto_round_trips_through_serde() {
+        // Mirrors the canonical wire shape persisted in
+        // `LlmRecommendation.evidence` (REQ-B2). A round-trip locks
+        // the field order + serde defaults against drift from the
+        // proto's RecommendResponse shape (REQ-A3).
+        let dto = RecommendationDto {
+            event_id: "evt-001".to_owned(),
+            model: "qwen-32b-q3km".to_owned(),
+            model_version: "2026-04-01".to_owned(),
+            prompt_template_id: "polaris.case-review.v1".to_owned(),
+            recommended_actions: vec![RecommendedActionDto {
+                action_kind: "label".to_owned(),
+                label_value: "spam".to_owned(),
+                subject_scope: "post".to_owned(),
+                confidence: 0.83,
+                cited_policy_identifiers: vec!["polaris.spam".to_owned()],
+                reasoning: "Looks like spam.".to_owned(),
+                caveats: vec!["Could be satire.".to_owned()],
+            }],
+            overall_reasoning: String::new(),
+            input_tokens: 1024,
+            output_tokens: 96,
+        };
+        let json = serde_json::to_value(&dto).expect("serialize");
+        let back: RecommendationDto = serde_json::from_value(json).expect("deserialize");
+        assert_eq!(back, dto);
+    }
+
+    #[test]
+    fn recommendation_dto_tolerates_missing_optional_fields() {
+        // Adapters may omit `overall_reasoning` / `input_tokens` /
+        // `output_tokens` entirely; the `#[serde(default)]` attributes
+        // mean those shapes still deserialise. Locking the contract
+        // here surfaces a future shape regression as a test diff.
+        let json = serde_json::json!({
+            "model": "fixture",
+            "recommended_actions": [{
+                "action_kind": "no_action",
+                "subject_scope": "post",
+                "confidence": 0.1,
+                "cited_policy_identifiers": ["polaris.spam"],
+            }],
+        });
+        let dto: RecommendationDto = serde_json::from_value(json).expect("deserialize");
+        assert_eq!(dto.model, "fixture");
+        assert_eq!(dto.recommended_actions.len(), 1);
+        assert_eq!(dto.recommended_actions[0].action_kind, "no_action");
+        assert_eq!(dto.recommended_actions[0].label_value, "");
+        assert!(dto.recommended_actions[0].caveats.is_empty());
+        assert_eq!(dto.input_tokens, 0);
+    }
+
+    #[test]
+    fn request_recommendation_outcome_advisory_variant_round_trips() {
+        let outcome = RequestRecommendationOutcome::Advisory {
+            observation_id: uuid::Uuid::nil(),
+        };
+        let json = serde_json::to_value(&outcome).expect("serialize");
+        assert_eq!(json["outcome"], "advisory");
+        let back: RequestRecommendationOutcome = serde_json::from_value(json).expect("deserialize");
+        assert_eq!(back, outcome);
+    }
+
+    #[test]
+    fn request_recommendation_outcome_skipped_variant_round_trips() {
+        let outcome = RequestRecommendationOutcome::Skipped {
+            reason: "debounce_hit".to_owned(),
+        };
+        let json = serde_json::to_value(&outcome).expect("serialize");
+        assert_eq!(json["outcome"], "skipped");
+        assert_eq!(json["reason"], "debounce_hit");
+        let back: RequestRecommendationOutcome = serde_json::from_value(json).expect("deserialize");
+        assert_eq!(back, outcome);
     }
 }

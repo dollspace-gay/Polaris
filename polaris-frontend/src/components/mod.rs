@@ -29,6 +29,7 @@ pub mod dashboard;
 pub mod exposure_counter;
 pub mod filter_bar;
 pub mod history_timeline;
+pub mod llm_recommendation_panel;
 pub mod media_gallery;
 pub mod media_preview;
 pub mod network_panel;

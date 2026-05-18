@@ -31,6 +31,7 @@ use crate::api_client::{ApiError, PolarisApiClient, default_client, dto::SubmitA
 use crate::components::action_composer::{ActionComposer, ActionSubmitter};
 use crate::components::classifier_panel::ClassifierPanel;
 use crate::components::history_timeline::HistoryTimeline;
+use crate::components::llm_recommendation_panel::LlmRecommendationPanel;
 use crate::components::media_gallery::MediaGallery;
 use crate::components::network_panel::NetworkPanel;
 use crate::components::observations_panel::ObservationsPanel;
@@ -210,10 +211,15 @@ fn CaseViewLoaded(
         network_context: _,
     } = data;
 
-    // Clone the observation list so both panels see the same payload.
+    // Clone the observation list so each panel sees the same payload.
     // (Cheap — observations are small structs; the case-view DTO is
-    // already an owned clone from the LocalResource.)
+    // already an owned clone from the LocalResource.) The LLM
+    // recommendation panel (#237 / LLM-8) is one of three consumers
+    // alongside the observations panel and the classifier panel; it
+    // filters internally to the latest `LlmRecommendation` row and
+    // parses the `evidence` JSONB blob into a `RecommendationDto`.
     let observations_for_classifier = observations.clone();
+    let observations_for_llm_panel = observations.clone();
     // Same dance for the subject: SubjectHeader takes ownership, so
     // hand MediaGallery a clone for the CDN-URL owner-DID lookup.
     let subject_for_media = subject.clone();
@@ -243,6 +249,17 @@ fn CaseViewLoaded(
                 />
             </div>
             <aside class="case-view__sidebar">
+                // Issue #237 / LLM-8 / REQ-J1: LLM moderation-assist
+                // panel. Renders the latest `LlmRecommendation`
+                // observation with confidence bar, cited policies,
+                // reasoning, caveats, and mode-aware CTAs. Sits at
+                // the top of the sidebar so it is visible without
+                // scrolling on a fresh case load.
+                <LlmRecommendationPanel
+                    subject_id=subject_id
+                    incident_id=incident_id
+                    observations=observations_for_llm_panel
+                />
                 // Issue #97 / M2 network panel: per-subject signal
                 // surface (follow graph, reply graph, cohort,
                 // shared-image clusters). Fetches its own data on

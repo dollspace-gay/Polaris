@@ -37,8 +37,9 @@ use dto::{
     DashboardSnapshot, Escalate, GenerateKeyResponse, IncidentList, ModPolicyDto, ModPolicyEditDto,
     ModPolicyHistoryEntryDto, ModPolicySummaryDto, PatchModeratorRoleRequest, PausePolicyDto,
     PolicyListFilters, PublishLabelerRecordRequest, PublishLabelerRecordResponse,
-    RequestPlcSignatureResponse, ReverseBody, SubjectLookupResponse, SubmitAction,
-    SubmitPlcOperationRequest, SubmitPlcOperationResponse, WhoamiResponse,
+    RecommendationDto, RequestPlcSignatureResponse, RequestRecommendationOutcome, ReverseBody,
+    SubjectLookupResponse, SubmitAction, SubmitPlcOperationRequest, SubmitPlcOperationResponse,
+    WhoamiResponse,
 };
 
 // The `#![cfg(...)]` inner attribute at the top of each impl file is the
@@ -406,6 +407,91 @@ pub trait PolarisApiClient {
     /// `DELETE /api/admin/policies/:identifier/pause` — admin-only.
     /// Clear `autonomous_paused_until` (resume autonomy).
     async fn resume_policy(&self, identifier: &str) -> Result<ModPolicyDto, ApiError>;
+
+    // ── LLM moderation-assist (issue #237 / LLM-8) ──────────────────
+
+    /// Pull the latest LLM recommendation for a case.
+    ///
+    /// Fetches the case-view DTO and walks the observation list for
+    /// the most-recent [`polaris_types::ObservationKind::LlmRecommendation`]
+    /// row, then deserialises that row's `evidence` JSONB blob into a
+    /// [`RecommendationDto`] (the dispatcher persists the full
+    /// `RecommendResponse` payload verbatim per
+    /// `.design/llm-moderation-assist.md` REQ-B2).
+    ///
+    /// Returns `Ok(None)` when no `LlmRecommendation` observation
+    /// exists for this case yet — the panel surfaces that state with
+    /// a "Request advisor opinion" button.
+    ///
+    /// Returns `Err` only on transport / non-2xx upstream — a present
+    /// observation whose `evidence` payload does not deserialise is a
+    /// classifier-contract violation and surfaces as
+    /// [`ApiError::Transport`].
+    ///
+    /// The default implementation reuses [`get_case`](Self::get_case)
+    /// so transports do not need to implement a new HTTP method — the
+    /// case-view payload already carries the observation list.
+    async fn fetch_recommendation(
+        &self,
+        case_id: SubjectId,
+    ) -> Result<Option<RecommendationDto>, ApiError> {
+        let case = self.get_case(case_id).await?;
+        latest_llm_recommendation(&case.observations)
+    }
+
+    /// `POST /api/cases/:incident_id/llm-recommendation` — moderator-
+    /// initiated "Request advisor opinion" trigger
+    /// (`.design/llm-moderation-assist.md` REQ-C2 "Pull" trigger; LLM-5
+    /// / #242 wires the dispatcher).
+    ///
+    /// The backend hands the case envelope to the LLM dispatcher,
+    /// which evaluates autonomy + safety floors and returns one of
+    /// four [`RequestRecommendationOutcome`] variants. The panel
+    /// branches on the variant to re-fetch the recommendation (and
+    /// any newly-inserted draft / action) so the moderator sees the
+    /// dispatcher's verdict without a manual refresh.
+    async fn request_recommendation(
+        &self,
+        incident_id: IncidentId,
+    ) -> Result<RequestRecommendationOutcome, ApiError>;
+}
+
+/// Walk an observation list and parse the most-recent
+/// [`polaris_types::ObservationKind::LlmRecommendation`] row's
+/// `evidence` blob into a [`RecommendationDto`].
+///
+/// Lives in the trait module (not `dto`) because it bridges the typed
+/// [`polaris_types::Observation`] domain with the wire shape. Used by
+/// the default [`PolarisApiClient::fetch_recommendation`]
+/// implementation and exposed to the case-view panel so it can hydrate
+/// the same way from a case-view DTO it already holds.
+///
+/// # Errors
+///
+/// * [`ApiError::Transport`] — a recommendation observation was
+///   present but its `evidence` blob did not deserialise as a
+///   [`RecommendationDto`] (classifier-contract violation).
+pub fn latest_llm_recommendation(
+    observations: &[polaris_types::Observation],
+) -> Result<Option<RecommendationDto>, ApiError> {
+    let latest = observations
+        .iter()
+        .filter(|o| {
+            matches!(
+                o.kind,
+                polaris_types::ObservationKind::LlmRecommendation { .. }
+            )
+        })
+        .max_by_key(|o| o.detected_at);
+    let Some(obs) = latest else {
+        return Ok(None);
+    };
+    let dto = serde_json::from_value::<RecommendationDto>(obs.evidence.clone()).map_err(|e| {
+        ApiError::Transport(format!(
+            "llm_recommendation observation evidence did not deserialise: {e}"
+        ))
+    })?;
+    Ok(Some(dto))
 }
 
 /// Typed wire shape of `GET /healthz`.
