@@ -259,6 +259,23 @@
   text-align: right;
 }
 
+/* Role chips column. Wraps when the row has multiple chips so the
+ * table doesn't force a horizontal scroll on narrow viewports. */
+.admin-moderators__cell--roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+/* Pinned-badge column — narrow, centred so the pin icon (when set)
+ * sits flush in the column without dragging the cell wider than the
+ * other narrow columns. */
+.admin-moderators__cell--pinned {
+  text-align: center;
+  white-space: nowrap;
+}
+
 .admin-moderators__cell--last-login {
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
