@@ -2,11 +2,12 @@
   "uuid": "907be22e-f191-4a52-ae27-ab9162d6a76c",
   "display_id": 244,
   "title": "Add missing CSS selectors for admin-llm-audit__cell--{created,kind,model,reversal}",
-  "status": "open",
+  "status": "closed",
   "priority": "high",
   "created_by": "TeIq",
   "created_at": "2026-05-18T19:13:28.724034328Z",
-  "updated_at": "2026-05-18T19:13:30.505530392Z",
+  "updated_at": "2026-05-18T19:15:35.836189419Z",
+  "closed_at": "2026-05-18T19:15:35.836189419Z",
   "labels": [
     "bug"
   ]
