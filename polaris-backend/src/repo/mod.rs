@@ -59,6 +59,7 @@ pub mod llm_audit;
 pub mod mod_policies;
 pub mod observation;
 pub mod pattern_action;
+pub mod pending_auto_actions;
 pub mod report;
 pub mod second_opinion;
 pub mod subject;

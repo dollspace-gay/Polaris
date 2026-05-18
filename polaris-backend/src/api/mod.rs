@@ -452,7 +452,29 @@ fn authed_router(state: ApiState) -> Router {
         // autonomous-agent actions with their LLM audit envelope,
         // cited policies, and reversal state
         // (`.design/llm-moderation-assist.md` REQ-F4).
-        .route("/api/admin/llm/audit", get(llm::admin_audit::list_llm_audit))
+        .route(
+            "/api/admin/llm/audit",
+            get(llm::admin_audit::list_llm_audit),
+        )
+        // Issue #236 / LLM-7: assisted-mode draft queue. Moderator
+        // lists their pending drafts, then approves or rejects each.
+        // Approve transitions state in-place — the moderator follows
+        // up via the action composer to submit the real action with
+        // their own reasoning. Reject fires the assisted-reject
+        // feedback envelope so the LLM substrate learns.
+        // (`.design/llm-moderation-assist.md` REQ-E2..E4 / REQ-G2)
+        .route(
+            "/api/queue/pending-auto-actions",
+            get(queue::pending_auto_actions::list_queue),
+        )
+        .route(
+            "/api/queue/pending-auto-actions/{id}/approve",
+            post(queue::pending_auto_actions::approve_draft),
+        )
+        .route(
+            "/api/queue/pending-auto-actions/{id}/reject",
+            post(queue::pending_auto_actions::reject_draft),
+        )
         // Moderator-facing read-only browse (REQ-D4). Same DTO shape
         // the admin surface returns; RBAC is `Role::Moderator` or
         // higher (handler-enforced).

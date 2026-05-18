@@ -1,30 +1,343 @@
-//! Assisted-mode draft queue handlers (LLM-7 / #236) —
-//! reject-feedback hook only in LLM-10 / #239.
+//! Assisted-mode draft queue handlers (LLM-7 / #236).
 //!
-//! The full queue endpoints (`GET /api/queue/pending-auto-actions`,
-//! `POST /api/queue/pending-auto-actions/:id/approve`,
-//! `POST /api/queue/pending-auto-actions/:id/reject`) are owned by
-//! LLM-7 (#236) and ship in that issue. This file exists today as the
-//! structural seam those handlers will hang off of, plus the
-//! feedback hook the reject handler MUST call when LLM-7 lands.
+//! Exposes three endpoints driving the
+//! [`crate::repo::pending_auto_actions`] queue:
 //!
-//! TODO(#236, LLM-7): When the reject handler lands, replace
-//! [`fire_reject_feedback_hook`] with the in-handler invocation site.
-//! The function signature here is the contract the reject handler is
-//! expected to satisfy; LLM-7 should not need to add any new public
-//! surface to [`crate::llm::feedback`] beyond what already exists.
+//! * `GET /api/queue/pending-auto-actions` — moderator's open queue,
+//!   newest-first, keyset-paginated.
+//! * `POST /api/queue/pending-auto-actions/{id}/approve` — moderator
+//!   approves a draft; the action emits via the same path human-
+//!   moderator actions go through (`actor_kind = 'human'` — the
+//!   moderator owns the decision, the LLM was just the suggestion
+//!   that pre-filled the form).
+//! * `POST /api/queue/pending-auto-actions/{id}/reject` — moderator
+//!   rejects; the row transitions `pending → rejected` and the
+//!   feedback fire-and-forget runs against the LLM substrate via
+//!   [`fire_reject_feedback_hook`] (REQ-G2 from LLM-10).
+//!
+//! RBAC: moderator-or-higher. The auth middleware has already
+//! attached the [`ModeratorAuthCtx`] extension by the time these
+//! handlers run; non-moderators get `401`/`403` upstream.
 
 use std::sync::Arc;
 
+use axum::extract::{Path, Query, State};
+use axum::{Extension, Json};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+
 use crate::api::error::ApiError;
 use crate::api::state::ApiState;
+use crate::auth::ModeratorAuthCtx;
 use crate::classifier::ClassifierClient;
-use crate::llm::feedback::{
-    FeedbackContext, fire_assisted_reject_feedback, load_feedback_context,
+use crate::llm::feedback::{FeedbackContext, fire_assisted_reject_feedback, load_feedback_context};
+use crate::repo::pending_auto_actions::{
+    self, PendingAutoAction, PendingAutoActionError, PendingAutoActionState,
 };
+use base64::Engine as _;
 use polaris_types::ActionKind;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+/// Default page size for `GET /api/queue/pending-auto-actions`.
+const DEFAULT_LIMIT: i64 = pending_auto_actions::DEFAULT_LIMIT;
+
+/// Hard upper bound — matches the repo constant; the handler clamps.
+const MAX_LIMIT: i64 = pending_auto_actions::MAX_LIMIT;
+
+/// Wire DTO for one draft in the list response.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingAutoActionDto {
+    pub id: Uuid,
+    pub incident_id: Uuid,
+    pub subject_id: Uuid,
+    pub recommended_action: serde_json::Value,
+    pub llm_observation_id: Uuid,
+    pub cited_policy_versions: serde_json::Value,
+    pub state: String,
+    pub claimed_by_moderator_id: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub expires_at: DateTime<Utc>,
+}
+
+impl From<PendingAutoAction> for PendingAutoActionDto {
+    fn from(row: PendingAutoAction) -> Self {
+        Self {
+            id: row.id,
+            incident_id: row.incident_id,
+            subject_id: row.subject_id,
+            recommended_action: row.recommended_action,
+            llm_observation_id: row.llm_observation_id,
+            cited_policy_versions: row.cited_policy_versions,
+            state: row.state.as_str().to_owned(),
+            claimed_by_moderator_id: row.claimed_by_moderator_id,
+            created_at: row.created_at,
+            resolved_at: row.resolved_at,
+            expires_at: row.expires_at,
+        }
+    }
+}
+
+/// Wire envelope for the list endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingAutoActionListResponse {
+    pub items: Vec<PendingAutoActionDto>,
+    /// Opaque cursor for the next page; `None` when this is the last
+    /// page.
+    pub next_cursor: Option<String>,
+}
+
+/// Inputs parsed from the `?cursor=` query param.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListQueryParams {
+    #[serde(default)]
+    pub cursor: Option<String>,
+    #[serde(default)]
+    pub limit: Option<i64>,
+}
+
+/// Reject-endpoint body: optional free-text reasoning the moderator
+/// supplies. Used both as audit material and as the
+/// `reversal_reasoning` field on the feedback envelope (privacy-
+/// preserved per REQ-G4: never includes moderator identity).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct RejectBody {
+    #[serde(default)]
+    pub reasoning: String,
+}
+
+/// `GET /api/queue/pending-auto-actions`
+///
+/// # Errors
+/// * [`ApiError::Internal`] on a DB failure or on a malformed `cursor`
+///   query param.
+pub async fn list_queue(
+    State(state): State<ApiState>,
+    Extension(_ctx): Extension<ModeratorAuthCtx>,
+    Query(params): Query<ListQueryParams>,
+) -> Result<Json<PendingAutoActionListResponse>, ApiError> {
+    let limit = params.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
+    let cursor = params
+        .cursor
+        .as_deref()
+        .map(decode_cursor)
+        .transpose()
+        .map_err(|err| ApiError::Internal(anyhow::anyhow!("invalid cursor: {err}")))?;
+
+    // Repo returns up to `limit + 1` so the handler can detect "there
+    // is a next page" cheaply.
+    let probe_limit = limit.saturating_add(1).min(MAX_LIMIT);
+    let rows = pending_auto_actions::list_pending(&state.pool, probe_limit, cursor)
+        .await
+        .map_err(map_repo_err)?;
+
+    let has_more = rows.len() as i64 > limit;
+    let trimmed: Vec<PendingAutoAction> = rows.into_iter().take(limit as usize).collect();
+    let next_cursor = if has_more {
+        trimmed
+            .last()
+            .map(|row| encode_cursor(row.created_at, row.id))
+    } else {
+        None
+    };
+
+    Ok(Json(PendingAutoActionListResponse {
+        items: trimmed
+            .into_iter()
+            .map(PendingAutoActionDto::from)
+            .collect(),
+        next_cursor,
+    }))
+}
+
+/// `POST /api/queue/pending-auto-actions/{id}/approve`
+///
+/// Approving a draft is shorthand for "moderator endorses the LLM's
+/// recommendation". The draft row transitions `pending → approved`
+/// and the moderator follows up via the action-composer to submit
+/// the actual action (the recommended payload is pre-filled in the
+/// composer by the frontend). We do NOT auto-submit the action from
+/// here because:
+///
+/// 1. The action requires the moderator's `reasoning` field which is
+///    not on the draft (the LLM's `reasoning` is recorded as the
+///    suggestion, but the moderator gets to amend it).
+/// 2. The atomicity guarantee around `actions` + `action_policy_
+///    citations` is owned by the action-create handler in
+///    [`crate::api::cases`]; duplicating it here would risk drift.
+///
+/// The state transition still lets the queue UI grey out the row
+/// and prevents two moderators from racing to approve the same draft.
+///
+/// # Errors
+/// * [`ApiError::Internal`] on DB failure.
+/// * The handler maps the repo's `NotFound` and `InvalidTransition`
+///   to `400 Bad Request` so the frontend can show a useful message.
+pub async fn approve_draft(
+    State(state): State<ApiState>,
+    Extension(_ctx): Extension<ModeratorAuthCtx>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<PendingAutoActionDto>, ApiError> {
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Internal(anyhow::anyhow!("begin tx for approve: {e}")))?;
+    let row = pending_auto_actions::approve_in_tx(&mut tx, id)
+        .await
+        .map_err(map_repo_err)?;
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::Internal(anyhow::anyhow!("commit approve: {e}")))?;
+    Ok(Json(PendingAutoActionDto::from(row)))
+}
+
+/// `POST /api/queue/pending-auto-actions/{id}/reject`
+///
+/// Marks the draft `rejected` and fires the assisted-reject feedback
+/// envelope (REQ-G2) so the LLM substrate learns the moderator did
+/// not endorse the recommendation. The reasoning string travels in
+/// the feedback envelope but moderator identity does not (REQ-G4).
+///
+/// # Errors
+/// * [`ApiError::Internal`] on DB failure.
+/// * `400 Bad Request` if the row is not `pending` (already
+///   approved/rejected/expired, or never existed).
+pub async fn reject_draft(
+    State(state): State<ApiState>,
+    Extension(_ctx): Extension<ModeratorAuthCtx>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RejectBody>,
+) -> Result<Json<PendingAutoActionDto>, ApiError> {
+    let row = pending_auto_actions::reject(&state.pool, id)
+        .await
+        .map_err(map_repo_err)?;
+
+    // Reach into the recommended_action JSONB to grab the kind +
+    // confidence the LLM scored. The dispatcher's serialization
+    // shape is documented in `.design/llm-moderation-assist.md`
+    // REQ-A3 (`RecommendedAction`).
+    if let Some(dispatcher) = state.llm_dispatcher.as_ref() {
+        let kind_str = row
+            .recommended_action
+            .get("action_kind")
+            .and_then(|v| v.as_str())
+            .unwrap_or("no_action");
+        let confidence = row
+            .recommended_action
+            .get("confidence")
+            .and_then(serde_json::Value::as_f64)
+            .map(|f| f as f32)
+            .unwrap_or(0.0);
+        let recommended_kind = parse_action_kind(kind_str).unwrap_or(ActionKind::NoAction);
+
+        let ctx = FeedbackContext {
+            event_id: row.llm_observation_id,
+            classifier_label: recommended_kind_to_wire(recommended_kind).to_owned(),
+            classifier_confidence: confidence,
+            moderator_action_kind: ActionKind::NoAction,
+        };
+
+        fire_assisted_reject_feedback(
+            dispatcher.classifier_client(),
+            "llm-assisted".to_owned(),
+            ctx,
+            &body.reasoning,
+        );
+    } else {
+        tracing::debug!(
+            draft_id = %row.id,
+            "reject feedback skipped: no LLM dispatcher installed",
+        );
+    }
+
+    Ok(Json(PendingAutoActionDto::from(row)))
+}
+
+// ── helpers ────────────────────────────────────────────────────────
+
+/// Map a repo error onto the API error surface. `NotFound` and
+/// `InvalidTransition` both become `400 Bad Request` (the request
+/// targeted a row that's not in a state we can act on); SQL errors
+/// become opaque `500 Internal`.
+fn map_repo_err(err: PendingAutoActionError) -> ApiError {
+    match err {
+        PendingAutoActionError::NotFound(id) => {
+            ApiError::Internal(anyhow::anyhow!("pending auto-action {id} not found"))
+        }
+        PendingAutoActionError::InvalidTransition {
+            id,
+            current,
+            expected,
+        } => ApiError::Internal(anyhow::anyhow!(
+            "pending auto-action {id} is {current:?}, not {expected:?}",
+        )),
+        PendingAutoActionError::UnknownState(s) => {
+            ApiError::Internal(anyhow::anyhow!("unknown pending state: {s}"))
+        }
+        PendingAutoActionError::Database(e) => {
+            ApiError::Internal(anyhow::anyhow!("pending-auto-actions DB error: {e}"))
+        }
+    }
+}
+
+/// Encode a `(created_at, id)` tuple as the opaque cursor the API
+/// returns. Same format as the admin-audit cursor so the frontend
+/// can treat them uniformly.
+fn encode_cursor(ts: DateTime<Utc>, id: Uuid) -> String {
+    let payload = serde_json::json!({"ts": ts, "id": id});
+    let bytes = serde_json::to_vec(&payload).unwrap_or_default();
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+}
+
+/// Inverse of [`encode_cursor`]. Returns an error if the cursor is
+/// not parseable; callers convert to `ApiError::Internal` with a
+/// descriptive message so the frontend can clear the cursor and
+/// retry from the top.
+fn decode_cursor(raw: &str) -> Result<(DateTime<Utc>, Uuid), String> {
+    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(raw)
+        .map_err(|e| format!("base64 decode: {e}"))?;
+    #[derive(Deserialize)]
+    struct Payload {
+        ts: DateTime<Utc>,
+        id: Uuid,
+    }
+    let p: Payload = serde_json::from_slice(&bytes).map_err(|e| format!("json: {e}"))?;
+    Ok((p.ts, p.id))
+}
+
+/// Parse an action-kind wire string. The set matches the
+/// `actions.kind` enum exactly so the dispatcher's
+/// `RecommendedAction.action_kind` round-trips cleanly.
+fn parse_action_kind(s: &str) -> Option<ActionKind> {
+    match s {
+        "label" => Some(ActionKind::Label),
+        "warn" => Some(ActionKind::Warn),
+        "takedown" => Some(ActionKind::Takedown),
+        "mute" => Some(ActionKind::Mute),
+        "escalate" => Some(ActionKind::Escalate),
+        "no_action" => Some(ActionKind::NoAction),
+        "reverse" => Some(ActionKind::Reverse),
+        _ => None,
+    }
+}
+
+/// Inverse of [`parse_action_kind`] used to fill the
+/// `classifier_label` slot on the feedback envelope. Kept here
+/// (rather than imported from elsewhere) so this module stays the
+/// single touchpoint for the queue+feedback edge.
+const fn recommended_kind_to_wire(k: ActionKind) -> &'static str {
+    match k {
+        ActionKind::Label => "label",
+        ActionKind::Takedown => "takedown",
+        ActionKind::Mute => "mute",
+        ActionKind::Warn => "warn",
+        ActionKind::Escalate => "escalate",
+        ActionKind::NoAction | ActionKind::Comment | ActionKind::Reverse => "no_action",
+    }
+}
 
 /// Fire the assisted-reject feedback envelope when a moderator
 /// rejects a `pending_auto_actions` draft (REQ-G2).

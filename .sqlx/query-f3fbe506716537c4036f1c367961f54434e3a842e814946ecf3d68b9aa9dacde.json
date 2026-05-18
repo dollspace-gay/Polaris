@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE pending_auto_actions\n           SET state = 'approved', resolved_at = now()\n         WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f3fbe506716537c4036f1c367961f54434e3a842e814946ecf3d68b9aa9dacde"
+}

@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT status FROM evidence_jobs WHERE action_id = $1",
+  "query": "\n        SELECT state FROM pending_auto_actions\n         WHERE id = $1\n         FOR UPDATE\n        ",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "status",
+        "name": "state",
         "type_info": "Text"
       }
     ],
@@ -18,5 +18,5 @@
       false
     ]
   },
-  "hash": "5e438cfda436ebdd697eb90fb69e252ba00f4769a4817afc973c58a1b7c2be8e"
+  "hash": "ac2f896cdec0168685e9f91f663683a08c20d6cc38e579e685d985e0b0ba1f0f"
 }

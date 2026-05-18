@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE pending_auto_actions\n           SET state = 'expired', resolved_at = now()\n         WHERE state = 'pending'\n           AND expires_at < now()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "511af1ddaab95d11a1892993c18e42d8e6b4684d1662b43b1c93fb66aadc6978"
+}
