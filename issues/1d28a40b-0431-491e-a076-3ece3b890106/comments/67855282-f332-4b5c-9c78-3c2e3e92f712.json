@@ -1,0 +1,10 @@
+{
+  "uuid": "67855282-f332-4b5c-9c78-3c2e3e92f712",
+  "issue_uuid": "1d28a40b-0431-491e-a076-3ece3b890106",
+  "author": "TeIq",
+  "content": "Dispatch 2 complete. README.md operator/dev split done; docs/ops/quick-start.md trimmed manual openssl steps and reorganised around install.sh (236 lines, denser than original 198 but covers the install script flag dump + 5 new troubleshooting entries + polaris-setup escape hatch); docs/ops/upgrade.md (228 lines) covers TL;DR / before-you-upgrade / standard flow / migrations / signing-key continuity / pinning / rollback / validation; deploy/helm/README.md (209 lines) and deploy/systemd/README.md (238 lines) created with three-option secrets flows. All documented flags verified against polaris-setup --help and install.sh --help. Workspace version 0.1.0 used in upgrade.md examples (no fictional v0.6.0). Code fences balanced; intra-doc links verified.",
+  "created_at": "2026-05-18T02:35:07.784335284Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAytByMBRdp70++LlpUzu9rwReRSfLZ6QPMEIn3VXVDP24in2FlcJ+H7GAgY5P5XOJcyNs3ED8vYB2tzELEf69Cw=="
+}
