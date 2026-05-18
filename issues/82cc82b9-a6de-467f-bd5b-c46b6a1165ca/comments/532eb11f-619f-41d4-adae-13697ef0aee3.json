@@ -1,0 +1,10 @@
+{
+  "uuid": "532eb11f-619f-41d4-adae-13697ef0aee3",
+  "issue_uuid": "82cc82b9-a6de-467f-bd5b-c46b6a1165ca",
+  "author": "TeIq",
+  "content": "Preflight loaded: global, rust, project rules + tracking-relaxed. Starting four-track maintenance: Task 1 (gitignore+git-rm), Task 2 (#216 test expectations), Task 3 (CI workflow: rust-toolchain.toml wasm32 + wellness_exposure investigation), Task 4 (dependabot triage). Touching only: .gitignore, rust-toolchain.toml, polaris-backend/tests/auth_atproto_http.rs, possibly tests/wellness_exposure.rs if cause is in fixture. NOT touching workspace .sqlx/ cache. NOT pushing.",
+  "created_at": "2026-05-18T04:04:10.566528322Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAxyrADKetwtt+4Kt60apm03T2mGCmDmi2g62APvNWAcS+cpoh4m9jKaHbORorg8UFjYPGxgH/y4R6IsMxpSmyAA=="
+}
