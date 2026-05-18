@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO dry_run_results\n                (job_id, incident_id, llm_action_kind, llm_label_value,\n                 llm_confidence, llm_cited_policy_identifiers, llm_reasoning,\n                 human_action_kind, human_label_value, matched, error_message)\n              VALUES ($1, $2, NULL, NULL, NULL, '{}', NULL,\n                      $3, $4, NULL, 'LLM returned empty recommended_actions')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "908fa8264c957db07912a4a80c49f79a0521eae84277babe6661a926a25f34a2"
+}

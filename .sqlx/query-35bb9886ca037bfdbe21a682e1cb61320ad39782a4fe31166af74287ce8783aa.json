@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT policy_identifier, lookback_days FROM dry_run_jobs WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "policy_identifier",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "lookback_days",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "35bb9886ca037bfdbe21a682e1cb61320ad39782a4fe31166af74287ce8783aa"
+}

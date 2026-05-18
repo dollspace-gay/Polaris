@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO dry_run_jobs\n            (policy_identifier, lookback_days, requested_by_moderator_id)\n          VALUES ($1, $2, $3)\n          RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "dc1a10278b5711850d1dad62d6e72270ffc459d58614d67e2e8bfb239a17e4dc"
+}

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT DISTINCT i.id\n              FROM incidents i\n              JOIN actions a ON a.incident_id = i.id\n              JOIN action_policy_citations c ON c.action_id = a.id\n             WHERE i.status = 'closed'\n               AND i.closed_at IS NOT NULL\n               AND i.closed_at >= now() - make_interval(days => $1::int)\n               AND c.policy_identifier = $2\n             ORDER BY i.id\n             LIMIT $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4ec090199f8927d8d8cdd116931cb6f9edf7f8dc533d4c0eb148cd010c62b1e5"
+}

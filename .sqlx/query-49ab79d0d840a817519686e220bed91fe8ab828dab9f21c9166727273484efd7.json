@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT incident_id, llm_action_kind, llm_confidence, llm_reasoning,\n               human_action_kind\n          FROM dry_run_results\n         WHERE job_id = $1 AND matched = FALSE\n         ORDER BY recorded_at DESC\n         LIMIT $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "incident_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "llm_action_kind",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "llm_confidence",
+        "type_info": "Float4"
+      },
+      {
+        "ordinal": 3,
+        "name": "llm_reasoning",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "human_action_kind",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "49ab79d0d840a817519686e220bed91fe8ab828dab9f21c9166727273484efd7"
+}

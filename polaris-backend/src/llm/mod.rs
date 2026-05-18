@@ -20,6 +20,7 @@
 //! the specific shape each emits.
 
 pub mod case_context;
+pub mod dry_run;
 pub mod feedback;
 pub mod recommend_dispatcher;
 pub mod safety_floors;

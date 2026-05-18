@@ -456,6 +456,19 @@ fn authed_router(state: ApiState) -> Router {
             "/api/admin/llm/audit",
             get(llm::admin_audit::list_llm_audit),
         )
+        // Issue #240 / LLM-11: dry-run calibration. POST kicks off a
+        // background replay job that scores the LLM against
+        // historical human decisions; GET polls the job's state +
+        // aggregate stats + disagreement sample. Admin-only.
+        // (`.design/llm-moderation-assist.md` REQ-H1, REQ-H2)
+        .route(
+            "/api/admin/llm/dry-run",
+            post(llm::admin_dry_run::start_dry_run),
+        )
+        .route(
+            "/api/admin/llm/dry-run/{job_id}",
+            get(llm::admin_dry_run::get_dry_run_job),
+        )
         // Issue #236 / LLM-7: assisted-mode draft queue. Moderator
         // lists their pending drafts, then approves or rejects each.
         // Approve transitions state in-place — the moderator follows

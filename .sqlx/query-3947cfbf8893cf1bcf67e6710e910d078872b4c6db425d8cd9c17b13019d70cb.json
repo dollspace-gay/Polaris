@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE dry_run_jobs\n             SET state = 'done', completed_at = now()\n           WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3947cfbf8893cf1bcf67e6710e910d078872b4c6db425d8cd9c17b13019d70cb"
+}

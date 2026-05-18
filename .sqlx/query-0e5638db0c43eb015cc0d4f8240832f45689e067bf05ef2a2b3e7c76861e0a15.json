@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO dry_run_results\n            (job_id, incident_id, llm_action_kind, llm_label_value,\n             llm_confidence, llm_cited_policy_identifiers, llm_reasoning,\n             human_action_kind, human_label_value, matched)\n          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Float4",
+        "TextArray",
+        "Text",
+        "Text",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0e5638db0c43eb015cc0d4f8240832f45689e067bf05ef2a2b3e7c76861e0a15"
+}
