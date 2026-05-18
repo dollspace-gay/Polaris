@@ -1,0 +1,10 @@
+{
+  "uuid": "216201d7-3822-4cbe-816c-8a1eb090c2bb",
+  "display_id": 243,
+  "title": "Fix 6 failing CI runners after LLM moderation merge — missing_docs + sqlx offline cache",
+  "status": "open",
+  "priority": "high",
+  "created_by": "TeIq",
+  "created_at": "2026-05-18T18:27:29.203643928Z",
+  "updated_at": "2026-05-18T18:27:29.203643928Z"
+}
