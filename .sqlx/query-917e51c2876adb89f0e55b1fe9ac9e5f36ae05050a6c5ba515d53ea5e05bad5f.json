@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mod_policies\n          SET autonomy_mode = 'autonomous'\n          WHERE identifier = 'polaris.csam' AND effective_until IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "917e51c2876adb89f0e55b1fe9ac9e5f36ae05050a6c5ba515d53ea5e05bad5f"
+}
