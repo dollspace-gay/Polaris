@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "design_doc": ".design/llm-moderation-assist.md",
+  "doc_hash": "sha256:f95ffc1187c537143413c0424b9b765b44d9593bf4e01dc1c1d45184853e8134",
+  "stage": "designed",
+  "plans": [],
+  "runs": []
+}
