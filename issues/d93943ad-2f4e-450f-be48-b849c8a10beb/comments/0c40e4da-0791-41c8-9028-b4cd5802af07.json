@@ -1,0 +1,10 @@
+{
+  "uuid": "0c40e4da-0791-41c8-9028-b4cd5802af07",
+  "issue_uuid": "d93943ad-2f4e-450f-be48-b849c8a10beb",
+  "author": "TeIq",
+  "content": "APPROVE verdict from architect audit. End-to-end behavioral proof: 3 sequential POSTs with same report_id → HTTP 201,200,200 all returning action_id 8e560be2-d4ac-4455-9dd9-5db93c26d14c; exactly 1 actions row created; reports.actioned_at populated; case-view filters the actioned report (grep count 0). Build/clippy/tests clean; 565 lib tests pass (was 561, +4); new integration test report_action_idempotency passes.",
+  "created_at": "2026-05-18T01:41:24.891259072Z",
+  "kind": "result",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPdWl3U8qz22urz2NDYu8ErivVazz4+ekF2xLBiIs24vTfZXnrvDyCCcS/rvlT/noATipOv7cRoFvHGIrHWUnAA=="
+}
