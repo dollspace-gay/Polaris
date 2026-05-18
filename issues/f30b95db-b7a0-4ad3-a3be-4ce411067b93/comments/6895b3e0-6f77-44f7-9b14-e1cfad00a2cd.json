@@ -1,0 +1,10 @@
+{
+  "uuid": "6895b3e0-6f77-44f7-9b14-e1cfad00a2cd",
+  "issue_uuid": "f30b95db-b7a0-4ad3-a3be-4ce411067b93",
+  "author": "TeIq",
+  "content": "**Design doc**: .design/llm-moderation-assist.md\n**Implements**: REQ-B (LlmRecommendation), REQ-E1 (queue table), REQ-F1 (audit cols), REQ-S7 (global pause); AC-3, AC-4, AC-5\n\n**Files to add**:\n- polaris-backend/migrations/00000000000048_observations_llm_recommendation.sql — extend the observations type enum\n- polaris-backend/migrations/00000000000049_pending_auto_actions.sql — new table\n- polaris-backend/migrations/00000000000050_actions_autonomous_audit_columns.sql — actor_kind, llm_observation_id, model, model_version, prompt_template_id, recommendation_confidence, input_hash\n- polaris-backend/migrations/00000000000051_global_autonomous_pause.sql — singleton table or polaris_setup_state column\n\n**Files to modify**:\n- polaris-types/src/observation.rs — add LlmRecommendation variant to ObservationKind enum\n- polaris-backend/src/repo/observation.rs — handle the new variant\n\n**Rust quality**:\n- pending_auto_actions.recommended_action JSONB stores the full RecommendedAction shape; round-trip-tested via serde\n- pending_auto_actions.cited_policy_versions JSONB carries [{identifier, version}] snapshot\n- New actions columns default to NULL for existing rows; only autonomous-emitted rows populate them\n- ON DELETE CASCADE from incidents to pending_auto_actions (queue draft dies with its case)\n\n**Tests**:\n- tests/llm_recommendation_observation.rs — insert + read round-trip via ObservationKind::LlmRecommendation\n\n**Blocked by**: #223 (workbook foundation provides mod_policies that pending_auto_actions.cited_policy_versions references)",
+  "created_at": "2026-05-18T07:55:33.738727303Z",
+  "kind": "plan",
+  "signed_by": "SHA256:cFv7tyUONMFCuoQrMjSRbrGkbgA4mcPIlxDUkDVtNX8",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAg399uKtokaYWSpBzkc0Sq1i3GkzHg4lpWE9CDF6T5Dy0AAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAeQdQbrtyJjLvTxEewKz/B0/34kfP98+tarathi0bHUja/WkBuYvVh+YCAy927yclRaT0zjsC7Qf6Jw1T9jbnAA=="
+}
