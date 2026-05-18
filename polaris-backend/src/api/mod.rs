@@ -34,6 +34,7 @@ pub mod dto;
 pub mod error;
 pub mod healthz;
 pub mod labeler_policies;
+pub mod llm;
 pub mod media;
 pub mod metrics;
 pub mod moderation;
@@ -321,6 +322,15 @@ fn authed_router(state: ApiState) -> Router {
         .route(
             "/api/cases/{incident_id}/escalate",
             post(cases::escalate_incident),
+        )
+        // Issue #242 / LLM-5: moderator-initiated LLM recommendation
+        // (`.design/llm-moderation-assist.md` REQ-C2 "Pull" trigger).
+        // Drives the recommend dispatcher with `DispatchTrigger::Pull`;
+        // returns a `DispatchOutcomeDto` carrying the resulting
+        // observation + (optional) draft / action ids.
+        .route(
+            "/api/cases/{incident_id}/llm-recommendation",
+            post(llm::case_endpoint::request_recommendation),
         )
         .route(
             "/api/actions/{action_id}/reverse",

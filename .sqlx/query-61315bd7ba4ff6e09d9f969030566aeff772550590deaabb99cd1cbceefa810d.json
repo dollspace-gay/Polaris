@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE mod_policies SET autonomy_mode = 'autonomous',\n                                    autonomous_action_kinds = ARRAY['label']::TEXT[]\n           WHERE identifier = 'polaris.spam' AND effective_until IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "61315bd7ba4ff6e09d9f969030566aeff772550590deaabb99cd1cbceefa810d"
+}

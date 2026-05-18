@@ -215,6 +215,17 @@ pub struct ApiState {
     /// handler does not have to re-parse env on every call.
     pub labeler_signing_key_cfg: LabelerSigningKeyConfig,
 
+    /// LLM moderation-assist dispatcher (issue #242 / LLM-5).
+    ///
+    /// `None` when the deployment did not configure the LLM
+    /// subsystem (no classifier with a `Recommend` adapter; tests
+    /// that don't exercise the LLM pipeline). Production wiring
+    /// installs the dispatcher via [`Self::with_llm_dispatcher`]
+    /// after [`crate::llm::recommend_dispatcher::RecommendDispatcher::new`]
+    /// is constructed against the live classifier client.
+    pub llm_dispatcher:
+        Option<std::sync::Arc<crate::llm::recommend_dispatcher::RecommendDispatcher>>,
+
     /// Prometheus recorder handle (Workstream D / REQ-D2).
     ///
     /// `None` when the binary did not install the recorder (slim
@@ -419,6 +430,12 @@ impl ApiState {
             // env at router-construction time; tests install a path
             // directly via [`Self::with_frontend_dist`].
             frontend_dist: None,
+            // Issue #242 / LLM-5: the LLM dispatcher is installed by
+            // the binary entrypoint once the operator has configured
+            // a classifier adapter that implements `Recommend`. Tests
+            // that exercise the dispatcher build their own via
+            // [`Self::with_llm_dispatcher`].
+            llm_dispatcher: None,
             // Workstream D / REQ-D2: the binary entrypoint installs
             // the Prometheus recorder handle via
             // [`Self::with_metrics_handle`] after
@@ -598,6 +615,23 @@ impl ApiState {
         self
     }
 
+    /// Install the LLM moderation-assist dispatcher (issue #242).
+    ///
+    /// The binary entrypoint builds the dispatcher once the operator
+    /// has configured a classifier adapter that implements the
+    /// `Recommend` RPC, then installs it here. Tests that exercise
+    /// the dispatcher route construct their own via
+    /// [`crate::llm::recommend_dispatcher::RecommendDispatcher::new`]
+    /// and install it the same way.
+    #[must_use]
+    pub fn with_llm_dispatcher(
+        mut self,
+        dispatcher: std::sync::Arc<crate::llm::recommend_dispatcher::RecommendDispatcher>,
+    ) -> Self {
+        self.llm_dispatcher = Some(dispatcher);
+        self
+    }
+
     /// Install the moderator-authentication verifier (issue #67).
     ///
     /// The binary entrypoint builds the verifier via
@@ -672,6 +706,13 @@ impl std::fmt::Debug for ApiState {
             .field(
                 "metrics_handle",
                 &self.metrics_handle.as_ref().map(|_| "<prometheus-handle>"),
+            )
+            .field(
+                "llm_dispatcher",
+                &self
+                    .llm_dispatcher
+                    .as_ref()
+                    .map(|_| "<RecommendDispatcher>"),
             )
             .finish()
     }
