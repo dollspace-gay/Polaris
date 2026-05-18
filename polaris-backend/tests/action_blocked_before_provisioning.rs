@@ -150,6 +150,13 @@ async fn seed_fixture(
     // CRITICAL: do NOT seed `polaris_setup_state.signing_pubkey_did` —
     // the whole point of this test is the missing-key gate.
 
+    // WB-2 (#224): seed the placeholder policy set so the cited
+    // `polaris.spam` identifier resolves; the missing-key gate runs
+    // BEFORE policy resolution for Label/Takedown but AFTER for Mute,
+    // so the Mute subtests would otherwise reject as
+    // `unknown_policy_ref` instead of hitting the labeler-key path.
+    polaris_backend::test_support::seed_placeholder_policies(pool, moderator_id.0).await?;
+
     Ok(Fixture {
         subject_id: subject.id,
         incident_id: incident.id,

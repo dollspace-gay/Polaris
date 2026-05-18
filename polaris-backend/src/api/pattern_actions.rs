@@ -46,7 +46,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
 
 use crate::api::error::ApiError;
-use crate::api::policy;
 use crate::api::state::ApiState;
 use crate::auth::{ModeratorAuthCtx, Role};
 use crate::repo::pattern_action::{NewPatternActionHeader, PatternActionRepo, PatternActionStatus};
@@ -170,6 +169,7 @@ pub async fn propose(
     Json(body): Json<ProposeBody>,
 ) -> Result<(StatusCode, Json<ProposedPatternAction>), ApiError> {
     validate_propose(&body)?;
+    validate_propose_policies(&state.pool, &body).await?;
     let affected = resolve_selector(&state.pool, &body.selector).await?;
     let threshold = state.pattern_actions_cfg.cosign_threshold;
     let requires_cosign = affected.len() > threshold;
@@ -240,17 +240,43 @@ fn validate_propose(body: &ProposeBody) -> Result<(), ApiError> {
     if body.policy_refs.is_empty() {
         return Err(ApiError::BadRequest("policy_refs must be non-empty"));
     }
-    for r in &body.policy_refs {
-        if !policy::is_known_policy_ref(r.as_str()) {
-            return Err(ApiError::BadRequest(
-                "policy_refs contains an unknown policy id",
-            ));
-        }
-    }
     if body.action_kind == ActionKind::Reverse {
         return Err(ApiError::BadRequest(
             "pattern actions cannot be of kind 'reverse'",
         ));
+    }
+    Ok(())
+}
+
+/// WB-2 / REQ-B3 async policy resolve. Confirms every cited identifier
+/// has a current `mod_policies` row and is not retired; mirrors the
+/// action-create handler's check so the policy-version contract is
+/// uniform across the action APIs.
+async fn validate_propose_policies(
+    pool: &sqlx::PgPool,
+    body: &ProposeBody,
+) -> Result<(), ApiError> {
+    for r in &body.policy_refs {
+        let identifier = r.as_str();
+        let resolved = crate::api::policy_cache::get_current(pool, identifier)
+            .await
+            .map_err(|e| match e {
+                crate::repo::mod_policies::ModPolicyError::Database(inner) => {
+                    ApiError::Repo(crate::repo::RepoError::from(inner))
+                }
+                _ => ApiError::Internal(anyhow::anyhow!("policy lookup failure: {e}")),
+            })?;
+        let Some(policy) = resolved else {
+            return Err(ApiError::UnknownPolicyRef {
+                identifier: identifier.to_owned(),
+            });
+        };
+        if policy.is_retired {
+            return Err(ApiError::PolicyRetired {
+                identifier: identifier.to_owned(),
+                retired_at: policy.effective_from,
+            });
+        }
     }
     Ok(())
 }
@@ -731,15 +757,11 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn validate_propose_rejects_unknown_policy_ref() {
-        let mut body = good_body();
-        body.policy_refs = vec![PolicyId::new("not-a-policy")];
-        assert!(matches!(
-            validate_propose(&body).unwrap_err(),
-            ApiError::BadRequest(_),
-        ));
-    }
+    // The previous `validate_propose_rejects_unknown_policy_ref`
+    // unit test was retired with the WB-2 rewrite. Unknown-identifier
+    // rejection now lives in `validate_propose_policies`, which needs
+    // a live DB pool to query `mod_policies`; the equivalent coverage
+    // belongs in the pattern-actions integration suite.
 
     #[test]
     fn validate_propose_rejects_reverse_action_kind() {

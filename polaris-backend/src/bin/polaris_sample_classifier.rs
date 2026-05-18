@@ -41,6 +41,7 @@ use std::net::SocketAddr;
 use clap::Parser;
 use polaris_classifier_proto::v1::{
     ClassifyRequest, ClassifyResponse, FeedbackRequest, FeedbackResponse, HealthResponse, Label,
+    RecommendRequest, RecommendResponse,
     classifier_server::{Classifier, ClassifierServer},
 };
 use tonic::{Request, Response, Status, transport::Server};
@@ -185,6 +186,17 @@ impl Classifier for SampleClassifier {
             status: "ok".to_owned(),
             message: None,
         }))
+    }
+
+    async fn recommend(
+        &self,
+        _request: Request<RecommendRequest>,
+    ) -> Result<Response<RecommendResponse>, Status> {
+        // The sample classifier ships no recommendation engine — this is
+        // a smoke-test fixture binary, and the trait requires every RPC
+        // surface to be implemented. Returning an empty response keeps
+        // gRPC clients happy while signalling "no recommendations".
+        Ok(Response::new(RecommendResponse::default()))
     }
 }
 

@@ -415,6 +415,11 @@ async fn submit_action_emits_label_via_http_route() -> Result<(), Box<dyn std::e
     .execute(&pool)
     .await?;
 
+    // WB-2 (#224): seed the placeholder policy set so the cited
+    // `polaris.spam` identifier resolves to a current row in
+    // `mod_policies`.
+    polaris_backend::test_support::seed_placeholder_policies(&pool, moderator_id.0).await?;
+
     use tower::ServiceExt as _;
     let body_json = serde_json::json!({
         "incident_id": incident.id,

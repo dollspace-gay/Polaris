@@ -42,6 +42,7 @@ pub mod network_context;
 pub mod oauth_metadata;
 pub mod pattern_actions;
 pub mod policy;
+pub mod policy_cache;
 pub mod readyz;
 pub mod reversal;
 pub mod scheduled_takedowns;

@@ -421,14 +421,41 @@ async fn insert_action_in_tx(
 ) -> Result<Action, RepoError> {
     let kind_str = new.kind.as_str();
     let label_str = new.label.as_ref().map(LabelValue::as_str);
+
+    // REQ-B5: a reversal action writes its own citations against the
+    // *current* policy version at reversal time. The original action's
+    // citations stay untouched (the original cites its own snapshot;
+    // the reversal cites whatever is in force when the reverse happens).
+    //
+    // The reversal's `actions.policy_refs TEXT[]` mirror (REQ-B2 legacy
+    // column) must match the structured citations, so we resolve the
+    // citation set BEFORE the INSERT and use the identifier list both
+    // as the legacy `policy_refs` and to drive the
+    // `action_policy_citations` write further below. The `actions`
+    // table is append-only — UPDATEs are rejected by trigger — so a
+    // post-INSERT mutation of `policy_refs` is structurally not an
+    // option here.
+    let reversal_citations: Option<Vec<(String, i32)>> = match (new.kind, new.reverses_action_id) {
+        (ActionKind::Reverse, Some(original_id)) => {
+            Some(resolve_reversal_citations(tx, original_id).await?)
+        }
+        _ => None,
+    };
+
     // `policy_refs` is a TEXT[] in Postgres; sqlx encodes `&[String]` as
     // such directly. Build the owned `Vec<String>` once and bind a slice
-    // view to keep the macro's borrow checker happy.
-    let policy_refs: Vec<String> = new
-        .policy_refs
-        .iter()
-        .map(|p| p.as_str().to_owned())
-        .collect();
+    // view to keep the macro's borrow checker happy. For reversal kind
+    // we override the caller-supplied (typically empty) refs with the
+    // resolved identifier list so the legacy column mirrors the
+    // structured citations.
+    let policy_refs: Vec<String> = match reversal_citations.as_ref() {
+        Some(citations) => citations.iter().map(|(ident, _)| ident.clone()).collect(),
+        None => new
+            .policy_refs
+            .iter()
+            .map(|p| p.as_str().to_owned())
+            .collect(),
+    };
 
     let row = sqlx::query!(
         r#"
@@ -558,6 +585,21 @@ async fn insert_action_in_tx(
         moderator_anomaly::check_and_emit(tx, ModeratorId(row.moderator_id), cfg).await?;
     }
 
+    // REQ-B5: write the reversal's own citation rows inside the same
+    // transaction as the action insert. The originating citations
+    // (which point at the *original* action's `id`) are left in
+    // place — the reversal cites its own snapshot at the version
+    // currently in force. Non-reversal actions take their citation
+    // writes from the caller (the `cases::submit_action` path); only
+    // the reversal-shaped case fans in here, where the policy
+    // identifiers can be derived deterministically from the
+    // original action's citations.
+    if let Some(citations) = reversal_citations.as_ref()
+        && !citations.is_empty()
+    {
+        crate::repo::action_policy_citations::insert_for_action(tx, row.id, citations).await?;
+    }
+
     row_to_action(
         row.id,
         row.incident_id,
@@ -619,6 +661,81 @@ fn decode_kind(value: &str) -> Result<ActionKind, RepoError> {
     ActionKind::from_wire(value).ok_or_else(|| RepoError::Decode {
         message: format!("actions.kind={value:?} not in polaris-types contract"),
     })
+}
+
+/// Resolve the citation snapshot a reversal action will record (REQ-B5).
+///
+/// Reads every `(policy_identifier, _)` cited by the *original* action
+/// and re-queries each identifier's `mod_policies.current_by_identifier`
+/// row to pin the reversal at the version in force at reversal time.
+///
+/// Edge cases:
+///
+/// - The original might have zero citations (a pre-WB-2 action or a
+///   reversal-of-a-reversal carrying no policy refs). Returns an
+///   empty vec — the reversal writes no citations.
+/// - A previously-cited policy might have been retired between the
+///   original action and the reversal. The retired row still has a
+///   `current_by_identifier` hit (the tombstone is a normal row
+///   with `is_retired = TRUE`), so the reversal can still pin its
+///   version. This is the intended behaviour per the workbook
+///   design: an auditor reading the reversal's citation chain wants
+///   to see "we reversed under harassment v5, which is the retired
+///   version" — not silently drop the cite.
+/// - A previously-cited policy might be missing entirely (an
+///   operator hard-deleted the workbook rows, which the workbook
+///   schema does not normally allow). The repo treats this as a
+///   skipped cite rather than an error so the reversal still
+///   commits — the audit trail's primary purpose is to record the
+///   moderator's decision, and dropping a cite to a vanished policy
+///   is preferable to refusing to roll back an action that needs to
+///   be rolled back.
+async fn resolve_reversal_citations(
+    tx: &mut Transaction<'_, Postgres>,
+    original_action_id: ActionId,
+) -> Result<Vec<(String, i32)>, RepoError> {
+    let identifier_rows = sqlx::query!(
+        r#"
+        SELECT DISTINCT policy_identifier
+        FROM action_policy_citations
+        WHERE action_id = $1
+        ORDER BY policy_identifier ASC
+        "#,
+        original_action_id.0,
+    )
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let mut snapshots: Vec<(String, i32)> = Vec::with_capacity(identifier_rows.len());
+    for row in identifier_rows {
+        // `mod_policies.current_by_identifier` is the canonical lookup,
+        // but it takes a `PgPool` — using it would require splitting
+        // the policy resolve out of this transaction, which defeats
+        // the "single tx" atomicity goal. Inline the SELECT against
+        // the caller's tx instead so the read participates in the
+        // same MVCC snapshot as the action insert.
+        let policy_row = sqlx::query!(
+            r#"
+            SELECT identifier, version
+            FROM mod_policies
+            WHERE identifier = $1 AND effective_until IS NULL
+            "#,
+            row.policy_identifier,
+        )
+        .fetch_optional(&mut **tx)
+        .await?;
+        if let Some(p) = policy_row {
+            snapshots.push((p.identifier, p.version));
+        } else {
+            // Policy is missing entirely; see the function-level doc
+            // comment for why we skip rather than fail.
+            tracing::warn!(
+                identifier = %row.policy_identifier,
+                "reversal: cited identifier has no current mod_policies row; skipping citation"
+            );
+        }
+    }
+    Ok(snapshots)
 }
 
 /// Route a [`crate::reputation::ReputationError`] into a [`RepoError`].

@@ -91,6 +91,10 @@ async fn seed_moderator_session(
     let new_session = sessions
         .create(AuthModeratorId(moderator_id.0), b"test-refresh-token")
         .await?;
+    // WB-2 (#224): scheduled-takedown validates each cited identifier
+    // against `mod_policies`. Seed the placeholder set so bodies
+    // citing `polaris.spam` etc. pass the lookup.
+    polaris_backend::test_support::seed_placeholder_policies(pool, moderator_id.0).await?;
     Ok((moderator_id, new_session.token.as_str().to_owned()))
 }
 

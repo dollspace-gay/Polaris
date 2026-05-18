@@ -250,6 +250,14 @@ async fn pattern_actions_end_to_end() -> Result<(), Box<dyn std::error::Error>> 
     let state = api_state(pool.clone(), 2);
     let pattern_actions_repo = PgPatternActionRepo::new(pool.clone());
 
+    // WB-2 (#224): pattern_actions::propose now resolves each cited
+    // identifier against `mod_policies`. Seed the placeholder set once
+    // for the whole binary so the bodies citing `polaris.spam` resolve.
+    {
+        let seeder = insert_moderator(&pool).await?;
+        polaris_backend::test_support::seed_placeholder_policies(&pool, seeder.0).await?;
+    }
+
     // ── Scenario 1: below-threshold auto-execute ────────────────────────
     {
         let proposer = insert_moderator(&pool).await?;

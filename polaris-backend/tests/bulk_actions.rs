@@ -96,6 +96,11 @@ async fn seed_moderator_session(
     let new_session = sessions
         .create(AuthModeratorId(moderator_id.0), b"test-refresh-token-plain")
         .await?;
+    // WB-2 (#224): bulk-action validates each cited identifier
+    // against `mod_policies` before issuing any insert; seed the
+    // placeholder set so the wire bodies citing `polaris.spam` etc.
+    // resolve cleanly.
+    polaris_backend::test_support::seed_placeholder_policies(pool, moderator_id.0).await?;
     Ok((moderator_id, new_session.token.as_str().to_owned()))
 }
 

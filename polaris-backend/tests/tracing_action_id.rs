@@ -204,6 +204,12 @@ async fn one_action_emits_three_named_spans_carrying_one_action_id()
     .execute(&pool)
     .await?;
 
+    // WB-2 (#224): action-create now resolves cited identifiers via
+    // `mod_policies`. Seed the placeholder set so the wire body
+    // citing `polaris.spam` lands at 201 instead of
+    // unknown_policy_ref.
+    polaris_backend::test_support::seed_placeholder_policies(&pool, moderator_id.0).await?;
+
     let ctx = ModeratorAuthCtx::new(
         polaris_backend::auth::ModeratorId(moderator_id.0),
         std::collections::HashSet::new(),

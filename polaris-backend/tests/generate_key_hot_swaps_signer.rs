@@ -292,6 +292,10 @@ async fn seed_admin_with_session(
     .execute(pool)
     .await?;
 
+    // WB-2 (#224): seed placeholder policies so the action-submission
+    // step at the end of the AC-A4 round-trip resolves `polaris.spam`.
+    polaris_backend::test_support::seed_placeholder_policies(pool, moderator_id).await?;
+
     Ok(token.as_str().to_owned())
 }
 

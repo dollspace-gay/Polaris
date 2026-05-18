@@ -25,6 +25,7 @@
 use axum::Json;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use chrono::{DateTime, Utc};
 use serde_json::json;
 
 use crate::repo::RepoError;
@@ -157,6 +158,34 @@ pub enum ApiError {
     #[error("internal error")]
     Internal(#[source] anyhow::Error),
 
+    /// The action body cites a policy identifier that has no row in
+    /// the `mod_policies` workbook. Surfaced by the action-create
+    /// handler (WB-2 / #224) when `mod_policies::current_by_identifier`
+    /// returns `Ok(None)`. Wire shape: `400 Bad Request` with body
+    /// `{ "code": "unknown_policy_ref", "identifier": "..." }`
+    /// per `.design/mod-policy-workbook.md` REQ-B3.
+    #[error("unknown policy reference: {identifier}")]
+    UnknownPolicyRef {
+        /// The identifier the caller tried to cite.
+        identifier: String,
+    },
+
+    /// The action body cites a policy that has been retired (tombstoned)
+    /// via a `mod_policies` amendment with `is_retired = TRUE`. New
+    /// citations against a retired policy are refused at the action
+    /// edge — the audit trail must not point at a policy the operator
+    /// has explicitly walked back. Wire shape: `400 Bad Request` with
+    /// body `{ "code": "policy_retired", "identifier": "...",
+    /// "retired_at": "..." }` per REQ-B3.
+    #[error("policy {identifier} was retired at {retired_at}")]
+    PolicyRetired {
+        /// The identifier of the retired policy.
+        identifier: String,
+        /// Timestamp of the tombstone successor row (the moment the
+        /// policy was retired, in UTC).
+        retired_at: DateTime<Utc>,
+    },
+
     /// A repository-layer failure. The `IntoResponse` impl classifies
     /// `RepoError::NotFound` as 404, `RepoError::UniqueViolation` as 409,
     /// and the remainder as 500.
@@ -250,6 +279,34 @@ impl IntoResponse for ApiError {
                     "code": "unauthorized",
                 });
                 return (StatusCode::FORBIDDEN, axum::Json(body)).into_response();
+            }
+            Self::UnknownPolicyRef { identifier } => {
+                // REQ-B3 wire shape:
+                // `{ "code": "unknown_policy_ref", "identifier": "..." }`.
+                // The body carries the identifier (not a generic message)
+                // so the action-composer UI can render the offender
+                // inline.
+                let body = serde_json::json!({
+                    "error": format!("unknown policy reference: {identifier}"),
+                    "code": "unknown_policy_ref",
+                    "identifier": identifier,
+                });
+                return (StatusCode::BAD_REQUEST, axum::Json(body)).into_response();
+            }
+            Self::PolicyRetired {
+                identifier,
+                retired_at,
+            } => {
+                // REQ-B3 wire shape:
+                // `{ "code": "policy_retired", "identifier": "...",
+                //    "retired_at": "..." }`.
+                let body = serde_json::json!({
+                    "error": format!("policy {identifier} was retired"),
+                    "code": "policy_retired",
+                    "identifier": identifier,
+                    "retired_at": retired_at,
+                });
+                return (StatusCode::BAD_REQUEST, axum::Json(body)).into_response();
             }
             Self::Repo(RepoError::NotFound) => {
                 (StatusCode::NOT_FOUND, "not_found", "resource not found")
@@ -363,6 +420,47 @@ mod tests {
                 .unwrap_or_default()
                 .contains("appeals: 5/hour"),
             "static message must round-trip in the body, got {body}",
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_policy_ref_maps_to_400_with_identifier() {
+        // REQ-B3 wire-shape pin: `{code, identifier, error}`. The frontend's
+        // action-composer matches on `code = "unknown_policy_ref"` and renders
+        // the `identifier` inline; this test guards the contract.
+        let (status, body) = render(ApiError::UnknownPolicyRef {
+            identifier: "polaris.does-not-exist".to_owned(),
+        })
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["code"], "unknown_policy_ref");
+        assert_eq!(body["identifier"], "polaris.does-not-exist");
+        assert!(
+            body["error"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("polaris.does-not-exist"),
+            "error message must echo the identifier; got {body}",
+        );
+    }
+
+    #[tokio::test]
+    async fn policy_retired_maps_to_400_with_identifier_and_retired_at() {
+        // REQ-B3 wire-shape pin for the retired-policy rejection.
+        let retired_at = chrono::DateTime::parse_from_rfc3339("2025-06-01T12:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let (status, body) = render(ApiError::PolicyRetired {
+            identifier: "polaris.legacy".to_owned(),
+            retired_at,
+        })
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body["code"], "policy_retired");
+        assert_eq!(body["identifier"], "polaris.legacy");
+        assert!(
+            body["retired_at"].is_string(),
+            "retired_at must serialise as an RFC-3339 string; got {body}",
         );
     }
 

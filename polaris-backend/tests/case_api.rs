@@ -50,6 +50,7 @@ use polaris_backend::config::DbConfig;
 use polaris_backend::db;
 use polaris_backend::middleware::auth::SESSION_COOKIE;
 use polaris_backend::repo::{self, IncidentRepo, PgIncidentRepo, PgSubjectRepo, SubjectRepo};
+use polaris_backend::test_support::seed_placeholder_policies;
 use polaris_types::{
     Did, IncidentId, IncidentStatus, ModeratorId, Severity, SubjectId, SubjectKind,
 };
@@ -199,6 +200,13 @@ async fn seed_fixture(
     let moderator_id = insert_moderator(pool).await?;
     grant_moderator_role(pool, moderator_id).await?;
     let session_cookie = mint_session(sessions, moderator_id).await?;
+
+    // WB-2 (#224): the action-create handler now resolves every cited
+    // identifier against `mod_policies`. Seed the placeholder set so
+    // bodies citing `polaris.spam` / `polaris.harassment` etc. resolve
+    // to a current version, matching the pre-WB-2 contract that these
+    // identifiers are always recognised.
+    seed_placeholder_policies(pool, moderator_id.0).await?;
 
     // REQ-A3: `submit_action` now enforces
     // `polaris_setup_state.signing_pubkey_did IS NOT NULL` before
@@ -513,9 +521,17 @@ async fn post_action_with_unknown_policy_ref_returns_400() -> Result<(), Box<dyn
         "unknown policy_ref must surface 400"
     );
     let body = read_json_body(response).await;
+    // WB-2 (#224) / REQ-B3: unknown identifiers now carry a typed
+    // `unknown_policy_ref` code + the offending `identifier` so the
+    // action-composer UI can render the offender inline. The old
+    // generic `bad_request` code is gone.
     assert_eq!(
-        body["code"], "bad_request",
-        "body must carry code=bad_request; body was {body}",
+        body["code"], "unknown_policy_ref",
+        "body must carry code=unknown_policy_ref; body was {body}",
+    );
+    assert_eq!(
+        body["identifier"], "polaris.does-not-exist",
+        "body must echo the offending identifier; body was {body}",
     );
     Ok(())
 }

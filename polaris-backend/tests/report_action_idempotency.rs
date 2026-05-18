@@ -192,6 +192,11 @@ async fn seed_fixture(
     .execute(pool)
     .await?;
 
+    // WB-2 (#224): action-create now resolves cited identifiers against
+    // `mod_policies`. Seed the placeholder set so bodies citing
+    // `polaris.spam` continue to land at the 201 / idempotent paths.
+    polaris_backend::test_support::seed_placeholder_policies(pool, moderator_id.0).await?;
+
     Ok(Fixture {
         subject_id: subject.id,
         incident_id: incident.id,

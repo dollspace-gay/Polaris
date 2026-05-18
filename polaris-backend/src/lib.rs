@@ -66,4 +66,5 @@ pub mod repo;
 pub mod reputation;
 pub mod routing;
 pub mod scheduled_takedown_worker;
+pub mod test_support;
 pub mod wellness;

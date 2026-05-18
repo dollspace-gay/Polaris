@@ -45,12 +45,14 @@ use crate::api::dto::{
     SubjectMediaBlob, SubmitAction,
 };
 use crate::api::error::ApiError;
-use crate::api::policy;
+use crate::api::policy_cache;
 use crate::api::state::ApiState;
 use crate::auth::ModeratorAuthCtx;
 use crate::labeler::emitter::{SubjectRef, emit_best_effort};
+use crate::repo::mod_policies::ModPolicyError;
 use crate::repo::{
     ActionRepo, IncidentRepo, NewAction as RepoNewAction, ObservationRepo, ReportRepo, SubjectRepo,
+    action_policy_citations,
 };
 
 /// Hard upper bound on the per-call row count returned by list-style repo
@@ -424,16 +426,19 @@ pub async fn submit_action(
 /// body omits `report_id`.
 ///
 /// Validates the body, gates emit-shaped kinds on the labeler's signing
-/// key, inserts via [`crate::repo::ActionRepo::insert`] (which opens
-/// its own transaction for the evidence-job + reputation + audit-log
-/// side-effects), then best-effort-emits the label.
+/// key, resolves every cited policy identifier against `mod_policies`
+/// (WB-2 / REQ-B3) to snapshot the current `(identifier, version)`
+/// pair, and finally opens a single `sqlx::Transaction` that inserts
+/// the action row plus its citation rows so a partial citation is
+/// never visible. The legacy `actions.policy_refs TEXT[]` column is
+/// also populated with the flat identifier list per REQ-B2.
 async fn submit_action_cold(
     state: &ApiState,
     ctx: &ModeratorAuthCtx,
     subject_id: SubjectId,
     body: &SubmitAction,
 ) -> Result<(StatusCode, Json<Action>), ApiError> {
-    validate_submit_action(body)?;
+    validate_submit_action_shape(body)?;
 
     // REQ-A3: emit-shaped actions (Label, Takedown) require the
     // labeler's signing key to be provisioned — without it the emit
@@ -447,8 +452,23 @@ async fn submit_action_cold(
         ensure_labeler_provisioned(state).await?;
     }
 
+    // REQ-B3: snapshot every cited identifier at `(identifier, version)`
+    // BEFORE opening the transaction so an unknown / retired policy
+    // surfaces a `400` without ever touching the actions table.
+    let citations = resolve_policy_citations(&state.pool, body).await?;
+
     let new_action = build_new_action(body, subject_id, ctx);
-    let inserted = state.actions.insert(new_action).await?;
+
+    // Single tx: action insert + per-citation inserts. Either both
+    // commit or neither — REQ-B3 atomicity invariant.
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(crate::repo::RepoError::from)?;
+    let inserted = state.actions.insert_in_tx(&mut tx, new_action).await?;
+    action_policy_citations::insert_for_action(&mut tx, inserted.id.0, &citations).await?;
+    tx.commit().await.map_err(crate::repo::RepoError::from)?;
 
     instrument_and_emit(state, subject_id, &inserted).await?;
     Ok((StatusCode::CREATED, Json(inserted)))
@@ -532,9 +552,16 @@ async fn submit_action_with_report(
         return Ok((StatusCode::OK, Json(existing)));
     }
 
-    // Cold path inside the lock: validate, insert, then bind the
-    // action to the report.
-    validate_submit_action(body)?;
+    // Cold path inside the lock: validate, resolve citations, insert,
+    // bind the action to the report, write citations, then commit.
+    validate_submit_action_shape(body)?;
+
+    // REQ-B3 policy lookup. Done inside the report lock so the cited
+    // policies are resolved against the snapshot the moderator's UI
+    // saw; the action insert + citation inserts ride the same
+    // transaction so a partial citation is never visible.
+    let citations = resolve_policy_citations(&state.pool, body).await?;
+
     let new_action = build_new_action(body, subject_id, ctx);
     let inserted = state.actions.insert_in_tx(&mut tx, new_action).await?;
 
@@ -551,6 +578,8 @@ async fn submit_action_with_report(
     .execute(&mut *tx)
     .await
     .map_err(crate::repo::RepoError::from)?;
+
+    action_policy_citations::insert_for_action(&mut tx, inserted.id.0, &citations).await?;
 
     tx.commit().await.map_err(crate::repo::RepoError::from)?;
 
@@ -684,11 +713,17 @@ pub async fn submit_bulk_action(
             "subject_ids exceeds bulk-actions limit; use pattern-actions for larger batches",
         ));
     }
-    validate_submit_action(&body.body)?;
+    validate_submit_action_shape(&body.body)?;
 
     if matches!(body.body.kind, ActionKind::Label | ActionKind::Takedown) {
         ensure_labeler_provisioned(&state).await?;
     }
+
+    // REQ-B3 citation snapshot — resolved once for the whole batch
+    // because the body is identical per subject. If any cited
+    // identifier is unknown / retired, the whole batch is rejected at
+    // the edge with the typed error code; no actions are inserted.
+    let citations = resolve_policy_citations(&state.pool, &body.body).await?;
 
     let mut succeeded: Vec<SubjectId> = Vec::with_capacity(body.subject_ids.len());
     let mut failed: Vec<BulkActionFailure> = Vec::new();
@@ -696,7 +731,7 @@ pub async fn submit_bulk_action(
 
     for subject_id in &body.subject_ids {
         let new_action = build_new_action(&body.body, *subject_id, &ctx);
-        match state.actions.insert(new_action).await {
+        match insert_action_with_citations(&state, new_action, &citations).await {
             Ok(inserted) => {
                 metrics::counter!(
                     "polaris_actions_total",
@@ -797,9 +832,12 @@ async fn build_subject_ref(
     })
 }
 
-/// Helper: payload validation for [`SubmitAction`]. Returns the first
-/// rule failure as an [`ApiError::BadRequest`] with a static message.
-fn validate_submit_action(body: &SubmitAction) -> Result<(), ApiError> {
+/// Helper: shape-only payload validation for [`SubmitAction`]. The
+/// policy-existence / retirement check moved to
+/// [`resolve_policy_citations`] (WB-2 / #224) so the bare-shape rules
+/// here stay synchronous and reusable from tests that do not exercise
+/// the DB.
+fn validate_submit_action_shape(body: &SubmitAction) -> Result<(), ApiError> {
     if body.reasoning.len() < 10 {
         return Err(ApiError::BadRequest(
             "reasoning must be at least 10 characters",
@@ -808,14 +846,95 @@ fn validate_submit_action(body: &SubmitAction) -> Result<(), ApiError> {
     if body.policy_refs.is_empty() {
         return Err(ApiError::BadRequest("policy_refs must be non-empty"));
     }
+    Ok(())
+}
+
+/// Resolve every cited policy identifier in `body.policy_refs` against
+/// the workbook (`mod_policies` via [`policy_cache::get_current`]) and
+/// snapshot the `(identifier, version)` pair for the citation insert
+/// (REQ-B3).
+///
+/// Returns the snapshot vec in the same order as `body.policy_refs`.
+/// On any unknown or retired identifier returns the typed `ApiError`
+/// variant the action-create handler maps to a `400 Bad Request` body
+/// with the documented `code` shape.
+async fn resolve_policy_citations(
+    pool: &sqlx::PgPool,
+    body: &SubmitAction,
+) -> Result<Vec<(String, i32)>, ApiError> {
+    let mut snapshots: Vec<(String, i32)> = Vec::with_capacity(body.policy_refs.len());
     for r in &body.policy_refs {
-        if !policy::is_known_policy_ref(r.as_str()) {
-            return Err(ApiError::BadRequest(
-                "policy_refs contains an unknown policy id",
-            ));
+        let identifier = r.as_str();
+        let resolved = policy_cache::get_current(pool, identifier)
+            .await
+            .map_err(map_policy_lookup_err)?;
+        let Some(policy) = resolved else {
+            return Err(ApiError::UnknownPolicyRef {
+                identifier: identifier.to_owned(),
+            });
+        };
+        if policy.is_retired {
+            // REQ-F1: a retired policy carries `is_retired = TRUE` on
+            // its current row; surface as `policy_retired` with the
+            // tombstone's `effective_from` (the moment the retirement
+            // version was written).
+            return Err(ApiError::PolicyRetired {
+                identifier: identifier.to_owned(),
+                retired_at: policy.effective_from,
+            });
+        }
+        snapshots.push((policy.identifier, policy.version));
+    }
+    Ok(snapshots)
+}
+
+/// Helper: open a tx, insert the action and its citations, commit.
+/// Shared by the bulk-action path so the per-subject single-tx
+/// atomicity invariant matches the cold + report paths.
+async fn insert_action_with_citations(
+    state: &ApiState,
+    new_action: RepoNewAction,
+    citations: &[(String, i32)],
+) -> Result<Action, ApiError> {
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(crate::repo::RepoError::from)?;
+    let inserted = state.actions.insert_in_tx(&mut tx, new_action).await?;
+    action_policy_citations::insert_for_action(&mut tx, inserted.id.0, citations).await?;
+    tx.commit().await.map_err(crate::repo::RepoError::from)?;
+    Ok(inserted)
+}
+
+/// Translate a [`ModPolicyError`] from `policy_cache::get_current` into
+/// an [`ApiError`]. The lookup path can only realistically yield the
+/// `Database` variant (the typed `Unknown` / `Retired` variants are
+/// the repo's *write*-time surface; reads return `Ok(None)` or `Ok(Some(_))`).
+/// Map the remainder defensively so a future variant change does not
+/// silently produce a 500.
+fn map_policy_lookup_err(err: ModPolicyError) -> ApiError {
+    match err {
+        ModPolicyError::UnknownIdentifier { identifier } => {
+            ApiError::UnknownPolicyRef { identifier }
+        }
+        ModPolicyError::RetiredPolicy {
+            identifier,
+            retired_at,
+        } => ApiError::PolicyRetired {
+            identifier,
+            retired_at,
+        },
+        ModPolicyError::Database(e) => ApiError::Repo(crate::repo::RepoError::from(e)),
+        ModPolicyError::StaleVersion { .. } | ModPolicyError::ConcurrentEdit { .. } => {
+            // These variants are write-path failure modes from `amend`;
+            // reaching them on a `current_by_identifier` read would
+            // indicate a contract change. Surface as a 500 with a
+            // descriptive log line so the regression is easy to spot.
+            tracing::error!(error = ?err, "policy lookup yielded a write-path error");
+            ApiError::Internal(anyhow::anyhow!("policy lookup returned write-path error"))
         }
     }
-    Ok(())
 }
 
 /// Helper: translate the wire DTO into a repo-level `NewAction`. The
@@ -923,15 +1042,15 @@ mod tests {
     }
 
     #[test]
-    fn validate_submit_action_accepts_valid_body() {
-        validate_submit_action(&good_body()).expect("valid body should pass");
+    fn validate_submit_action_shape_accepts_valid_body() {
+        validate_submit_action_shape(&good_body()).expect("valid body should pass");
     }
 
     #[test]
-    fn validate_submit_action_rejects_short_reasoning() {
+    fn validate_submit_action_shape_rejects_short_reasoning() {
         let mut b = good_body();
         b.reasoning = "tooshort".to_owned();
-        let err = validate_submit_action(&b).unwrap_err();
+        let err = validate_submit_action_shape(&b).unwrap_err();
         match err {
             ApiError::BadRequest(msg) => assert!(msg.contains("reasoning")),
             _ => panic!("expected BadRequest, got {err:?}"),
@@ -939,26 +1058,22 @@ mod tests {
     }
 
     #[test]
-    fn validate_submit_action_rejects_empty_policy_refs() {
+    fn validate_submit_action_shape_rejects_empty_policy_refs() {
         let mut b = good_body();
         b.policy_refs = vec![];
-        let err = validate_submit_action(&b).unwrap_err();
+        let err = validate_submit_action_shape(&b).unwrap_err();
         match err {
             ApiError::BadRequest(msg) => assert!(msg.contains("policy_refs")),
             _ => panic!("expected BadRequest, got {err:?}"),
         }
     }
-
-    #[test]
-    fn validate_submit_action_rejects_unknown_policy_ref() {
-        let mut b = good_body();
-        b.policy_refs = vec![PolicyId::new("unknown.policy")];
-        let err = validate_submit_action(&b).unwrap_err();
-        match err {
-            ApiError::BadRequest(msg) => assert!(msg.contains("unknown")),
-            _ => panic!("expected BadRequest, got {err:?}"),
-        }
-    }
+    // Note: The previous `validate_submit_action_rejects_unknown_policy_ref`
+    // unit test was retired with the WB-2 rewrite. Unknown-identifier
+    // rejection now requires a `mod_policies` lookup against a live DB,
+    // so the equivalent coverage moved into the integration suite at
+    // `tests/policy_version_pinning.rs::action_with_unknown_identifier_returns_400`
+    // and the existing `tests/case_api.rs` regression test (REQ-B3 /
+    // AC-3).
 
     #[test]
     fn build_new_action_uses_session_moderator_id_not_request() {

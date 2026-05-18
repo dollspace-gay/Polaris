@@ -115,11 +115,33 @@ pub async fn schedule(
     if body.policy_refs.is_empty() {
         return Err(ApiError::BadRequest("policy_refs must be non-empty"));
     }
+    // WB-2 / REQ-B3: resolve each cited identifier against the
+    // `mod_policies` workbook. Unknown / retired policies are
+    // rejected at the edge with the typed shape the action-create
+    // path established. The scheduled-takedown handler is cool path
+    // (single round-trip on a moderator click); we read through the
+    // shared LRU cache so a burst of scheduled actions citing the
+    // same policy hits the same warm slot.
     for r in &body.policy_refs {
-        if !crate::api::policy::is_known_policy_ref(r.as_str()) {
-            return Err(ApiError::BadRequest(
-                "policy_refs contains an unknown policy id",
-            ));
+        let identifier = r.as_str();
+        let resolved = crate::api::policy_cache::get_current(&state.pool, identifier)
+            .await
+            .map_err(|e| match e {
+                crate::repo::mod_policies::ModPolicyError::Database(inner) => {
+                    ApiError::Repo(crate::repo::RepoError::from(inner))
+                }
+                _ => ApiError::Internal(anyhow::anyhow!("policy lookup failure: {e}")),
+            })?;
+        let Some(policy) = resolved else {
+            return Err(ApiError::UnknownPolicyRef {
+                identifier: identifier.to_owned(),
+            });
+        };
+        if policy.is_retired {
+            return Err(ApiError::PolicyRetired {
+                identifier: identifier.to_owned(),
+                retired_at: policy.effective_from,
+            });
         }
     }
     let policy_refs_text: Vec<String> = body

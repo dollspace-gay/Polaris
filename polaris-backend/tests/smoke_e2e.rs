@@ -1040,6 +1040,15 @@ async fn producer_slice_end_to_end() -> Result<(), Box<dyn std::error::Error + S
         })
         .await?;
 
+    // WB-2 (#224): action-create resolves cited identifiers via
+    // `mod_policies`. Seed the placeholder set so the smoke wire body
+    // citing `polaris.spam` lands at 201.
+    polaris_backend::test_support::seed_placeholder_policies(
+        &pool,
+        login_result.ctx.moderator_id.0,
+    )
+    .await?;
+
     let ws_url = format!("ws://{addr}/xrpc/com.atproto.label.subscribeLabels?cursor=0");
     let (mut ws, _resp) = tokio_tungstenite::connect_async(&ws_url).await?;
     // 50ms post-connect-pre-publish race window — same convention

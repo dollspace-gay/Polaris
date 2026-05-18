@@ -216,6 +216,10 @@ async fn metrics_endpoint_surfaces_action_counter_and_axum_counter()
     .execute(&pool)
     .await?;
 
+    // WB-2 (#224): seed placeholder policies so cited identifiers
+    // resolve at action-create time.
+    polaris_backend::test_support::seed_placeholder_policies(&pool, moderator_id.0).await?;
+
     // Build the production router with the Prometheus layer attached
     // (mirrors `main.rs`). The same router serves both `/metrics`
     // and the auth-gated `/api/*` routes; the auth middleware
