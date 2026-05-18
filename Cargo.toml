@@ -210,6 +210,13 @@ url = "2"
 # Serialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# YAML deserialiser for the policy seed file (WB-5 / #227). The
+# unmaintained-by-author warning on `serde_yaml` is acknowledged: the
+# crate is feature-complete, the seed-loader use is a one-off load
+# path on backend startup, and no replacement (`serde_yml`,
+# `yaml-rust2`) is more widely depended on across the workspace's
+# dep graph today. Revisit if we grow other YAML consumers.
+serde_yaml = "0.9"
 
 # Identifiers
 # `rng-getrandom`: uuid 1.23+ split its v4 RNG impl into per-source features;

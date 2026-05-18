@@ -1,0 +1,262 @@
+# Polaris mod_policies seed file — WB-5 / issue #227.
+#
+# Defines the five placeholder policy identifiers Polaris ships with on
+# first boot. Each entry becomes a v1 row in `mod_policies` keyed by
+# `identifier`, authored by the bootstrap admin (whichever moderator
+# carries `pinned_admin = TRUE` at the time the loader runs).
+#
+# Loaded by `polaris-backend/src/seed/mod_policies.rs::maybe_seed_policies`
+# at backend startup *only* if `mod_policies` is empty AND a pinned
+# bootstrap admin already exists (REQ-E2). Already-populated tables are
+# never touched (idempotent). The same path is exposed post-install via
+# `polaris-setup seed-policies --file <path>` (WB-6 / #228) for
+# operators replicating another deployment's workbook.
+#
+# The default load path is `/etc/polaris/seeds/mod-policies.yml` (the
+# location the container image ships this file at). Override with
+# `POLARIS_POLICY_SEED_PATH=<path>`; dev runs fall back to this file at
+# `<workspace>/deploy/seeds/mod-policies.yml` automatically.
+#
+# Editing notes:
+#
+# * `identifier` is the human-stable key the action API cites. Once
+#   shipped, do not rename — historical action_policy_citations rows
+#   reference it (REQ-A1, REQ-F1).
+# * `decision_criteria` must be at least 64 characters; the DB CHECK
+#   rejects shorter values at insert time.
+# * `scope` ∈ {account, post, both}; `severity` ∈ {inform, alert, hide,
+#   remove}.
+# * `human_required_always: true` is the database-level half of REQ-G3
+#   (three-layer hard floor on autonomous emission). The seed sets it
+#   TRUE on `polaris.csam` only — the rationale lives in the docstring
+#   on that entry and in `docs/ops/policy-autonomy.md`.
+# * All entries default to `autonomy_mode: manual` and empty
+#   `autonomous_action_kinds`. Operators flip autonomy on per-policy
+#   from the admin UI (WB-3) once they have tuned the assist
+#   thresholds; seeding conservative defaults is intentional.
+# * Threshold defaults (autonomous 0.95 / assisted 0.70) mirror the
+#   `mod_policies` column defaults; they are spelled out here for the
+#   loader's strong-typed deserialise path and to make the seed
+#   self-documenting.
+
+- identifier: polaris.harassment
+  name: Targeted harassment
+  description: >-
+    Sustained, targeted abuse aimed at an individual or a small group —
+    repeated insults, dogpiling, threats of harm, doxxing, or
+    coordinated brigading. Distinct from one-off rudeness or
+    impersonal political vitriol.
+  scope: both
+  severity: alert
+  decision_criteria: >-
+    Apply when content is directed at a specific person or small group
+    AND exhibits at least one of: explicit slurs at the target,
+    repeated unwanted contact after a clear stop signal, threats of
+    physical or sexual harm, disclosure of private contact / location
+    information, or visible coordination across accounts to amplify
+    the targeting. One-off insults that lack a sustained pattern fall
+    below this bar and route to inform / no-action.
+  examples_positive:
+    - excerpt: "@victim you should kill yourself, here's your home address"
+      context: Replied 6 times in 20 minutes after the target blocked the
+        sender; address line verified against a public records leak.
+      expected_action_kind: takedown
+    - excerpt: "ratio + L + you're a [slur]"
+      context: Posted by 14 accounts within 90 seconds at the same target,
+        with overlapping follower graphs; clear brigade pattern.
+      expected_action_kind: label
+  examples_negative:
+    - excerpt: "this take is dumb and so is the person who wrote it"
+      context: Single low-effort dunk in a public political thread; no
+        follow-up, no target-side stop signal, no coordination.
+      why_not_a_violation: Rude but not sustained or targeted to the
+        harassment-policy bar; route via no_action.
+  suggested_action_kinds: [label, warn, takedown]
+  linked_label_value: harassment
+  exceptions: >-
+    Public officials acting in their public capacity have a higher
+    threshold for "harassment" — political criticism, mockery of
+    public statements, and accountability reporting are not in scope
+    even when sharp. Discuss with senior moderator before actioning
+    accounts whose subject is a sitting elected official.
+  human_required_always: false
+  autonomy_mode: manual
+  autonomous_action_kinds: []
+  autonomous_confidence_threshold: 0.95
+  assisted_confidence_threshold: 0.70
+
+- identifier: polaris.spam
+  name: Spam and platform manipulation
+  description: >-
+    Bulk-posted, low-substance content optimised for distribution rather
+    than communication — link spam, follow-bait, copy-paste promotional
+    threads, engagement farms, and obvious bot rings.
+  scope: both
+  severity: hide
+  decision_criteria: >-
+    Apply when posting velocity / content shape indicates automated or
+    semi-automated distribution: identical or near-identical text across
+    many accounts, link payloads with no surrounding context, follow /
+    unfollow churn at non-human cadence, or template-style replies
+    attached to high-engagement posts. The bar is "pattern + payload",
+    not "annoying" — a chatty user is not spam.
+  examples_positive:
+    - excerpt: "Check out this amazing crypto opportunity 🚀🚀 [t.co/abc]"
+      context: Posted verbatim by 200+ freshly-created accounts within
+        six hours; landing page is a known affiliate funnel.
+      expected_action_kind: takedown
+    - excerpt: "Thanks for the great post! Follow me for more 🙏"
+      context: Identical reply attached to 80 of the day's top posts by
+        the same account in under an hour.
+      expected_action_kind: label
+  examples_negative:
+    - excerpt: "buy my zine! [link to bandcamp]"
+      context: One self-promo post per week from an account with a
+        non-templated history and genuine conversational activity.
+      why_not_a_violation: Self-promotion at human cadence is not spam;
+        route via no_action.
+  suggested_action_kinds: [label, takedown]
+  linked_label_value: spam
+  exceptions: >-
+    Verified news outlets repeating breaking-news posts across multiple
+    threads are not spam; political get-out-the-vote drives with
+    high-frequency posting from a single org account are not spam unless
+    they exhibit cross-account templating.
+  human_required_always: false
+  autonomy_mode: manual
+  autonomous_action_kinds: []
+  autonomous_confidence_threshold: 0.95
+  assisted_confidence_threshold: 0.70
+
+- identifier: polaris.csam
+  name: Child sexual abuse material
+  description: >-
+    Sexual content depicting or sexualising minors, in any form —
+    photographic, illustrated, AI-generated, written. Zero tolerance;
+    every action MUST be human-reviewed and is reportable to NCMEC.
+  scope: both
+  severity: remove
+  decision_criteria: >-
+    Apply on any content that depicts, sexualises, solicits, or
+    facilitates the production of sexual material involving anyone the
+    moderator cannot affirmatively verify as an adult. Includes
+    drawings, AI-generated imagery, written stories, and grooming-
+    pattern conversations even where no imagery is present. When in
+    doubt, escalate — never autonomously action; never approve a
+    LLM-only recommendation.
+  examples_positive:
+    - excerpt: "[image attachment depicting a minor in a sexualised pose]"
+      context: User-posted; preserve evidence per evidence-retention
+        SOP; takedown + NCMEC report.
+      expected_action_kind: takedown
+    - excerpt: "DM me, I have pics of my [age 14] cousin"
+      context: Solicitation pattern; preserve, takedown, NCMEC report,
+        and route subject for legal review.
+      expected_action_kind: takedown
+  examples_negative:
+    - excerpt: "Childhood photo of me at age 8 at my birthday party."
+      context: Non-sexual, contextually clear family photo posted by
+        the depicted person as an adult.
+      why_not_a_violation: Non-sexual depiction of a minor is not in
+        scope of this policy; route via no_action.
+  suggested_action_kinds: [takedown]
+  linked_label_value: csam
+  exceptions: >-
+    None. There are no carve-outs. Educational, journalistic, and
+    artistic exceptions that exist for other sensitive content do NOT
+    apply here — the policy floor is zero regardless of framing.
+  human_required_always: true
+  autonomy_mode: manual
+  autonomous_action_kinds: []
+  autonomous_confidence_threshold: 0.95
+  assisted_confidence_threshold: 0.70
+
+- identifier: polaris.impersonation
+  name: Identity impersonation
+  description: >-
+    Accounts presenting as a specific other person, brand, or
+    organisation without authorisation, in a way that is likely to
+    deceive a reasonable reader. Distinct from parody, criticism, and
+    fan accounts that disclose their non-affiliation.
+  scope: account
+  severity: alert
+  decision_criteria: >-
+    Apply when an account's display name, handle, avatar, banner, or
+    bio collectively present it as a specific named person or org AND
+    the account either explicitly claims to be that party OR posts
+    content that a reasonable reader would attribute to that party.
+    Parody / fan accounts that disclose their non-affiliation in the
+    profile are out of scope even when stylistically close.
+  examples_positive:
+    - excerpt: "[account @realCEO_official with company logo posting as the CEO]"
+      context: No "parody" / "fan account" disclosure; recent posts
+        making business claims attributed to the company.
+      expected_action_kind: label
+    - excerpt: "[handle @<celebrity>_real, identical avatar to the verified account, asking followers to send crypto to wallet]"
+      context: Active scam pattern impersonating a public figure.
+      expected_action_kind: takedown
+  examples_negative:
+    - excerpt: "[bio: 'parody account, not affiliated with <person>']"
+      context: Clear disclosure in the profile, content reads as
+        satire.
+      why_not_a_violation: Disclosed parody is outside scope; route via
+        no_action even when the satire is sharp.
+  suggested_action_kinds: [label, warn, takedown]
+  linked_label_value: impersonation
+  exceptions: >-
+    Role-play and fan-fiction accounts that label themselves as such
+    in the profile are not impersonation. Historical or deceased
+    figures are out of scope unless the account is being used to
+    facilitate a scam in their name.
+  human_required_always: false
+  autonomy_mode: manual
+  autonomous_action_kinds: []
+  autonomous_confidence_threshold: 0.95
+  assisted_confidence_threshold: 0.70
+
+- identifier: polaris.copyright
+  name: Copyright infringement
+  description: >-
+    Posting copyrighted material without licence or applicable fair-use
+    grounding, especially in commercial or scraped-redistribution
+    patterns. The labeler's role is to flag plausible infringements;
+    final adjudication of rights is the operator / rightsholder's, not
+    the moderator's.
+  scope: post
+  severity: hide
+  decision_criteria: >-
+    Apply when content reproduces a substantial portion of a known
+    copyrighted work, OR is a verbatim re-upload of another creator's
+    media without attribution, AND the post lacks an apparent fair-use
+    grounding (criticism, commentary, news reporting, teaching, or
+    transformative reuse). Snippets within transformative or critical
+    work are out of scope; bulk re-uploads of someone else's catalogue
+    are in scope.
+  examples_positive:
+    - excerpt: "[full 4-minute song upload of a charting track from a major label]"
+      context: No commentary, no transformation; reposted by an account
+        whose entire feed is similar bulk uploads.
+      expected_action_kind: takedown
+    - excerpt: "[screenshot of a paywalled article reproduced in full as an image]"
+      context: Entire article body in a single image, posted by an
+        account unrelated to the publisher; no commentary added.
+      expected_action_kind: label
+  examples_negative:
+    - excerpt: "[15-second clip from a film embedded in a review thread]"
+      context: Short excerpt used as the springboard for written
+        commentary on the film's cinematography.
+      why_not_a_violation: Transformative fair-use grounding; route via
+        no_action.
+  suggested_action_kinds: [label, warn, takedown]
+  linked_label_value: copyright
+  exceptions: >-
+    Critical, journalistic, educational, and parodic reuse with
+    sufficient transformation is out of scope. When the operator has
+    received a counter-notice from the uploader, the reversal path
+    applies; do not re-action the same post without senior moderator
+    review.
+  human_required_always: false
+  autonomy_mode: manual
+  autonomous_action_kinds: []
+  autonomous_confidence_threshold: 0.95
+  assisted_confidence_threshold: 0.70

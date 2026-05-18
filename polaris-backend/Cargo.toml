@@ -99,6 +99,11 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# YAML deserialiser used by `src/seed/mod_policies.rs` (WB-5 / #227) to
+# parse `deploy/seeds/mod-policies.yml` at first-boot into typed
+# `SeedPolicy` rows. Workspace-pinned; the backend is the only consumer
+# today.
+serde_yaml.workspace = true
 proto-blue.workspace = true
 polaris-types = { path = "../polaris-types" }
 # Issue #108 / M5 PR 2: repo::federation deserialises peer-emitted

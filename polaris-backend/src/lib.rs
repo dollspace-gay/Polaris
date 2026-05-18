@@ -69,5 +69,11 @@ pub mod repo;
 pub mod reputation;
 pub mod routing;
 pub mod scheduled_takedown_worker;
+/// First-boot seed loaders for operator-curated tables (WB-5 / #227).
+///
+/// Today: `mod_policies` from `deploy/seeds/mod-policies.yml`. The
+/// loaders run after migrations succeed and after a bootstrap admin
+/// is pinned; idempotent on already-seeded deploys.
+pub mod seed;
 pub mod test_support;
 pub mod wellness;

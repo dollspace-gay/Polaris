@@ -80,6 +80,20 @@ async fn main() -> anyhow::Result<()> {
         .context("connecting to Postgres and running migrations")?;
     info!("database ready");
 
+    // WB-5 / issue #227: first-boot policy seed. The loader is
+    // idempotent — on every restart of an already-provisioned deploy
+    // it short-circuits on the `SELECT EXISTS(SELECT 1 FROM
+    // mod_policies)` probe and never opens a transaction. On a fresh
+    // deploy where the setup wizard has not yet pinned a bootstrap
+    // admin, the loader logs INFO and skips silently; the next
+    // restart after the wizard completes picks it up. A hard error
+    // (IO, YAML parse, validation, repo) aborts boot the same way a
+    // migration failure does — fresh deploys must be debuggable
+    // before they serve traffic.
+    polaris_backend::seed::mod_policies::run_first_boot_seed(db.pool())
+        .await
+        .context("running first-boot mod_policies seed loader")?;
+
     // Construct the session store the auth middleware will consult. The
     // crypto handle is built from the configured cookie key; the
     // `SecurityConfig::from_env` path already rejects a zero key in
