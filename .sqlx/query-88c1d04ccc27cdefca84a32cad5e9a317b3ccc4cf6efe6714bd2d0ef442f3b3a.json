@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO moderators (external_id, auth_backend, display_name)\n          VALUES ($1, $2, $3)\n          ON CONFLICT (auth_backend, external_id) DO UPDATE\n            SET display_name = EXCLUDED.display_name\n          RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "88c1d04ccc27cdefca84a32cad5e9a317b3ccc4cf6efe6714bd2d0ef442f3b3a"
+}

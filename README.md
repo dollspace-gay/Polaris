@@ -101,7 +101,29 @@ What's shipped today:
   emits positive-signal feedback when an autonomous action survives
   its 24-hour reversal window.
 
-How to enable it on your deployment is documented in three places:
+**Enabling it is a single env-var**:
+
+```sh
+# Point Polaris at your gRPC adapter; restart polaris-backend.
+POLARIS_LLM_ENDPOINT=http://llm-adapter:50052
+```
+
+`polaris-backend` reads the variable at boot, connects a
+`TonicClassifierClient` to that endpoint, seeds the
+`autonomous-agent` moderator row that's the FK target for every
+autonomous-emitted action, constructs the `RecommendDispatcher` with
+the live label emitter attached, and installs it onto `ApiState`.
+Connect failures abort startup — the substrate is opt-in, so silent
+fallback to manual moderation is the wrong default. When the
+variable is unset the dispatcher slot stays `None` and every LLM API
+route returns the "no dispatcher configured" branch.
+
+The remaining tunables (`POLARIS_LLM_RECOMMEND_TIMEOUT_MS`,
+`POLARIS_LLM_EXTERNAL`, `POLARIS_LLM_NAME`,
+`POLARIS_LLM_SEND_FEEDBACK`) are documented in
+[`deploy/.env.example`](deploy/.env.example).
+
+Full runbooks:
 
 - [`docs/ops/llm-moderation.md`](docs/ops/llm-moderation.md) — the
   operator runbook: fixture wire-up, per-policy autonomy enablement,

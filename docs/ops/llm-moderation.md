@@ -56,17 +56,22 @@ integration tests:
   and the Python `llm-prompt-reference` against Qwen 2.5 32B Instruct
   Q3_K_M.
 
-The one piece that is **not** wired into the production
-`polaris-backend` binary's startup yet: the env-var driven
-`TonicClassifierClient` → `RecommendDispatcher` plumbing that calls
-`ApiState::with_llm_dispatcher` at boot. Until that lands, an operator
-who wants to exercise the LLM substrate end-to-end either (a) runs the
-fixture for plumbing validation and reads the audit / dry-run / queue
-endpoints against the empty state, or (b) builds a small main-shim
-that constructs the dispatcher and installs it onto `ApiState`
-manually. The dispatcher itself, the safety floors, the API surface,
-and every test path are production-ready; only the env-var → boot
-glue is the remaining seam.
+Enabling the substrate is a single env-var: `POLARIS_LLM_ENDPOINT`
+pointing at the gRPC adapter. On boot, `polaris-backend` connects a
+`TonicClassifierClient` against that endpoint, seeds the deterministic
+`autonomous-agent` moderator row that `actions.moderator_id` requires
+for autonomous emit, constructs the `RecommendDispatcher` with the
+live `LabelEmitter` attached (so autonomous actions reach atproto),
+and installs it onto `ApiState` via
+`ApiState::with_llm_dispatcher(...)`. When the env-var is unset, the
+dispatcher slot stays `None` and every LLM API route returns the "no
+dispatcher configured" branch — the deployment runs as a pure human-
+moderation labeler.
+
+Connect failures abort startup. The LLM substrate is opt-in (operators
+set the env-var deliberately), so a misconfiguration here should fail
+closed rather than silently downgrade the policy autonomy modes the
+operator just spent days calibrating.
 
 ---
 

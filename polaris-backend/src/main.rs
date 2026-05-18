@@ -23,6 +23,7 @@ use axum_prometheus::PrometheusMetricLayer;
 use polaris_backend::api::state::ApiState;
 use polaris_backend::auth::crypto::Crypto;
 use polaris_backend::auth::session::SessionStore;
+use polaris_backend::classifier::{DEFAULT_RECOMMEND_TIMEOUT, TonicClassifierClient};
 use polaris_backend::config::BlobStoreKind;
 use polaris_backend::evidence::{
     BlobStore, EvidenceFetcher, EvidenceWorker, InMemoryBlobStore, LiveEvidenceFetcher,
@@ -37,6 +38,7 @@ use polaris_backend::ingest::upstream_labels::{UpstreamKeyCache, UpstreamKeyFetc
 use polaris_backend::labeler::emitter::LabelEmitter;
 use polaris_backend::labeler::rotation::{CustodyMode, bootstrap_active_key};
 use polaris_backend::labeler::signer::{SigningKey, build_signing_key};
+use polaris_backend::llm::recommend_dispatcher::RecommendDispatcher;
 use polaris_backend::{api, config::AppConfig, db};
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
@@ -215,7 +217,7 @@ async fn main() -> anyhow::Result<()> {
         spawn_labeler_discovery_and_supervisor(db.pool().clone(), upstream_cancel.clone());
 
     let api_state = api_state
-        .with_label_emitter(emitter)
+        .with_label_emitter(Arc::clone(&emitter))
         .with_upstream_key_cache(Arc::clone(&upstream_key_cache))
         .with_active_signer(signer_rx)
         .with_active_signer_tx(signer_tx)
@@ -236,6 +238,81 @@ async fn main() -> anyhow::Result<()> {
         // `PrometheusMetricLayer::pair()`; the handle is the read
         // side of the recorder and is `Arc`-cloneable.
         .with_metrics_handle(Arc::clone(&prometheus_handle));
+
+    // Issue #246: LLM moderation-assist dispatcher install. When the
+    // operator set `POLARIS_LLM_ENDPOINT` (parsed into `cfg.llm`), we
+    // connect a `TonicClassifierClient` against the configured gRPC
+    // adapter, seed the deterministic `autonomous-agent` moderator
+    // row (the FK that `actions.moderator_id` requires for every
+    // autonomous-emit), build the `RecommendDispatcher` with the live
+    // label emitter installed so autonomous actions actually reach
+    // atproto, and wire it onto `ApiState`. When the env var is
+    // unset, every LLM API route stays installed but returns the
+    // "no dispatcher configured" branch — the deployment runs as a
+    // pure human-moderation labeler.
+    //
+    // Failure on this path aborts boot. The dispatcher is opt-in
+    // (operators set the env var deliberately), so a connect failure
+    // here is "the operator asked for the LLM substrate and it
+    // didn't come up" — exactly the kind of misconfiguration that
+    // should fail closed rather than silently downgrade to manual
+    // moderation.
+    let api_state = if let Some(endpoint) = cfg.llm.endpoint.as_deref() {
+        info!(
+            endpoint = %endpoint,
+            name = %cfg.llm.name,
+            external = cfg.llm.external,
+            send_feedback = cfg.llm.send_feedback,
+            recommend_timeout_ms = cfg.llm.recommend_timeout_ms,
+            "LLM moderation-assist enabled — connecting dispatcher",
+        );
+
+        // The classify-side default timeout (500 ms) is fine for
+        // `HealthCheck`; we override the `recommend` timeout per the
+        // operator's `POLARIS_LLM_RECOMMEND_TIMEOUT_MS` knob (default
+        // 15 s, REQ-A5).
+        let recommend_timeout = if cfg.llm.recommend_timeout_ms == 0 {
+            DEFAULT_RECOMMEND_TIMEOUT
+        } else {
+            Duration::from_millis(cfg.llm.recommend_timeout_ms)
+        };
+        let classifier_client = TonicClassifierClient::connect(
+            cfg.llm.name.clone(),
+            endpoint,
+            Duration::from_millis(500),
+        )
+        .await
+        .with_context(|| format!("connecting LLM classifier client to {endpoint}"))?
+        .with_recommend_timeout(recommend_timeout);
+        let classifier_client: Arc<dyn polaris_backend::classifier::ClassifierClient> =
+            Arc::new(classifier_client);
+
+        let autonomous_actor =
+            polaris_backend::seed::autonomous_agent::ensure_autonomous_agent_moderator(db.pool())
+                .await
+                .context("seeding the autonomous-agent moderator row")?;
+        info!(
+            autonomous_actor = %autonomous_actor.0,
+            "autonomous-agent moderator row ready",
+        );
+
+        let dispatcher = RecommendDispatcher::new(
+            db.pool().clone(),
+            classifier_client,
+            Arc::clone(&api_state.actions),
+            Arc::clone(&api_state.observations),
+            autonomous_actor,
+        )
+        .with_emitter(Arc::clone(&emitter));
+
+        api_state.with_llm_dispatcher(Arc::new(dispatcher))
+    } else {
+        info!(
+            "LLM moderation-assist disabled (POLARIS_LLM_ENDPOINT unset); \
+             every LLM API route remains installed but the dispatcher is None",
+        );
+        api_state
+    };
 
     // Note: `spawn_labeler_discovery_and_supervisor` already ran
     // above (before the ApiState chain) so the returned key cache

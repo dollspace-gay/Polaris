@@ -15,4 +15,5 @@
 //!
 //! See `.design/mod-policy-workbook.md` REQ-E1 / REQ-E2 / AC-6.
 
+pub mod autonomous_agent;
 pub mod mod_policies;

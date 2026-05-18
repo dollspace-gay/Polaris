@@ -69,6 +69,20 @@ pub struct AppConfig {
     /// Defaults to disabled so existing deployments are unaffected.
     #[serde(default)]
     pub federation: FederationConfig,
+
+    /// LLM moderation-assist substrate (issue #246 — boot wiring;
+    /// substrate itself landed across #233..#242).
+    ///
+    /// When `llm.endpoint` is `Some(...)`, `main.rs` connects a
+    /// `TonicClassifierClient` to that gRPC endpoint, constructs a
+    /// [`crate::llm::recommend_dispatcher::RecommendDispatcher`], and
+    /// installs it onto [`crate::api::state::ApiState`] via
+    /// [`crate::api::state::ApiState::with_llm_dispatcher`]. When
+    /// `None`, the dispatcher slot stays empty and every LLM code path
+    /// is a no-op — the deployment runs as a pure human-moderation
+    /// labeler.
+    #[serde(default)]
+    pub llm: LlmConfig,
 }
 
 /// Postgres connection and pool configuration.
@@ -177,6 +191,7 @@ impl AppConfig {
         let moderator_anomaly = ModeratorAnomalyEnvConfig::from_env()?;
         let aggregator = AggregatorEnvConfig::from_env()?;
         let federation = FederationConfig::from_env()?;
+        let llm = LlmConfig::from_env()?;
 
         Ok(Self {
             db,
@@ -191,6 +206,7 @@ impl AppConfig {
             moderator_anomaly,
             aggregator,
             federation,
+            llm,
         })
     }
 }
@@ -1576,6 +1592,156 @@ pub struct PeerConfig {
     /// Replication direction. Default [`FederationDirection::Bidirectional`].
     #[serde(default)]
     pub direction: FederationDirection,
+}
+
+// ─── LLM moderation-assist (issue #246) ──────────────────────────────
+
+/// Default per-call `Recommend` timeout in milliseconds. Matches REQ-A5
+/// in `.design/llm-moderation-assist.md` (15 s) — LLM inference is
+/// substantially slower than the 500 ms classify-RPC default.
+const fn default_llm_recommend_timeout_ms() -> u64 {
+    15_000
+}
+
+/// Default human-readable name surfaced in the audit envelope and the
+/// case-view external-classifier banner. Operators override via
+/// `POLARIS_LLM_NAME` to disambiguate multiple deployments.
+fn default_llm_name() -> String {
+    "llm".to_owned()
+}
+
+/// LLM moderation-assist configuration.
+///
+/// `endpoint = None` is the off switch — when unset the dispatcher
+/// install in `main.rs` skips entirely and the deployment behaves as
+/// a pure human-moderation labeler. Setting an endpoint activates the
+/// full substrate: every case-view pull, every assisted queue draft,
+/// every autonomous emission flows through the
+/// [`crate::llm::recommend_dispatcher::RecommendDispatcher`] against
+/// the configured `TonicClassifierClient`.
+///
+/// The five env vars below are documented in `deploy/.env.example` and
+/// in [`docs/ops/llm-moderation.md`](../../docs/ops/llm-moderation.md).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LlmConfig {
+    /// gRPC endpoint of the LLM adapter. Must implement the
+    /// `polaris.classifier.v1.Classifier` service's `Recommend` and
+    /// `HealthCheck` RPCs at minimum. `http://` or `https://` schemes
+    /// only; tonic parses TLS configuration from the URL.
+    ///
+    /// `None` = the LLM substrate is disabled. The dispatcher slot on
+    /// [`crate::api::state::ApiState`] stays `None`, every LLM API
+    /// route stays installed but returns the "no dispatcher
+    /// configured" branch, and no `TonicClassifierClient` is built.
+    #[serde(default)]
+    pub endpoint: Option<String>,
+
+    /// Per-call timeout for the `Recommend` RPC. Default `15_000` ms
+    /// (REQ-A5). Override via `POLARIS_LLM_RECOMMEND_TIMEOUT_MS` when
+    /// the configured model is genuinely slower than that ceiling.
+    #[serde(default = "default_llm_recommend_timeout_ms")]
+    pub recommend_timeout_ms: u64,
+
+    /// Surface a "this case was scored by an external classifier
+    /// `<name>`" banner in the case view. Required `true` when the
+    /// adapter forwards events to a third-party cloud API (Anthropic,
+    /// `OpenAI`, Bedrock, …) so moderators have explicit knowledge that
+    /// case content crossed an organisational boundary. See
+    /// `docs/ops/classifier-integration.md` § 4.
+    #[serde(default)]
+    pub external: bool,
+
+    /// Human-readable adapter name surfaced in the audit envelope and
+    /// in the external-classifier banner. Default `"llm"`.
+    #[serde(default = "default_llm_name")]
+    pub name: String,
+
+    /// Enable delivery of `Feedback` RPCs (reversal / assisted-reject /
+    /// 24-hour confirmation). Off by default; turn on once the
+    /// adapter's feedback pipeline (RAG corpus / fine-tuning queue /
+    /// SFT job) is ready to consume the signal. The feedback payload
+    /// is privacy-bounded — moderator identity and reasoning text never
+    /// cross the wire (REQ-G4).
+    #[serde(default)]
+    pub send_feedback: bool,
+}
+
+impl Default for LlmConfig {
+    fn default() -> Self {
+        Self {
+            endpoint: None,
+            recommend_timeout_ms: default_llm_recommend_timeout_ms(),
+            external: false,
+            name: default_llm_name(),
+            send_feedback: false,
+        }
+    }
+}
+
+impl LlmConfig {
+    /// Build from environment variables.
+    ///
+    /// Recognises:
+    ///
+    /// | Variable                              | Field                  |
+    /// |---------------------------------------|------------------------|
+    /// | `POLARIS_LLM_ENDPOINT`                | `endpoint` (`Option`)  |
+    /// | `POLARIS_LLM_RECOMMEND_TIMEOUT_MS`    | `recommend_timeout_ms` |
+    /// | `POLARIS_LLM_EXTERNAL`                | `external`             |
+    /// | `POLARIS_LLM_NAME`                    | `name`                 |
+    /// | `POLARIS_LLM_SEND_FEEDBACK`           | `send_feedback`        |
+    ///
+    /// An unset / empty `POLARIS_LLM_ENDPOINT` keeps the substrate
+    /// disabled — the remaining vars are still parsed (so a malformed
+    /// value fails closed at startup) but the result is unused until
+    /// the endpoint is set.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError::InvalidInt`] when
+    /// `POLARIS_LLM_RECOMMEND_TIMEOUT_MS` is not a valid `u64`, or
+    /// [`ConfigError::InvalidEnumValue`] when `POLARIS_LLM_EXTERNAL`
+    /// or `POLARIS_LLM_SEND_FEEDBACK` is not a recognised boolean
+    /// string.
+    pub fn from_env() -> Result<Self, ConfigError> {
+        let endpoint = match env::var("POLARIS_LLM_ENDPOINT").ok() {
+            Some(raw) if !raw.trim().is_empty() => Some(raw),
+            _ => None,
+        };
+
+        let recommend_timeout_ms = match env::var("POLARIS_LLM_RECOMMEND_TIMEOUT_MS").ok() {
+            Some(raw) => raw
+                .parse::<u64>()
+                .map_err(|source| ConfigError::InvalidInt {
+                    field: "POLARIS_LLM_RECOMMEND_TIMEOUT_MS",
+                    source,
+                })?,
+            None => default_llm_recommend_timeout_ms(),
+        };
+
+        let external = parse_optional_bool_env("POLARIS_LLM_EXTERNAL")?.unwrap_or(false);
+
+        let name = env::var("POLARIS_LLM_NAME")
+            .ok()
+            .map_or_else(default_llm_name, |raw| {
+                let trimmed = raw.trim();
+                if trimmed.is_empty() {
+                    default_llm_name()
+                } else {
+                    trimmed.to_owned()
+                }
+            });
+
+        let send_feedback = parse_optional_bool_env("POLARIS_LLM_SEND_FEEDBACK")?.unwrap_or(false);
+
+        Ok(Self {
+            endpoint,
+            recommend_timeout_ms,
+            external,
+            name,
+            send_feedback,
+        })
+    }
 }
 
 #[cfg(test)]
